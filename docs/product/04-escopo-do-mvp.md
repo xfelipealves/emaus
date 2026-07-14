@@ -19,8 +19,9 @@ Entregar uma aplicação web responsiva para organizar pessoas, ministérios e f
 - busca de pessoas;
 - mudança de status sem perda de histórico;
 - inativação e arquivamento, sem exclusão física no MVP;
-- timeline por pessoa;
-- notas de acompanhamento datadas e identificadas pelo autor.
+- timeline por pessoa com eventos automáticos relevantes e filtros por tipo;
+- notas de acompanhamento datadas, identificadas pelo autor e em texto simples;
+- arquivamento de nota sem exclusão definitiva.
 
 ### 2. Ministérios
 
@@ -59,6 +60,9 @@ Entregar uma aplicação web responsiva para organizar pessoas, ministérios e f
 
 - painel web;
 - interface responsiva para uso em computador e celular;
+- operação online, sem PWA, aplicativo nativo ou modo offline;
+- capacidade inicial de até 500 pessoas e 20 usuários simultâneos;
+- fuso horário fixo America/Sao_Paulo;
 - foco em uso rápido durante encontros.
 
 ## Fora do MVP

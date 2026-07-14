@@ -16,6 +16,8 @@ Estamos na fase **Specify**, consolidando visão, domínio, regras de negócio e
 - [Escopo do MVP](docs/product/04-escopo-do-mvp.md)
 - [Requisitos funcionais — Pessoas, Ministérios e Frequência](docs/product/05-requisitos-funcionais-pessoas-ministerios-frequencia.md)
 - [Requisitos funcionais — Acessos e Permissões](docs/product/06-requisitos-funcionais-acessos-permissoes.md)
+- [Requisitos funcionais — Timeline e Notas](docs/product/07-requisitos-funcionais-timeline-notas.md)
+- [Requisitos não funcionais](docs/product/08-requisitos-nao-funcionais.md)
 
 ## Fluxo de desenvolvimento
 
