@@ -46,8 +46,13 @@ Entregar uma aplicação web responsiva para organizar pessoas, ministérios e f
 ### 4. Acessos
 
 - autenticação de usuários;
+- login por nome de usuário e senha, com e-mail obrigatório na conta;
+- recuperação de senha por e-mail e redefinição por administrador;
 - perfil de administrador;
+- perfil de secretaria/recepção;
 - perfil de líder com acesso limitado a ministérios concedidos;
+- vínculo obrigatório de cada conta a uma pessoa cadastrada;
+- desativação de conta sem exclusão de autoria histórica;
 - configuração inicial permitindo que todos os usuários operem como administradores.
 
 ### 5. Plataforma
