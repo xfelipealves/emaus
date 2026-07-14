@@ -32,8 +32,9 @@
 
 ## Decisões em aberto
 
-- Quais campos de cadastro são obrigatórios para visitante e para membro.
-- Se haverá exclusão física de pessoas ou somente inativação/arquivamento.
 - Se a correção de presença exigirá motivo textual obrigatório.
-- Quais encontros recorrentes precisam existir no MVP e como serão criados.
-- Quais dados devem aparecer primeiro na timeline e nos relatórios iniciais.
+- Quais regras de recorrência precisam existir inicialmente para encontros.
+- Qual período e quais métricas compõem o resumo de frequência por ministério.
+- Quais campos adicionais existirão no perfil de membro.
+
+As decisões funcionais já detalhadas para Pessoas, Ministérios e Frequência estão em [05-requisitos-funcionais-pessoas-ministerios-frequencia.md](05-requisitos-funcionais-pessoas-ministerios-frequencia.md).

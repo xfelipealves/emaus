@@ -14,6 +14,7 @@ Estamos na fase **Specify**, consolidando visão, domínio, regras de negócio e
 - [Domínio e glossário](docs/product/02-dominio-e-glossario.md)
 - [Regras de negócio iniciais](docs/product/03-regras-de-negocio.md)
 - [Escopo do MVP](docs/product/04-escopo-do-mvp.md)
+- [Requisitos funcionais — Pessoas, Ministérios e Frequência](docs/product/05-requisitos-funcionais-pessoas-ministerios-frequencia.md)
 
 ## Fluxo de desenvolvimento
 

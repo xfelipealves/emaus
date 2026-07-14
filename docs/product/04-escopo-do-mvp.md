@@ -13,9 +13,12 @@ Entregar uma aplicação web responsiva para organizar pessoas, ministérios e f
 - cadastro de visitante, membro e pessoa inativa;
 - atualização de dados cadastrais básicos;
 - foto e data de nascimento;
+- nome como único campo obrigatório para cadastro rápido de visitante;
+- telefone e data de nascimento obrigatórios ao promover visitante para membro;
 - perfil individual;
 - busca de pessoas;
 - mudança de status sem perda de histórico;
+- inativação e arquivamento, sem exclusão física no MVP;
 - timeline por pessoa;
 - notas de acompanhamento datadas e identificadas pelo autor.
 
@@ -23,15 +26,20 @@ Entregar uma aplicação web responsiva para organizar pessoas, ministérios e f
 
 - cadastro de ministérios customizáveis;
 - vínculo de uma pessoa a um ou mais ministérios;
+- histórico de entrada e saída do vínculo ministerial;
+- cargos fixos de líder e membro no vínculo ministerial;
 - consulta de pessoas por ministério;
 - base de permissão para limitar usuários a ministérios específicos;
 - permissão adicional a ministérios definida por administrador.
 
 ### 3. Encontros e presença
 
-- criação de encontros, como cultos e programações;
-- lançamento manual de presença para visitantes e membros;
+- categorias de encontros customizáveis por administradores;
+- criação de encontros e séries recorrentes, como cultos e programações;
+- lançamento manual de presença para visitantes e membros, com estados presente, ausente e não confirmado;
+- cadastro rápido de visitante pela lista de frequência;
 - consulta do histórico de presença por pessoa;
+- lista de presença por encontro e resumo de frequência por ministério;
 - correção posterior de presença;
 - trilha de auditoria da correção.
 
