@@ -100,8 +100,25 @@ Representa uma ocorrência concreta de culto, reunião ou evento.
 - categoria;
 - data e hora no fuso `America/Sao_Paulo`;
 - público-alvo: toda a igreja ou ministérios selecionados;
-- estado administrativo;
+- estado administrativo: `rascunho`, `agendado` ou `cancelado`;
+- série recorrente de origem opcional;
 - criador e timestamps.
+
+Encontros passados continuam consultáveis sem um estado obrigatório de encerramento.
+
+### Série recorrente de encontros
+
+Define uma repetição planejada, como culto semanal ou encontro mensal de um ministério.
+
+**Atributos principais:**
+
+- título e categoria padrão;
+- regra de recorrência;
+- público-alvo padrão;
+- data de início e término opcional;
+- estado: ativa ou encerrada.
+
+Uma Série gera ocorrências de Encontro independentes. Cada ocorrência pode ser editada ou cancelada sem alterar as demais ocorrências ou a regra original.
 
 ### Presença
 
@@ -136,6 +153,20 @@ Registra contexto livre no perfil da Pessoa.
 
 Notas não possuem título, anexos, comentários ou tipos estruturados no MVP.
 
+### Versão de nota
+
+Preserva o conteúdo de cada alteração feita em uma Nota.
+
+**Atributos principais:**
+
+- nota;
+- conteúdo da versão;
+- autor da alteração;
+- data/hora;
+- número sequencial da versão.
+
+Notas continuam editáveis, mas cada edição cria uma Versão de nota. A Nota mantém o texto mais recente para leitura rápida na timeline.
+
 ### Auditoria
 
 Registra ações sensíveis para rastreabilidade.
@@ -155,15 +186,14 @@ Pessoa 1 ── 0..1 Conta de acesso
 Pessoa 1 ── N Vínculo ministerial N ── 1 Ministério
 Conta  1 ── N Acesso ministerial N ── 1 Ministério
 Encontro 1 ── N Presença N ── 1 Pessoa
+Série recorrente 1 ── N Encontro
 Pessoa 1 ── N Nota de acompanhamento
+Nota 1 ── N Versão de nota
 Conta  1 ── N Auditoria
 ```
 
 ## 3. Decisões pendentes antes do esquema técnico
 
-- como modelar séries recorrentes e ocorrências de encontros;
-- estado administrativo completo do Encontro;
-- política de edição/versão de nota;
 - ciclo de vida detalhado da presença após o encontro;
 - retenção técnica de fotos, auditorias e backups;
 - índices e estratégias de busca;
