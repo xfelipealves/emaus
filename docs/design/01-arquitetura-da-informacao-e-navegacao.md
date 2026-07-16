@@ -14,7 +14,7 @@ A aplicação terá cinco áreas principais:
 4. **Encontros e Frequência**
 5. **Configurações**
 
-A navegação deve ser acessível em computador e celular. No celular, os fluxos críticos devem continuar rápidos, principalmente cadastro e frequência.
+A navegação deve ser acessível em computador e celular. No celular, os fluxos críticos devem continuar rápidos, principalmente cadastro e frequência. A barra inferior terá Início, Pessoas, Ministérios e Encontros; Configurações ficará em **Mais**. No desktop, as áreas principais podem aparecer em navegação lateral persistente.
 
 ## 2. Início
 
