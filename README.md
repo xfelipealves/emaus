@@ -21,6 +21,7 @@ Estamos na fase **Specify**, consolidando visão, domínio, regras de negócio e
 - [Arquitetura da informação e navegação](docs/design/01-arquitetura-da-informacao-e-navegacao.md)
 - [Fluxos essenciais](docs/design/02-fluxos-essenciais.md)
 - [Modelo de dados inicial](docs/architecture/01-modelo-de-dados-inicial.md)
+- [Arquitetura técnica inicial](docs/architecture/02-arquitetura-tecnica-inicial.md)
 
 ## Fluxo de desenvolvimento
 
