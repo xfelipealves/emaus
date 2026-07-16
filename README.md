@@ -20,6 +20,7 @@ Estamos na fase **Specify**, consolidando visão, domínio, regras de negócio e
 - [Requisitos não funcionais](docs/product/08-requisitos-nao-funcionais.md)
 - [Arquitetura da informação e navegação](docs/design/01-arquitetura-da-informacao-e-navegacao.md)
 - [Fluxos essenciais](docs/design/02-fluxos-essenciais.md)
+- [Modelo de dados inicial](docs/architecture/01-modelo-de-dados-inicial.md)
 
 ## Fluxo de desenvolvimento
 
