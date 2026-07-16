@@ -18,6 +18,7 @@ Estamos na fase **Specify**, consolidando visão, domínio, regras de negócio e
 - [Requisitos funcionais — Acessos e Permissões](docs/product/06-requisitos-funcionais-acessos-permissoes.md)
 - [Requisitos funcionais — Timeline e Notas](docs/product/07-requisitos-funcionais-timeline-notas.md)
 - [Requisitos não funcionais](docs/product/08-requisitos-nao-funcionais.md)
+- [Arquitetura da informação e navegação](docs/design/01-arquitetura-da-informacao-e-navegacao.md)
 
 ## Fluxo de desenvolvimento
 
