@@ -47,6 +47,15 @@ Para cada pessoa, pode definir rapidamente:
 - Ausente;
 - Não confirmado.
 
+O usuário toca em qualquer área da linha da pessoa para alternar o estado, nesta sequência:
+
+1. **Não confirmado** — fundo branco;
+2. **Presente** — linha e indicador em verde;
+3. **Ausente** — linha e indicador em vermelho;
+4. volta a **Não confirmado**.
+
+Não haverá três botões separados por pessoa. A interação deve exigir apenas um toque por mudança de estado.
+
 A tela também permite:
 
 - buscar pessoa já cadastrada;

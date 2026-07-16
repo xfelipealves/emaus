@@ -39,7 +39,7 @@ A área de Pessoas será uma lista pesquisável com abas:
 - Membros;
 - Inativos.
 
-A lista deve funcionar em desktop e celular, permitindo localizar rapidamente uma pessoa por nome.
+A lista deve funcionar em desktop e celular, permitindo localizar rapidamente uma pessoa por nome. Cada item deve mostrar a idade calculada a partir da data de nascimento, quando ela estiver cadastrada.
 
 ### Perfil individual
 
