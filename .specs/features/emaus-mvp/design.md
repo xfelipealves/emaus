@@ -1,7 +1,7 @@
 # Emaús MVP Design
 
 **Spec:** `.specs/features/emaus-mvp/spec.md`  
-**Status:** Draft
+**Status:** Approved
 
 ---
 

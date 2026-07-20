@@ -150,18 +150,18 @@ A igreja hoje depende de planilhas, listas e anotações dispersas para saber qu
 
 | Requirement ID | Story | Phase | Status |
 | --- | --- | --- | --- |
-| AUTH-01 | Acesso interno e autorização | Design | Pending |
-| AUTH-02 | Acesso interno e autorização | Design | Pending |
-| PES-01 | Cadastro e acompanhamento de Pessoas | Design | Pending |
-| PES-02 | Cadastro e acompanhamento de Pessoas | Design | Pending |
-| MIN-01 | Ministérios e vínculos históricos | Design | Pending |
-| MIN-02 | Ministérios e vínculos históricos | Design | Pending |
-| ENC-01 | Encontros e frequência | Design | Pending |
-| ENC-02 | Encontros e frequência | Design | Pending |
-| TIM-01 | Perfil, timeline e notas | Design | Pending |
-| AUD-01 | Auditoria e operação segura | Design | Pending |
+| AUTH-01 | Acesso interno e autorização | Tasks | Pending |
+| AUTH-02 | Acesso interno e autorização | Tasks | Pending |
+| PES-01 | Cadastro e acompanhamento de Pessoas | Tasks | Pending |
+| PES-02 | Cadastro e acompanhamento de Pessoas | Tasks | Pending |
+| MIN-01 | Ministérios e vínculos históricos | Tasks | Pending |
+| MIN-02 | Ministérios e vínculos históricos | Tasks | Pending |
+| ENC-01 | Encontros e frequência | Tasks | Pending |
+| ENC-02 | Encontros e frequência | Tasks | Pending |
+| TIM-01 | Perfil, timeline e notas | Tasks | Pending |
+| AUD-01 | Auditoria e operação segura | Tasks | Pending |
 
-**Coverage:** 10 total, 0 mapped to tasks, 10 unmapped pending Design/Tasks.
+**Coverage:** 10 total, 10 mapped to tasks, 0 unmapped.
 
 ---
 

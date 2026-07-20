@@ -61,10 +61,10 @@
 ## Handoff
 
 - **Feature**: `.specs/features/emaus-mvp`
-- **Phase / Task**: Design — arquitetura e milestones técnicos prontos para aprovação
-- **Completed**: instalação do `tlc-spec-driven`; memória do projeto; especificação aprovada; arquitetura modular e estratégia Vitest/Playwright definidas
-- **In-progress** (file:line): `.specs/features/emaus-mvp/design.md` — aguardando aprovação para gerar tasks atômicas
-- **Next step**: aprovar o Design e gerar `.specs/features/emaus-mvp/tasks.md` com dependências, gates e milestones executáveis pelo Ralph Loop.
-- **Blockers**: nenhum de produto; deploy, e-mail, backup e monitoramento permanecem postergados para depois da validação local.
+- **Phase / Task**: Tasks — plano técnico atômico pronto; próxima execução é M1/T01
+- **Completed**: instalação do `tlc-spec-driven`; Specify aprovado; Design aprovado; milestones M1–M8 e tasks T01–T36 criados
+- **In-progress** (file:line): `.specs/features/emaus-mvp/tasks.md` — aguardando início de T01
+- **Next step**: executar T01, bootstrap da aplicação e gates de qualidade, em commit atômico.
+- **Blockers**: nenhum para M1; deploy, e-mail, backup e monitoramento permanecem postergados para depois da validação local.
 - **Uncommitted files**: skills do TLC e `.specs/`
 - **Branch**: main
