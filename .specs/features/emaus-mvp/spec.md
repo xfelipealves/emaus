@@ -38,11 +38,11 @@ A igreja hoje depende de planilhas, listas e anotações dispersas para saber qu
 | Nota editada | Cada edição cria uma versão completa. | Histórico de acompanhamento preservado. | Sim |
 | Série recorrente | Série gera ocorrências independentes, editáveis/canceláveis individualmente. | Permite exceções sem alterar a regra inteira. | Sim |
 | Estado de encontro | `rascunho`, `agendado` ou `cancelado`; encontros passados continuam consultáveis. | Não requer fechamento manual. | Sim |
-| Motivo de correção de presença | Não obrigatório no MVP. | Não foi definido como requisito e não deve bloquear operação rápida. | Não — validação na fase Design |
-| Regras de recorrência iniciais | Semanal e mensal, com fim opcional; outros padrões ficam fora do primeiro corte. | Cobre cultos e programações recorrentes mais comuns. | Não — validação na fase Design |
+| Motivo de correção de presença | Opcional; a auditoria sempre guarda antes/depois, autor e horário. | Não trava o lançamento rápido, mas permite contexto adicional quando necessário. | Sim |
+| Regras de recorrência iniciais | Semanal, quinzenal e mensal, com dias da semana selecionáveis e fim opcional. | Cobre programações usuais sem exigir regra de recorrência completamente livre. | Sim |
 | Testes | A estratégia será definida após as primeiras telas funcionais, antes de validar o MVP localmente. | Decisão de produto já registrada. | Sim |
 
-**Open questions:** as duas premissas marcadas como não confirmadas devem ser validadas no Design antes de suas tasks de implementação.
+**Open questions:** nenhuma — todas foram resolvidas ou registradas nesta especificação.
 
 ---
 
@@ -96,12 +96,12 @@ A igreja hoje depende de planilhas, listas e anotações dispersas para saber qu
 
 **Acceptance Criteria:**
 
-1. WHEN administrador cria categoria ou série recorrente THEN o sistema SHALL permitir ocorrências individuais editáveis sem alterar as demais.
+1. WHEN administrador cria categoria ou série recorrente semanal, quinzenal ou mensal THEN o sistema SHALL permitir selecionar dias da semana, definir término opcional e editar ocorrências individuais sem alterar as demais.
 2. WHEN usuário cria encontro THEN o sistema SHALL permitir público de toda a igreja ou de Ministérios selecionados e estado rascunho/agendado/cancelado.
 3. WHEN a frequência é aberta THEN o sistema SHALL calcular elegíveis pelos vínculos atuais e criar estado `nao_confirmado` para cada Pessoa exibida.
 4. WHEN o usuário toca uma linha de Pessoa THEN o sistema SHALL alternar `nao_confirmado → presente → ausente → nao_confirmado`, persistindo cada alteração imediatamente e exibindo retorno discreto.
 5. WHEN usuário pesquisa ou adiciona visitante rápido THEN o sistema SHALL permitir registrar presença sem sair do fluxo.
-6. WHEN presença é alterada depois do lançamento THEN o sistema SHALL registrar valor anterior, posterior, autor e data/hora, além de atualizar a timeline da Pessoa.
+6. WHEN presença é alterada depois do lançamento THEN o sistema SHALL registrar valor anterior, posterior, autor, data/hora e motivo opcional, além de atualizar a timeline da Pessoa.
 
 **Independent Test:** criar encontro, lançar os três estados para Pessoas, corrigir uma presença e verificar auditoria e timeline.
 
