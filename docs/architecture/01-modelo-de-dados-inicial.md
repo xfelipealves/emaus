@@ -197,4 +197,7 @@ Conta  1 ── N Auditoria
 - ciclo de vida detalhado da presença após o encontro;
 - retenção técnica de fotos, auditorias e backups;
 - índices e estratégias de busca;
-- banco de dados, ORM, autenticação, hospedagem e armazenamento de arquivos.
+- provedor de PostgreSQL, hospedagem, e-mail de recuperação, monitoramento e ambientes;
+- estratégia de testes após as primeiras telas funcionais.
+
+**Decisões já fechadas:** PostgreSQL, Prisma ORM, autenticação própria por credenciais com Argon2 e sessão em cookie seguro. A foto de perfil permanece no modelo, mas seu upload será postergado para depois do primeiro corte técnico.
