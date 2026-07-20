@@ -42,13 +42,29 @@
 - **Date**: 2026-07-20
 - **Status**: active
 
+### AD-006
+- **Decision**: Séries de encontros suportarão recorrência semanal, quinzenal e mensal, com dias da semana selecionáveis e término opcional.
+- **Reason**: Cobre programações recorrentes usuais sem implementar uma linguagem de recorrência completamente livre.
+- **Trade-off**: Padrões especiais ficam para evolução posterior.
+- **Scope**: Séries e ocorrências de encontros.
+- **Date**: 2026-07-20
+- **Status**: active
+
+### AD-007
+- **Decision**: Motivo textual em correção de presença será opcional.
+- **Reason**: A auditoria obrigatória já preserva antes/depois, autor e horário, sem travar operação durante o encontro.
+- **Trade-off**: Algumas correções podem não ter justificativa humana adicional.
+- **Scope**: Presenças, auditoria e timeline.
+- **Date**: 2026-07-20
+- **Status**: active
+
 ## Handoff
 
 - **Feature**: `.specs/features/emaus-mvp`
-- **Phase / Task**: Specify — especificação consolidada pronta para aprovação
-- **Completed**: instalação do `tlc-spec-driven`; criação da memória do projeto; especificação do MVP consolidada
-- **In-progress** (file:line): `.specs/features/emaus-mvp/spec.md` — aguardando aprovação para entrar em Design
-- **Next step**: revisar as duas premissas não confirmadas e aprovar a especificação antes da fase Design/Tasks.
-- **Blockers**: confirmar motivo de correção de presença e regras iniciais de recorrência; deploy, e-mail, backup e testes permanecem postergados.
+- **Phase / Task**: Design — arquitetura e milestones técnicos prontos para aprovação
+- **Completed**: instalação do `tlc-spec-driven`; memória do projeto; especificação aprovada; arquitetura modular e estratégia Vitest/Playwright definidas
+- **In-progress** (file:line): `.specs/features/emaus-mvp/design.md` — aguardando aprovação para gerar tasks atômicas
+- **Next step**: aprovar o Design e gerar `.specs/features/emaus-mvp/tasks.md` com dependências, gates e milestones executáveis pelo Ralph Loop.
+- **Blockers**: nenhum de produto; deploy, e-mail, backup e monitoramento permanecem postergados para depois da validação local.
 - **Uncommitted files**: skills do TLC e `.specs/`
 - **Branch**: main

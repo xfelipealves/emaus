@@ -1,6 +1,6 @@
 # Emaús MVP Specification
 
-**Status:** Draft — consolidated from approved product, design and architecture documents.
+**Status:** Approved — consolidated from approved product, design and architecture documents.
 
 ## Problem Statement
 
