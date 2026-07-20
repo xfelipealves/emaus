@@ -27,10 +27,10 @@ cd /home/felipe/clawd/repos/emaus
 OPENCODE_MODEL='provider/model' ./scripts/run-emaus-task.sh T01
 ```
 
-Exemplo quando o modelo final for definido:
+Exemplo quando o identificador do modelo final for confirmado no OpenCode:
 
 ```bash
-OPENCODE_MODEL='openai/gpt-5.6' ./scripts/run-emaus-task.sh T01
+OPENCODE_MODEL='provider/model-confirmado' ./scripts/run-emaus-task.sh T01
 ```
 
 Se `OPENCODE_MODEL` for omitido, o OpenCode usa o modelo padrão da configuração local.
