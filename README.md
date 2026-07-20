@@ -6,7 +6,7 @@ O Emaús será desenvolvido com **Spec-Driven Development**. Antes de implementa
 
 ## Estado atual
 
-Estamos na fase **Specify**, consolidando visão, domínio, regras de negócio e escopo do MVP.
+Specify e Design estão aprovados. O projeto está na fase **Tasks**, com o Ralph Loop preparado para iniciar a T01 (fundação local) pelo OpenCode.
 
 ## Documentação de produto
 
@@ -22,6 +22,11 @@ Estamos na fase **Specify**, consolidando visão, domínio, regras de negócio e
 - [Fluxos essenciais](docs/design/02-fluxos-essenciais.md)
 - [Modelo de dados inicial](docs/architecture/01-modelo-de-dados-inicial.md)
 - [Arquitetura técnica inicial](docs/architecture/02-arquitetura-tecnica-inicial.md)
+- [Estado operacional TLC](.specs/STATE.md)
+- [Especificação consolidada do MVP](.specs/features/emaus-mvp/spec.md)
+- [Design técnico e milestones](.specs/features/emaus-mvp/design.md)
+- [Plano de execução T01–T36](.specs/features/emaus-mvp/tasks.md)
+- [Operação do Ralph Loop com OpenCode](docs/operations/opencode-ralph-loop.md)
 
 ## Fluxo de desenvolvimento
 
