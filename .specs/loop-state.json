@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "feature": "emaus-mvp",
+  "status": "ready",
+  "currentTask": "T01",
+  "completedTasks": [],
+  "completedMilestones": [],
+  "lastCommit": null,
+  "lastGate": null,
+  "updatedAt": "2026-07-20",
+  "notes": "The Ralph Loop may execute only currentTask. It advances this file after a passing task gate and atomic commit."
+}

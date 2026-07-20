@@ -62,9 +62,9 @@
 
 - **Feature**: `.specs/features/emaus-mvp`
 - **Phase / Task**: Tasks — plano técnico atômico pronto; próxima execução é M1/T01
-- **Completed**: instalação do `tlc-spec-driven`; Specify aprovado; Design aprovado; milestones M1–M8 e tasks T01–T36 criados
+- **Completed**: instalação do `tlc-spec-driven`; Specify aprovado; Design aprovado; milestones M1–M8 e tasks T01–T36 criados; OpenCode Ralph Loop guardado por `.specs/loop-state.json`
 - **In-progress** (file:line): `.specs/features/emaus-mvp/tasks.md` — aguardando início de T01
-- **Next step**: executar T01, bootstrap da aplicação e gates de qualidade, em commit atômico.
-- **Blockers**: nenhum para M1. OpenCode é o runner do loop; modelo permanece configurável por `OPENCODE_MODEL`. Antes de rodar, escolher o modelo final e revisar o resultado de cada task/gate; deploy, e-mail, backup e monitoramento permanecem postergados para depois da validação local.
+- **Next step**: executar `./scripts/ralph-loop.sh --dry-run --max-tasks 1`, definir o modelo final e rodar T01 como piloto em commit atômico.
+- **Blockers**: nenhum para M1. OpenCode é o runner do loop; modelo permanece configurável por `OPENCODE_MODEL`. O loop para se uma task falhar, não fizer commit, deixar árvore suja ou não avançar `.specs/loop-state.json`; deploy, e-mail, backup e monitoramento permanecem postergados para depois da validação local.
 - **Uncommitted files**: nenhum
 - **Branch**: main
