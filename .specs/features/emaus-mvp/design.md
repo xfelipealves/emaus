@@ -105,7 +105,7 @@ Invariantes críticos:
 
 **Objetivo:** deixar especificação, decisões, tarefas, handoff e verificação como fonte operacional do projeto.
 
-**Entregas:** `.specs/STATE.md`, feature `emaus-mvp`, skill TLC versionada, convenção de commits e rotina Ralph Loop apontando para `tasks.md`.
+**Entregas:** `.specs/STATE.md`, feature `emaus-mvp`, skill TLC versionada e convenção de commits. O runner/prompt do Ralph Loop que consumirá `tasks.md` deve ser configurado antes da execução automatizada.
 
 **Saída:** um agente consegue retomar o projeto lendo `STATE.md` e executar apenas a próxima task aprovada.
 
