@@ -65,6 +65,6 @@
 - **Completed**: instalação do `tlc-spec-driven`; Specify aprovado; Design aprovado; milestones M1–M8 e tasks T01–T36 criados
 - **In-progress** (file:line): `.specs/features/emaus-mvp/tasks.md` — aguardando início de T01
 - **Next step**: executar T01, bootstrap da aplicação e gates de qualidade, em commit atômico.
-- **Blockers**: nenhum para M1. Antes de execução automatizada em loop, falta escolher o runner e registrar seu prompt/contrato de execução; deploy, e-mail, backup e monitoramento permanecem postergados para depois da validação local.
+- **Blockers**: nenhum para M1. OpenCode é o runner do loop; modelo permanece configurável por `OPENCODE_MODEL`. Antes de rodar, escolher o modelo final e revisar o resultado de cada task/gate; deploy, e-mail, backup e monitoramento permanecem postergados para depois da validação local.
 - **Uncommitted files**: nenhum
 - **Branch**: main
