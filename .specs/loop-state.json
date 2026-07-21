@@ -5,7 +5,7 @@
   "currentTask": "T03",
   "completedTasks": ["T01", "T02"],
   "completedMilestones": [],
-  "lastCommit": "pending-t02-commit",
+  "lastCommit": "b277725",
   "lastGate": {
     "command": "npm run db:validate && npm run typecheck && npm run lint && npm run build && npm run test",
     "result": "passed: docker compose up -d healthy on localhost:5433; 1 Vitest test, build/lint/typecheck/db validation exit 0"
