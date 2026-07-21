@@ -67,7 +67,9 @@ import sys
 with open(sys.argv[1], encoding="utf-8") as source:
     state = json.load(source)
 
-value = state[sys.argv[2]]
+value = state
+for key in sys.argv[2].split('.'):
+    value = value[key]
 if isinstance(value, (dict, list)):
     print(json.dumps(value, sort_keys=True))
 else:
@@ -401,7 +403,7 @@ EOF
   else
     resume_status="$?"
   fi
-  assert_equal '68' "$resume_status" 'valid resume should reach task execution'
+  assert_equal '68' "$resume_status" "valid resume should reach task execution (got '$resume_output')"
   [[ "$resume_output" == *'starting T12'* ]] ||
     fail 'valid resume should pass branch metadata validation'
 
@@ -455,9 +457,328 @@ PY
   printf 'PASS: branch initialization\n'
 }
 
+run_push_case() {
+  [[ -f "$RALPH_LOOP_SCRIPT" ]] || fail "missing loop script: $RALPH_LOOP_SCRIPT"
+  [[ -f "$TASK_RUNNER_SCRIPT" ]] || fail "missing task runner: $TASK_RUNNER_SCRIPT"
+
+  local remote
+  local source
+  local work
+  local failure_work
+  local fake_bin
+  local real_git
+  local push_log
+  local failure_push_log
+  local opencode_calls
+  local failure_opencode_calls
+  local branch_name='lote/L003-push-order'
+  local failure_branch_name='lote/L004-push-failure'
+  local success_output
+  local failure_output
+  local failure_status
+  local recovery_output
+  local recovery_status
+  local local_head
+  local remote_head
+  local last_push_sha
+  local remote_branch_status
+  local push_first
+  local push_second
+  local recovery_push_first
+  local recovery_push_second
+
+  TEST_ROOT="$(mktemp -d)"
+  TEST_ROOTS+=("$TEST_ROOT")
+
+  remote="$TEST_ROOT/remote.git"
+  source="$TEST_ROOT/source"
+  work="$TEST_ROOT/work"
+  failure_work="$TEST_ROOT/failure-work"
+  fake_bin="$TEST_ROOT/fake-bin"
+  push_log="$TEST_ROOT/push.log"
+  failure_push_log="$TEST_ROOT/failure-push.log"
+  opencode_calls="$TEST_ROOT/opencode-calls.log"
+  failure_opencode_calls="$TEST_ROOT/failure-opencode-calls.log"
+  mkdir -p "$fake_bin"
+  : > "$push_log"
+  : > "$failure_push_log"
+  : > "$opencode_calls"
+  : > "$failure_opencode_calls"
+
+  git init --bare "$remote" >/dev/null
+  git init -b main "$source" >/dev/null
+  git -C "$source" config user.name 'Ralph Test'
+  git -C "$source" config user.email 'ralph-test@example.invalid'
+  printf 'Ralph push test\n' > "$source/README.md"
+  mkdir -p "$source/scripts" "$source/.specs/features/emaus-mvp"
+  cp "$RALPH_LOOP_SCRIPT" "$source/scripts/ralph-loop.sh"
+  cp "$TASK_RUNNER_SCRIPT" "$source/scripts/run-emaus-task.sh"
+  chmod +x "$source/scripts/ralph-loop.sh" "$source/scripts/run-emaus-task.sh"
+  cat > "$source/.specs/loop-state.json" <<'EOF'
+{
+  "schemaVersion": 1,
+  "feature": "emaus-mvp",
+  "status": "ready",
+  "currentTask": "T12",
+  "completedTasks": ["T01", "T02", "T03", "T04", "T05", "T06", "T07", "T08", "T09", "T10", "T11"],
+  "completedMilestones": [],
+  "lastCommit": "1111111111111111111111111111111111111111",
+  "lastGate": {
+    "command": "test gate",
+    "result": "passed"
+  },
+  "updatedAt": "2026-07-21",
+  "notes": "Preserve this sequencing data."
+}
+EOF
+  printf '%s\n' '# Ralph push test tasks' \
+    '### T12: First push task' \
+    '### T13: Second push task' > "$source/.specs/features/emaus-mvp/tasks.md"
+  git -C "$source" add README.md scripts .specs
+  git -C "$source" commit -m 'test: seed main branch' >/dev/null
+  git -C "$source" remote add origin "$remote"
+  git -C "$source" push -u origin main >/dev/null
+  git -C "$source" switch -c dev >/dev/null
+  printf 'Ralph dev base\n' > "$source/DEV.md"
+  git -C "$source" add DEV.md
+  git -C "$source" commit -m 'test: seed dev branch' >/dev/null
+  git -C "$source" push -u origin dev >/dev/null
+  git --git-dir="$remote" symbolic-ref HEAD refs/heads/main
+  git clone "$remote" "$work" >/dev/null
+  git clone "$remote" "$failure_work" >/dev/null
+
+  for repository in "$work" "$failure_work"; do
+    git -C "$repository" config user.name 'Ralph Test'
+    git -C "$repository" config user.email 'ralph-test@example.invalid'
+  done
+
+  cat > "$fake_bin-opencode" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+state='.specs/loop-state.json'
+task="$(python3 - "$state" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding='utf-8') as source:
+    print(json.load(source)['currentTask'])
+PY
+)"
+next_task="$(python3 - "$task" <<'PY'
+import re
+import sys
+
+number = int(re.fullmatch(r'T(\d+)', sys.argv[1]).group(1))
+print(f'T{number + 1:02d}')
+PY
+)"
+
+printf '%s\n' "$task" >> "${RALPH_TEST_OPENCODE_CALLS:?}"
+printf 'task %s\n' "$task" > "task-${task}.txt"
+python3 - "$state" "$task" "$next_task" <<'PY'
+import datetime
+import json
+import sys
+
+path, task, next_task = sys.argv[1:]
+with open(path, encoding='utf-8') as source:
+    state = json.load(source)
+state['completedTasks'].append(task)
+state['currentTask'] = next_task
+state['status'] = 'ready'
+state['lastCommit'] = f'executor-{task}'
+state['lastGate'] = {'command': 'test gate', 'result': 'passed'}
+state['updatedAt'] = datetime.date.today().isoformat()
+with open(path, 'w', encoding='utf-8') as target:
+    json.dump(state, target, indent=2)
+    target.write('\n')
+PY
+git add task-${task}.txt .specs/loop-state.json
+git commit -m "test: execute ${task}" >/dev/null
+EOF
+  mv "$fake_bin-opencode" "$fake_bin/opencode"
+  chmod +x "$fake_bin/opencode"
+
+  real_git="$(command -v git)"
+  export RALPH_TEST_REAL_GIT="$real_git"
+  cat > "$fake_bin/git" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+real_git="${RALPH_TEST_REAL_GIT:?}"
+if [[ "${1:-}" == 'push' ]]; then
+  state='.specs/loop-state.json'
+  head="$($real_git rev-parse HEAD)"
+  status="$($real_git status --porcelain)"
+  commit_message="$($real_git log -1 --format=%s)"
+  current_task="$(python3 - "$state" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding='utf-8') as source:
+    print(json.load(source)['currentTask'])
+PY
+)"
+  printf 'push=%s|head=%s|status=%s|commit=%s|current=%s\n' \
+    "$*" "$head" "$status" "$commit_message" "$current_task" \
+    >> "${RALPH_TEST_PUSH_LOG:?}"
+fi
+exec "$real_git" "$@"
+EOF
+  chmod +x "$fake_bin/git"
+
+  export RALPH_TEST_PUSH_LOG="$push_log"
+  export RALPH_TEST_OPENCODE_CALLS="$opencode_calls"
+  if ! success_output="$(cd "$work" && PATH="$fake_bin:$PATH" ./scripts/ralph-loop.sh \
+    --batch L003 --scope push-order --max-tasks 2 2>&1)"; then
+    fail "push-order case should complete successfully: $success_output"
+  fi
+
+  assert_equal '2' "$(wc -l < "$push_log" | tr -d ' ')" \
+    'push-order case must push once per validated task commit'
+  push_first="$(python3 - "$push_log" <<'PY'
+import sys
+
+with open(sys.argv[1], encoding='utf-8') as source:
+    print(source.readline().rstrip('\n'))
+PY
+)"
+  push_second="$(python3 - "$push_log" <<'PY'
+import sys
+
+with open(sys.argv[1], encoding='utf-8') as source:
+    lines = source.readlines()
+print(lines[1].rstrip('\n'))
+PY
+)"
+  [[ "$push_first" == "push=push -u origin $branch_name|head="*"|status=|commit=test: execute T12|current=T13" ]] ||
+    fail "first push must use upstream setup after the task commit and state advance (got '$push_first')"
+  [[ "$push_second" == "push=push origin $branch_name|head="*"|status=|commit=test: execute T13|current=T14" ]] ||
+    fail 'later push must omit -u and follow the second task commit and state advance'
+  [[ "$push_first" != *'--force'* && "$push_second" != *'--force'* ]] ||
+    fail 'task pushes must never force-update the batch branch'
+  assert_equal '2' "$(wc -l < "$opencode_calls" | tr -d ' ')" \
+    'push-order case must execute both tasks'
+  local_head="$(git -C "$work" rev-parse HEAD)"
+  remote_head="$(git --git-dir="$remote" rev-parse "refs/heads/$branch_name")"
+  assert_equal "$local_head" "$remote_head" \
+    'successful pushes must leave the remote batch branch at the local commit'
+  assert_equal "$remote_head" "$(state_value "$work/.specs/loop-state.json" lastPush.sha)" \
+    'lastPush.sha must record the pushed task commit'
+  assert_equal 'origin' "$(state_value "$work/.specs/loop-state.json" lastPush.remote)" \
+    'lastPush must record origin'
+  assert_equal "$branch_name" "$(state_value "$work/.specs/loop-state.json" lastPush.branch)" \
+    'lastPush must record the batch branch'
+  assert_equal 'passed' "$(state_value "$work/.specs/loop-state.json" lastPush.status)" \
+    'lastPush must record a passed push'
+
+  cat > "$fake_bin/git" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+real_git="${RALPH_TEST_REAL_GIT:?}"
+if [[ "${1:-}" == 'push' ]]; then
+  printf 'failed push=%s\n' "$*" >> "${RALPH_TEST_PUSH_LOG:?}"
+  exit 73
+fi
+exec "$real_git" "$@"
+EOF
+  chmod +x "$fake_bin/git"
+  export RALPH_TEST_PUSH_LOG="$failure_push_log"
+  export RALPH_TEST_OPENCODE_CALLS="$failure_opencode_calls"
+  if failure_output="$(cd "$failure_work" && PATH="$fake_bin:$PATH" ./scripts/ralph-loop.sh \
+    --batch L004 --scope push-failure --max-tasks 2 2>&1)"; then
+    fail 'push failure case must stop non-zero'
+  else
+    failure_status="$?"
+  fi
+  assert_equal '73' "$failure_status" \
+    'push failure must preserve the original git push status'
+  [[ "$failure_output" == *'Push failed'* ]] ||
+    fail 'push failure should explain that resume preserves the local commit'
+  assert_equal "$failure_branch_name" "$(git -C "$failure_work" branch --show-current)" \
+    'push failure must keep the batch branch checked out'
+  assert_equal 'test: execute T12' "$(git -C "$failure_work" log -1 --format=%s)" \
+    'push failure must preserve the local task commit'
+  assert_equal 'T13' "$(state_value "$failure_work/.specs/loop-state.json" currentTask)" \
+    'push failure must preserve the advanced local loop state'
+  [[ -z "$(git -C "$failure_work" status --porcelain)" ]] ||
+    fail 'push failure must leave the local task commit and state clean for resume'
+  assert_equal '1' "$(wc -l < "$failure_opencode_calls" | tr -d ' ')" \
+    'push failure must not start the next task'
+  remote_branch_status=0
+  git --git-dir="$remote" show-ref --verify --quiet "refs/heads/$failure_branch_name" ||
+    remote_branch_status="$?"
+  assert_equal '1' "$remote_branch_status" \
+    'failed first push must not create the remote batch branch'
+
+  cat > "$fake_bin/git" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+real_git="${RALPH_TEST_REAL_GIT:?}"
+if [[ "${1:-}" == 'push' ]]; then
+  state='.specs/loop-state.json'
+  head="$($real_git rev-parse HEAD)"
+  status="$($real_git status --porcelain)"
+  commit_message="$($real_git log -1 --format=%s)"
+  current_task="$(python3 - "$state" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding='utf-8') as source:
+    print(json.load(source)['currentTask'])
+PY
+)"
+  printf 'push=%s|head=%s|status=%s|commit=%s|current=%s\n' \
+    "$*" "$head" "$status" "$commit_message" "$current_task" \
+    >> "${RALPH_TEST_PUSH_LOG:?}"
+fi
+exec "$real_git" "$@"
+EOF
+  chmod +x "$fake_bin/git"
+  : > "$failure_push_log"
+  export RALPH_TEST_PUSH_LOG="$failure_push_log"
+  if ! recovery_output="$(cd "$failure_work" && PATH="$fake_bin:$PATH" ./scripts/ralph-loop.sh \
+    --batch L004 --scope push-failure --resume --max-tasks 1 2>&1)"; then
+    fail "push recovery case should complete successfully: $recovery_output"
+  fi
+  assert_equal '2' "$(wc -l < "$failure_push_log" | tr -d ' ')" \
+    'resume must push the preserved task before starting the next task'
+  recovery_push_first="$(python3 - "$failure_push_log" <<'PY'
+import sys
+
+with open(sys.argv[1], encoding='utf-8') as source:
+    print(source.readline().rstrip('\n'))
+PY
+)"
+  recovery_push_second="$(python3 - "$failure_push_log" <<'PY'
+import sys
+
+with open(sys.argv[1], encoding='utf-8') as source:
+    lines = source.readlines()
+print(lines[1].rstrip('\n'))
+PY
+)"
+  [[ "$recovery_push_first" == "push=push -u origin $failure_branch_name|head="*"|status=|commit=test: execute T12|current=T13" ]] ||
+    fail 'resume must retry the preserved first task commit before the next task'
+  [[ "$recovery_push_second" == "push=push origin $failure_branch_name|head="*"|status=|commit=test: execute T13|current=T14" ]] ||
+    fail 'resume must use the tracked branch for the next task push'
+  assert_equal $'T12\nT13' "$(tr -d '\r' < "$failure_opencode_calls")" \
+    'resume must not rerun the task whose commit was preserved'
+  last_push_sha="$(state_value "$failure_work/.specs/loop-state.json" lastPush.sha)"
+  remote_head="$(git --git-dir="$remote" rev-parse "refs/heads/$failure_branch_name")"
+  assert_equal "$remote_head" "$last_push_sha" \
+    'recovery must persist the successfully pushed commit'
+
+  printf 'PASS: push and recovery\n'
+}
+
 usage() {
   printf 'Usage: %s setup\n' "$0"
   printf '       %s branch-init\n' "$0"
+  printf '       %s push\n' "$0"
   printf '       %s all\n' "$0"
 }
 
@@ -469,10 +790,14 @@ case "${1:-}" in
   branch-init)
     run_branch_init_case
     ;;
+  push)
+    run_push_case
+    ;;
   all)
     run_setup_case
     run_existing_remote_dev_case
     run_branch_init_case
+    run_push_case
     ;;
   -h|--help)
     usage

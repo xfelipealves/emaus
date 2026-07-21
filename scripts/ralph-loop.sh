@@ -205,6 +205,115 @@ os.replace(temporary_path, path)
 PY
 }
 
+persist_last_push() {
+  python3 - "$STATE_FILE" "$1" origin "$RUN_BRANCH" passed <<'PY'
+import datetime
+import json
+import os
+import sys
+import tempfile
+
+path, sha, remote, branch, status = sys.argv[1:]
+with open(path, encoding="utf-8") as source:
+    state = json.load(source)
+
+state["lastPush"] = {
+    "sha": sha,
+    "remote": remote,
+    "branch": branch,
+    "status": status,
+}
+state["updatedAt"] = datetime.date.today().isoformat()
+
+directory = os.path.dirname(os.path.abspath(path))
+with tempfile.NamedTemporaryFile("w", dir=directory, encoding="utf-8", delete=False) as target:
+    json.dump(state, target, indent=2)
+    target.write("\n")
+    temporary_path = target.name
+os.replace(temporary_path, path)
+PY
+}
+
+last_pushed_sha() {
+  python3 - "$STATE_FILE" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as source:
+    state = json.load(source)
+print(state.get("lastPush", {}).get("sha", ""))
+PY
+}
+
+has_pending_task_commit() {
+  python3 - "$STATE_FILE" "$BASE_SHA" <<'PY'
+import json
+import subprocess
+import sys
+
+state_path, base_sha = sys.argv[1:]
+with open(state_path, encoding="utf-8") as source:
+    state = json.load(source)
+base_state = json.loads(
+    subprocess.check_output(
+        ["git", "show", f"{base_sha}:{state_path}"], text=True
+    )
+)
+raise SystemExit(0 if state.get("lastCommit") != base_state.get("lastCommit") else 1)
+PY
+}
+
+allow_resume_push_state() {
+  [[ "$RESUME" == true && -f "$STATE_FILE" ]] || return 1
+  [[ "$(git status --porcelain)" == " M $STATE_FILE" ]] || return 1
+  [[ "$(last_pushed_sha)" == "$(git rev-parse HEAD)" ]] || return 1
+  [[ "$(python3 - "$STATE_FILE" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as source:
+    print(json.load(source).get("lastPush", {}).get("status", ""))
+PY
+)" == "passed" ]]
+}
+
+require_initial_clean_tree() {
+  if [[ -n "$(git status --porcelain)" ]] && ! allow_resume_push_state; then
+    echo "Refusing to start: working tree is not clean." >&2
+    git status --short >&2
+    exit 65
+  fi
+}
+
+push_batch_branch() {
+  local commit_sha="$1"
+  local upstream=""
+  local push_status
+
+  upstream="$(git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null || true)"
+  if [[ "$upstream" == "origin/$RUN_BRANCH" ]]; then
+    if git push origin "$RUN_BRANCH"; then
+      :
+    else
+      push_status="$?"
+      printf 'Push failed for %s; local commit %s is preserved. Retry with --resume.\n' \
+        "$RUN_BRANCH" "$commit_sha" >&2
+      return "$push_status"
+    fi
+  else
+    if git push -u origin "$RUN_BRANCH"; then
+      :
+    else
+      push_status="$?"
+      printf 'Push failed for %s; local commit %s is preserved. Retry with --resume.\n' \
+        "$RUN_BRANCH" "$commit_sha" >&2
+      return "$push_status"
+    fi
+  fi
+
+  persist_last_push "$commit_sha"
+}
+
 validate_resume_state() {
   python3 - "$STATE_FILE" "$BATCH_ID" "$SCOPE_SLUG" "$BASE_BRANCH" \
     "$RUN_BRANCH" <<'PY'
@@ -307,7 +416,7 @@ initialize_batch() {
 }
 
 validate_batch_arguments
-require_clean_tree
+require_initial_clean_tree
 [[ -f "$STATE_FILE" && -f "$TASKS_FILE" && -x scripts/run-emaus-task.sh ]] || {
   echo "Loop governance files are missing or executor is not executable." >&2
   exit 66
@@ -320,6 +429,18 @@ fi
 
 if [[ "$DRY_RUN" == false ]]; then
   initialize_batch
+fi
+
+if [[ "$DRY_RUN" == false && "$RESUME" == true ]]; then
+  current_head="$(git rev-parse HEAD)"
+  if has_pending_task_commit &&
+    [[ "$current_head" != "$BASE_SHA" && "$current_head" != "$(last_pushed_sha)" ]]; then
+    echo "=== Ralph Loop: retrying push for preserved commit $current_head ==="
+    push_batch_branch "$current_head" || {
+      push_status="$?"
+      exit "$push_status"
+    }
+  fi
 fi
 
 dry_run_task=""
@@ -380,6 +501,11 @@ for ((iteration = 1; iteration <= MAX_TASKS; iteration++)); do
     echo "T36 must change loop state to verification_required; stopping." >&2
     exit 68
   fi
+
+  push_batch_branch "$after_commit" || {
+    push_status="$?"
+    exit "$push_status"
+  }
 
   echo "=== Ralph Loop: completed $task_id in commit $after_commit ==="
 done
