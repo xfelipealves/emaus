@@ -553,6 +553,8 @@ run_push_case() {
   local failure_push_log
   local post_task_push_log
   local gh_log
+  local event_log
+  local execution_pr_log
   local gh_pr_exists
   local gh_body
   local opencode_calls
@@ -573,6 +575,7 @@ run_push_case() {
   local push_second
   local recovery_push_first
   local recovery_push_second
+  local recovery_push_third
   local resume_output
   local pr_failure_output
   local pr_failure_status
@@ -582,6 +585,9 @@ run_push_case() {
   local post_task_failure_output
   local post_task_failure_status
   local post_task_recovery_output
+  local fetch_failure_output
+  local fetch_failure_status
+  local before_fetch_opencode_calls
 
   TEST_ROOT="$(mktemp -d)"
   TEST_ROOTS+=("$TEST_ROOT")
@@ -598,6 +604,8 @@ run_push_case() {
   failure_push_log="$TEST_ROOT/failure-push.log"
   post_task_push_log="$TEST_ROOT/post-task-push.log"
   gh_log="$TEST_ROOT/gh.log"
+  event_log="$TEST_ROOT/events.log"
+  execution_pr_log="$TEST_ROOT/execution-pr.log"
   gh_pr_exists="$TEST_ROOT/gh-pr-exists"
   gh_body="$TEST_ROOT/gh-body.md"
   pr_failure_calls="$TEST_ROOT/pr-failure-opencode-calls.log"
@@ -609,6 +617,8 @@ run_push_case() {
   : > "$failure_push_log"
   : > "$post_task_push_log"
   : > "$gh_log"
+  : > "$event_log"
+  : > "$execution_pr_log"
   : > "$gh_body"
   : > "$pr_failure_calls"
   : > "$post_task_calls"
@@ -696,6 +706,14 @@ PY
 )"
 
 printf '%s\n' "$task" >> "${RALPH_TEST_OPENCODE_CALLS:?}"
+if [[ -n "${RALPH_TEST_EXECUTION_PR_LOG:-}" ]]; then
+  if [[ -f "${RALPH_TEST_PR_EXISTS:?}" ]]; then
+    pr_exists=true
+  else
+    pr_exists=false
+  fi
+  printf '%s|%s\n' "$task" "$pr_exists" >> "$RALPH_TEST_EXECUTION_PR_LOG"
+fi
 printf 'task %s\n' "$task" > "task-${task}.txt"
 python3 - "$state" "$task" "$next_task" <<'PY'
 import datetime
@@ -749,6 +767,10 @@ PY
   printf 'push=%s|head=%s|status=%s|commit=%s|current=%s\n' \
     "$*" "$head" "$status" "$commit_message" "$current_task" \
     >> "${RALPH_TEST_PUSH_LOG:?}"
+  if [[ -n "${RALPH_TEST_EVENT_LOG:-}" ]]; then
+    printf 'git-push|commit=%s|current=%s\n' "$commit_message" "$current_task" \
+      >> "$RALPH_TEST_EVENT_LOG"
+  fi
 fi
 exec "$real_git" "$@"
 EOF
@@ -759,6 +781,9 @@ EOF
 set -euo pipefail
 
 printf 'gh=%s\n' "$*" >> "${RALPH_TEST_GH_LOG:?}"
+if [[ -n "${RALPH_TEST_EVENT_LOG:-}" ]]; then
+  printf 'gh|%s\n' "$*" >> "$RALPH_TEST_EVENT_LOG"
+fi
 if [[ "${1:-}" == 'auth' && "${2:-}" == 'status' ]]; then
   exit 0
 fi
@@ -819,18 +844,20 @@ EOF
   export RALPH_TEST_PUSH_LOG="$push_log"
   export RALPH_TEST_OPENCODE_CALLS="$opencode_calls"
   export RALPH_TEST_GH_LOG="$gh_log"
+  export RALPH_TEST_EVENT_LOG="$event_log"
+  export RALPH_TEST_EXECUTION_PR_LOG="$execution_pr_log"
   export RALPH_TEST_PR_EXISTS="$gh_pr_exists"
   export RALPH_TEST_PR_BODY="$gh_body"
   export RALPH_TEST_PR_CREATE_FAIL=false
   export RALPH_TEST_PR_LIST_FAIL_AFTER_TASK=false
-  export RALPH_TEST_REQUIRE_PR_FOR_EXECUTION=true
+  export RALPH_TEST_REQUIRE_PR_FOR_EXECUTION=false
   if ! success_output="$(cd "$work" && PATH="$fake_bin:$PATH" ./scripts/ralph-loop.sh \
     --batch L003 --scope push-order --max-tasks 2 2>&1)"; then
     fail "push-order case should complete successfully: $success_output"
   fi
 
-  assert_equal '4' "$(wc -l < "$push_log" | tr -d ' ')" \
-    'push-order case must publish initialization, PR, and one metadata commit per task'
+  assert_equal '5' "$(wc -l < "$push_log" | tr -d ' ')" \
+    'push-order case must publish initialization, task, and metadata commits'
   push_first="$(python3 - "$push_log" <<'PY'
 import sys
 
@@ -851,16 +878,30 @@ with open(sys.argv[1], encoding='utf-8') as source:
             break
 PY
 )"
-  [[ "$push_first" == "push=push origin $branch_name|head="*"|status=|commit=chore: publish Ralph task metadata|current=T13" ]] ||
-    fail "first published state push must follow the task transition (got '$push_first')"
-  [[ "$push_second" == "push=push origin $branch_name|head="*"|status=|commit=chore: publish Ralph task metadata|current=T14" ]] ||
-    fail 'later published state push must follow the second task transition'
+  [[ "$push_first" == "push=push origin $branch_name|head="*"|status= M .specs/loop-state.json|commit=test: execute T12|current=T13" ]] ||
+    fail "first task commit push must precede PR setup (got '$push_first')"
+  [[ "$push_second" == "push=push origin $branch_name|head="*"|status= M .specs/loop-state.json|commit=test: execute T13|current=T14" ]] ||
+    fail 'later task commit push must precede its metadata publication'
   [[ "$push_first" != *'--force'* && "$push_second" != *'--force'* ]] ||
     fail 'task pushes must never force-update the batch branch'
   assert_equal '2' "$(wc -l < "$opencode_calls" | tr -d ' ')" \
     'push-order case must execute both tasks'
-  assert_equal '6' "$(git -C "$work" rev-list --count "$remote_dev_sha..HEAD")" \
+  assert_equal '5' "$(git -C "$work" rev-list --count "$remote_dev_sha..HEAD")" \
     'each task iteration must create one task commit plus one governed metadata commit'
+  assert_equal $'T12|false\nT13|true' "$(tr -d '\r' < "$execution_pr_log")" \
+    'the first task must execute before PR creation and later tasks must reuse the PR'
+  python3 - "$event_log" <<'PY'
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as source:
+    events = [line.rstrip("\n") for line in source]
+task_push = next(index for index, event in enumerate(events) if
+                 event.startswith("git-push|commit=test: execute T12|"))
+pr_create = next(index for index, event in enumerate(events) if
+                 event.startswith("gh|pr create --draft --base dev --head lote/L003-push-order --title [L003] push-order --body-file"))
+if task_push >= pr_create:
+    raise SystemExit("Draft PR must be created only after the first task commit push")
+PY
   assert_equal $'T01\nT02\nT03\nT04\nT05\nT06\nT07\nT08\nT09\nT10\nT11\nT12\nT13' \
     "$(python3 - "$work/.specs/loop-state.json" <<'PY'
 import json
@@ -894,7 +935,7 @@ with open(sys.argv[1], encoding='utf-8') as source:
     print(sum(1 for line in source if line.startswith('gh=pr create ')))
 PY
 )" 'first batch run must create exactly one Draft PR'
-  assert_equal '2' "$(python3 - "$gh_log" <<'PY'
+  assert_equal '1' "$(python3 - "$gh_log" <<'PY'
 import sys
 
 with open(sys.argv[1], encoding='utf-8') as source:
@@ -943,7 +984,7 @@ PY
     --batch L003 --scope push-order --resume --max-tasks 1 2>&1)"; then
     fail "resume PR case should complete successfully: $resume_output"
   fi
-  assert_equal '5' "$(wc -l < "$push_log" | tr -d ' ')" \
+  assert_equal '7' "$(wc -l < "$push_log" | tr -d ' ')" \
     'resume must publish the next task and its governed metadata commit'
   assert_equal '3' "$(wc -l < "$opencode_calls" | tr -d ' ')" \
     'resume must execute the next task once'
@@ -954,7 +995,7 @@ with open(sys.argv[1], encoding='utf-8') as source:
     print(sum(1 for line in source if line.startswith('gh=pr create ')))
 PY
   )" 'resume must not create a duplicate PR'
-  assert_equal '3' "$(python3 - "$gh_log" <<'PY'
+  assert_equal '2' "$(python3 - "$gh_log" <<'PY'
 import sys
 
 with open(sys.argv[1], encoding='utf-8') as source:
@@ -1119,7 +1160,7 @@ EOF
     --batch L004 --scope push-failure --resume --max-tasks 1 2>&1)"; then
     fail "push recovery case should complete successfully: $recovery_output"
   fi
-  assert_equal '2' "$(wc -l < "$failure_push_log" | tr -d ' ')" \
+  assert_equal '3' "$(wc -l < "$failure_push_log" | tr -d ' ')" \
     'resume must publish the preserved state before starting the next task'
   recovery_push_first="$(python3 - "$failure_push_log" <<'PY'
 import sys
@@ -1136,10 +1177,20 @@ with open(sys.argv[1], encoding='utf-8') as source:
 print(lines[1].rstrip('\n'))
 PY
 )"
+  recovery_push_third="$(python3 - "$failure_push_log" <<'PY'
+import sys
+
+with open(sys.argv[1], encoding='utf-8') as source:
+    lines = source.readlines()
+print(lines[2].rstrip('\n'))
+PY
+)"
   [[ "$recovery_push_first" == "push=push origin $failure_branch_name|head="*"|status=|commit=chore: publish Ralph task metadata|current=T13" ]] ||
     fail 'resume must publish the preserved state before the next task'
-  [[ "$recovery_push_second" == "push=push origin $failure_branch_name|head="*"|status=|commit=chore: publish Ralph task metadata|current=T14" ]] ||
-    fail 'resume must publish the next task state transition'
+  [[ "$recovery_push_second" == "push=push origin $failure_branch_name|head="*"|status= M .specs/loop-state.json|commit=test: execute T13|current=T14" ]] ||
+    fail 'resume must publish the next task commit before its state transition'
+  [[ "$recovery_push_third" == "push=push origin $failure_branch_name|head="*"|status=|commit=chore: publish Ralph task metadata|current=T14" ]] ||
+    fail 'resume must publish the next task state transition after its task commit'
   assert_equal $'T12\nT13' "$(tr -d '\r' < "$failure_opencode_calls")" \
     'resume must not rerun the task whose commit was preserved'
   last_push_sha="$(state_value "$failure_work/.specs/loop-state.json" lastPush.sha)"
@@ -1167,13 +1218,13 @@ import sys
 
 with open(sys.argv[1], encoding='utf-8') as source:
     state = json.load(source)
-if 'lastPush' in state:
+if 'lastPush' not in state:
     raise SystemExit(1)
 PY
   then
     :
   else
-    fail 'PR creation failure must not record a task push before a Draft PR exists'
+    fail 'PR creation failure must retain the successful task push metadata'
   fi
   if python3 - "$pr_failure_work/.specs/loop-state.json" <<'PY'
 import json
@@ -1189,8 +1240,8 @@ PY
   else
     fail 'PR creation failure must not persist incomplete PR metadata'
   fi
-  assert_equal '0' "$(wc -l < "$pr_failure_calls" | tr -d ' ')" \
-    'PR creation failure must not start a task'
+  assert_equal '1' "$(wc -l < "$pr_failure_calls" | tr -d ' ')" \
+    'PR creation failure must happen after the first task executes and pushes'
 
   export RALPH_TEST_PR_CREATE_FAIL=false
   export RALPH_TEST_REQUIRE_PR_FOR_EXECUTION=true
@@ -1198,9 +1249,38 @@ PY
     --batch L005 --scope pr-failure --resume --max-tasks 1 2>&1)"; then
     fail "resume must retry PR setup before executing another task: $pr_recovery_output"
   fi
-  assert_equal 'T12' "$(tr -d '\r' < "$pr_failure_calls")" \
-    'PR retry must happen before the first task is executed'
+  assert_equal $'T12\nT13' "$(tr -d '\r' < "$pr_failure_calls")" \
+    'PR retry must happen before the next task is executed without rerunning the failed task'
   export RALPH_TEST_REQUIRE_PR_FOR_EXECUTION=false
+
+  cat > "$fake_bin/git" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+real_git="${RALPH_TEST_REAL_GIT:?}"
+if [[ "${1:-}" == 'fetch' && "${3:-}" == "${RALPH_TEST_FAIL_FETCH_BRANCH:-}" ]]; then
+  printf 'simulated batch branch fetch failure\n' >&2
+  exit 76
+fi
+exec "$real_git" "$@"
+EOF
+  chmod +x "$fake_bin/git"
+  export RALPH_TEST_FAIL_FETCH_BRANCH="$branch_name"
+  export RALPH_TEST_OPENCODE_CALLS="$opencode_calls"
+  before_fetch_opencode_calls="$(wc -l < "$opencode_calls" | tr -d ' ')"
+  if fetch_failure_output="$(cd "$work" && PATH="$fake_bin:$PATH" ./scripts/ralph-loop.sh \
+    --batch L003 --scope push-order --resume --max-tasks 1 2>&1)"; then
+    fail 'batch branch fetch failure must stop before trusting the stale remote ref'
+  else
+    fetch_failure_status="$?"
+  fi
+  assert_equal '76' "$fetch_failure_status" \
+    'batch branch fetch failure must preserve the fetch status'
+  [[ "$fetch_failure_output" == *'Unable to fetch origin/'* ]] ||
+    fail 'batch branch fetch failure should explain that the remote ref was not refreshed'
+  assert_equal "$before_fetch_opencode_calls" "$(wc -l < "$opencode_calls" | tr -d ' ')" \
+    'batch branch fetch failure must not execute another task'
+  unset RALPH_TEST_FAIL_FETCH_BRANCH
 
   printf 'PASS: push and recovery\n'
 }
@@ -1228,6 +1308,9 @@ run_qa_case() {
   local wrong_pr_output
   local gate_failure_output
   local gate_failure_status
+  local database_url_failure_output
+  local dirty_artifact_output
+  local dirty_artifact_status
   local gate_log
   local browser_log
   local preexisting_app_pid
@@ -1239,6 +1322,7 @@ run_qa_case() {
   local toctou_output
   local gh_log
   local pr_body
+  local next_env_body
   local app_port=$((39000 + $$ % 1000))
 
   TEST_ROOT="$(mktemp -d)"
@@ -1252,6 +1336,7 @@ run_qa_case() {
   browser_log="$TEST_ROOT/browser.log"
   gh_log="$TEST_ROOT/gh.log"
   pr_body="$TEST_ROOT/pr-body.md"
+  next_env_body='fixture next env'
 
   git init --bare "$remote" >/dev/null
   git init -b main "$source" >/dev/null
@@ -1303,7 +1388,12 @@ EOF
   printf '%s\n' '# Ralph QA test tasks' '### T01: Base task' '### T02: Batch task' \
     '### T03: Skipped task' '### T04: Invalid current task' > \
     "$source/.specs/features/emaus-mvp/tasks.md"
-  git -C "$source" add README.md scripts .specs
+  for task_number in $(seq 5 36); do
+    printf '### T%02d: Validation fixture task\n' "$task_number" \
+      >> "$source/.specs/features/emaus-mvp/tasks.md"
+  done
+  printf '%s\n' 'fixture next env' > "$source/next-env.d.ts"
+  git -C "$source" add README.md next-env.d.ts scripts .specs
   git -C "$source" commit -m 'test: seed QA main branch' >/dev/null
   git -C "$source" remote add origin "$remote"
   git -C "$source" push -u origin main >/dev/null
@@ -1384,6 +1474,12 @@ if [[ "${RALPH_TEST_GATE_FAILURE:-}" == "${2:-}" ]]; then
   printf 'simulated gate failure: %s\n' "${2:-}" >&2
   exit 77
 fi
+if [[ "${2:-}" == 'build' ]]; then
+  printf '%s\n' 'next generated env' > next-env.d.ts
+  if [[ "${RALPH_TEST_GATE_DIRTY:-false}" == 'true' ]]; then
+    printf '%s\n' 'unexpected generated artifact' > qa-generated.txt
+  fi
+fi
 exit 0
 EOF
   chmod +x "$fake_bin/npm"
@@ -1438,6 +1534,22 @@ for ((index = 1; index <= $#; index++)); do
 done
 if [[ -n "$body_file" ]]; then
   cp "$body_file" "${RALPH_TEST_PR_BODY:?}"
+  if [[ "${2:-}" == 'edit' ]]; then
+    python3 - "$body_file" "${RALPH_TEST_GH_LOG:?}" <<'PY'
+import sys
+
+body_path, log_path = sys.argv[1:]
+with open(body_path, encoding="utf-8") as source:
+    body = source.read()
+status = next(
+    line.split(": ", 1)[1]
+    for line in body.splitlines()
+    if line.startswith("- Independent QA:")
+)
+with open(log_path, "a", encoding="utf-8") as target:
+    target.write(f"body-qa={status}\n")
+PY
+  fi
 fi
 case "${2:-}" in
   list)
@@ -1483,6 +1595,8 @@ EOF
   export RALPH_TEST_WRONG_PR=false
   export RALPH_TEST_BROWSER_FAILURE=false
   export RALPH_TEST_MUTATE_REMOTE=false
+  export RALPH_TEST_GATE_DIRTY=false
+  export DATABASE_URL='postgresql://qa:qa@localhost:5433/qa'
 
   python3 - "$ROOT_DIR/docs/operations/opencode-ralph-loop.md" <<'PY'
 import sys
@@ -1494,11 +1608,25 @@ if "primeiro commit/push válido de uma task" not in documentation:
     raise SystemExit("Ralph docs must place Draft PR setup after the first valid task commit/push")
 if "Antes da primeira task e antes de cada task seguinte" in documentation:
     raise SystemExit("Ralph docs must not describe Draft PR setup before the first task")
+
+with open("docs/operations/ralph-branch-pr-flow.md", encoding="utf-8") as source:
+    branch_documentation = source.read()
+if "After the first successful task commit and push" not in branch_documentation:
+    raise SystemExit("branch PR docs must place Draft PR setup after the first task commit and push")
+if "Before the first task, publish the initialized state and open exactly one Draft PR" in branch_documentation:
+    raise SystemExit("branch PR docs must not describe Draft PR setup before the first task")
 PY
+
+  if database_url_failure_output="$(cd "$work" && env -u DATABASE_URL PATH="$fake_bin:$PATH" \
+    ./scripts/ralph-qa.sh --batch L010 --scope qa-flow 2>&1)"; then
+    fail 'QA must reject an unset DATABASE_URL before running project gates'
+  fi
+  [[ "$database_url_failure_output" == *'DATABASE_URL is required'* ]] ||
+    fail 'missing DATABASE_URL failure should identify the required environment variable'
 
   run_qa_metadata_rejection_case 'sequence-gap' 'sequence-gap' "$remote" \
     "$branch_name" "$fake_bin" "$TEST_ROOT"
-  for invalid_status in blocked verification_required unknown; do
+  for invalid_status in blocked verification_required unknown invalid; do
     run_qa_metadata_rejection_case "$invalid_status" "$invalid_status" "$remote" \
       "$branch_name" "$fake_bin" "$TEST_ROOT"
   done
@@ -1524,6 +1652,27 @@ PY
     fail 'QA failure must print the exact failed command'
   [[ ! -e "$TEST_ROOT/pr-ready" ]] || fail 'failed QA must not mark the PR ready'
   export RALPH_TEST_GATE_FAILURE=''
+
+  export RALPH_TEST_GATE_DIRTY=true
+  if dirty_artifact_output="$(cd "$work" && PATH="$fake_bin:$PATH" ./scripts/ralph-qa.sh \
+    --batch L010 --scope qa-flow 2>&1)"; then
+    fail 'QA must reject non-generated dirty changes after restoring next-env.d.ts'
+  else
+    dirty_artifact_status="$?"
+  fi
+  assert_equal '65' "$dirty_artifact_status" \
+    'QA must preserve the clean-tree failure for non-generated build artifacts'
+  [[ "$dirty_artifact_output" == *'working tree is not clean'* ]] ||
+    fail 'non-generated build artifact failure should explain the dirty tree'
+  assert_equal "$next_env_body" "$(python3 - "$work/next-env.d.ts" <<'PY'
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as source:
+    print(source.read().rstrip("\n"))
+PY
+)" 'QA must restore the tracked next-env.d.ts after a build'
+  rm -f "$work/qa-generated.txt"
+  export RALPH_TEST_GATE_DIRTY=false
 
   python3 -m http.server "$app_port" --bind 127.0.0.1 >/dev/null 2>&1 &
   preexisting_app_pid=$!
@@ -1614,6 +1763,13 @@ PY
   remaining_listener_pids="$(lsof -nP -a -iTCP:"$app_port" -sTCP:LISTEN -t 2>/dev/null || true)"
   [[ -z "$remaining_listener_pids" ]] ||
     fail "QA must clean up the spawned application listener (remaining: $remaining_listener_pids)"
+  assert_equal "$next_env_body" "$(python3 - "$work/next-env.d.ts" <<'PY'
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as source:
+    print(source.read().rstrip("\n"))
+PY
+)" 'successful QA must restore the tracked next-env.d.ts after build'
   python3 - "$pr_body" "$qa_commit" <<'PY'
 import sys
 
@@ -1629,6 +1785,19 @@ for expected in (
         raise SystemExit(f'PR body is missing {expected!r}')
 if body.count('- [x]') < 6:
     raise SystemExit('PR body does not mark the QA checklist complete')
+PY
+  python3 - "$gh_log" <<'PY'
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as source:
+    events = [line.rstrip("\n") for line in source]
+pending = [index for index, event in enumerate(events) if event == "body-qa=pending final readiness revalidation"]
+passed = [index for index, event in enumerate(events) if event == "body-qa=passed"]
+ready = [index for index, event in enumerate(events) if event.startswith("gh=pr ready ")]
+if not pending or not passed or not ready:
+    raise SystemExit("QA PR log is missing pending body, passed body, or ready actions")
+if pending[-1] >= passed[-1] or passed[-1] >= ready[-1] or ready[-1] != len(events) - 1:
+    raise SystemExit("QA must revalidate before the passing body and make gh pr ready the final action")
 PY
   assert_equal '0' "$(grep -c 'gh=pr merge' "$gh_log" || true)" \
     'QA must never merge the PR'
@@ -1664,6 +1833,47 @@ PY
   fi
   [[ "$unpublished_output" == *'origin'* ]] ||
     fail 'unpublished QA rejection should identify the origin head mismatch'
+
+  local t36_work="$TEST_ROOT/t36-work"
+  git clone "$remote" "$t36_work" >/dev/null
+  git -C "$t36_work" config user.name 'Ralph Test'
+  git -C "$t36_work" config user.email 'ralph-test@example.invalid'
+  git -C "$t36_work" switch -c "$branch_name" "origin/$branch_name" >/dev/null
+  python3 - "$t36_work/.specs/loop-state.json" <<'PY'
+import json
+import sys
+
+path = sys.argv[1]
+with open(path, encoding="utf-8") as source:
+    state = json.load(source)
+state["completedTasks"] = [f"T{number:02d}" for number in range(1, 37)]
+state["currentTask"] = None
+state["status"] = "verification_required"
+with open(path, "w", encoding="utf-8") as target:
+    json.dump(state, target, indent=2)
+    target.write("\n")
+PY
+  git -C "$t36_work" add .specs/loop-state.json
+  git -C "$t36_work" commit -m 'test: complete T36 verification state' >/dev/null
+  git -C "$t36_work" push origin "$branch_name" >/dev/null
+  rm -f "$TEST_ROOT/pr-ready"
+  export RALPH_TEST_PR_DRAFT=true
+  if t36_output="$(cd "$t36_work" && PATH="$fake_bin:$PATH" ./scripts/ralph-qa.sh \
+    --batch L010 --scope qa-flow 2>&1)"; then
+    :
+  else
+    fail "QA must accept verification_required after T36 completion: $t36_output"
+  fi
+  [[ "$t36_output" == *'QA passed'* ]] ||
+    fail 'T36 verification_required QA should complete the normal readiness flow'
+  python3 - "$pr_body" <<'PY'
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as source:
+    body = source.read()
+if "T02..T36" not in body:
+    raise SystemExit("T36 QA body must include the complete batch task range")
+PY
 
   printf 'PASS: independent QA\n'
 }

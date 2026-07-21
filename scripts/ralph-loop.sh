@@ -777,8 +777,16 @@ state_file_dirty() {
 
 ensure_branch_published() {
   local remote_head
-  git fetch origin "$RUN_BRANCH" >/dev/null 2>&1 || true
-  remote_head="$(git rev-parse --verify "refs/remotes/origin/$RUN_BRANCH^{commit}" 2>/dev/null || true)"
+  if ! git fetch origin "$RUN_BRANCH" >/dev/null 2>&1; then
+    printf 'Unable to fetch origin/%s; refusing to trust a stale remote ref.\n' \
+      "$RUN_BRANCH" >&2
+    return 76
+  fi
+  if ! remote_head="$(git rev-parse --verify "refs/remotes/origin/$RUN_BRANCH^{commit}" 2>/dev/null)"; then
+    printf 'Unable to resolve origin/%s after fetch; refusing to publish from a stale ref.\n' \
+      "$RUN_BRANCH" >&2
+    return 76
+  fi
   if [[ "$remote_head" != "$(git rev-parse HEAD)" ]]; then
     push_batch_branch_ref "$(git rev-parse HEAD)"
   fi
@@ -791,7 +799,7 @@ prepare_draft_pr() {
     stored_pr=true
     require_open_pr_draft || return $?
   else
-    ensure_branch_published
+    ensure_branch_published || return $?
     ensure_pull_request true || return $?
   fi
 
@@ -808,7 +816,7 @@ prepare_draft_pr() {
     push_published_state
   fi
 
-  ensure_branch_published
+  ensure_branch_published || return $?
   require_open_pr_draft
 }
 
@@ -932,7 +940,16 @@ fi
 
 if [[ "$DRY_RUN" == false ]]; then
   initialize_batch
-  prepare_draft_pr
+  ensure_branch_published || {
+    publish_status="$?"
+    exit "$publish_status"
+  }
+  if has_pending_task_commit; then
+    prepare_draft_pr || {
+      pr_status="$?"
+      exit "$pr_status"
+    }
+  fi
 fi
 
 dry_run_task=""
@@ -958,10 +975,17 @@ for ((iteration = 1; iteration <= MAX_TASKS; iteration++)); do
   esac
 
   if [[ "$DRY_RUN" == false ]]; then
-    require_open_pr_draft || {
-      pr_status="$?"
-      exit "$pr_status"
-    }
+    if stored_pull_request >/dev/null 2>&1; then
+      require_open_pr_draft || {
+        pr_status="$?"
+        exit "$pr_status"
+      }
+    elif has_pending_task_commit; then
+      prepare_draft_pr || {
+        pr_status="$?"
+        exit "$pr_status"
+      }
+    fi
   fi
 
   assert_task_exists "$task_id"
@@ -1003,12 +1027,12 @@ for ((iteration = 1; iteration <= MAX_TASKS; iteration++)); do
   TASK_STATE_SNAPSHOT=""
   persist_task_metadata "$task_id" "$after_commit"
 
-  require_open_pr_draft || {
-    pr_status="$?"
-    exit "$pr_status"
+  push_batch_branch_ref "$after_commit" || {
+    push_status="$?"
+    exit "$push_status"
   }
   persist_last_push "$after_commit"
-  ensure_pull_request false || {
+  ensure_pull_request true || {
     pr_status="$?"
     exit "$pr_status"
   }

@@ -11,6 +11,8 @@
    Do instead: verify the task gate before updating loop state or committing.
 2. **[2026-07-21] Validate published Ralph state before QA**
    Do instead: compare local HEAD and `lastPush.sha` with `origin/<runBranch>`.
+3. **[2026-07-21] Next build rewrites tracked `next-env.d.ts`**
+   Do instead: preserve and restore it around QA builds, then reject every other dirty path.
 
 ## Shell & Command Reliability
 1. **[2026-07-21] Keep later-task tooling out of earlier task commits**

@@ -152,8 +152,8 @@ For each approved task, Ralph must preserve the existing task protections:
    the current task while `currentTask` became the next sequential task.
 5. Push the validated commit to the batch branch before starting the next task.
 
-Before the first task, publish the initialized state and open exactly one Draft
-PR from the batch branch to `dev`:
+After the first successful task commit and push, open exactly one Draft PR from
+the batch branch to `dev`:
 
 ```bash
 gh pr create --draft --base dev --head lote/L001-m3-auth-access --title "[L001] m3-auth-access" --body-file /path/to/batch-pr-body.md
@@ -172,8 +172,9 @@ commit, the runner permits `--resume` only when the dirty change is the runner's
 loop-state metadata, `lastCommit` is the committed `HEAD`, and the task
 transition is still pending publication. Resume then retries PR setup and
 commits the runner metadata deterministically without rerunning that task. If
-PR creation fails before the first task, stop without executing or pushing a
-task and retry PR setup without creating an empty commit. Batch, PR, and push
+If PR creation fails after the first task commit has been pushed, stop with the
+task commit preserved and retry PR setup on resume without rerunning that task.
+Batch, PR, and push
 metadata are committed in runner-owned state transitions; no `skip-worktree`
 overlay is required. If `dev` changes during a batch, report the divergence and
 wait for an explicit rebase or restart decision.

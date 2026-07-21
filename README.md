@@ -6,7 +6,7 @@ O Emaús será desenvolvido com **Spec-Driven Development**. Antes de implementa
 
 ## Estado atual
 
-Specify e Design estão aprovados. O projeto está na fase **Tasks**, com T01 e T02 concluídas e T03 como próxima tarefa pelo OpenCode.
+Specify e Design estão aprovados. O projeto está na fase **Tasks**, com T01–T11 concluídas e T12 como próxima tarefa pelo OpenCode. Cada lote publica a primeira task antes de criar ou reutilizar um Draft PR; a QA independente só marca o PR como pronto após a revalidação final.
 
 ## Desenvolvimento local
 

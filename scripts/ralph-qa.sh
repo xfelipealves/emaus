@@ -160,6 +160,13 @@ require_commands() {
   }
 }
 
+require_database_url() {
+  if [[ -z "${DATABASE_URL:-}" ]]; then
+    echo "QA preflight failed: DATABASE_URL is required for the project gates (npm run db:validate)." >&2
+    exit 69
+  fi
+}
+
 read_batch_metadata() {
   local metadata
   if ! metadata="$(python3 - "$STATE_FILE" "$TASKS_FILE" "$BATCH_ID" \
@@ -270,13 +277,13 @@ if last_push.get("status") != "passed":
 numbers = [int(task[1:]) for task in completed]
 expected_current = f"T{numbers[-1] + 1:02d}" if numbers[-1] < 36 else None
 status = state.get("status")
-if status not in {"ready", "complete"}:
+if status not in {"ready", "verification_required", "complete"}:
     raise SystemExit(f"loop status is not valid for QA: {status!r}")
 if status == "ready":
     if expected_current is None or state.get("currentTask") != expected_current:
         raise SystemExit("ready state must have the next task after completedTasks")
 elif expected_current is not None or state.get("currentTask") is not None:
-    raise SystemExit("complete state must have all tasks completed and no currentTask")
+    raise SystemExit(f"{status} state must have all T01..T36 completed and no currentTask")
 
 task_range = new_tasks[0] if len(new_tasks) == 1 else f"{new_tasks[0]}..{new_tasks[-1]}"
 print("\t".join((base_sha, last_push_sha, task_range, str(number), url)))
@@ -605,7 +612,16 @@ run_browser_qa() {
 run_gate() {
   local gate="$1"
   echo "=== QA gate: npm run $gate ==="
-  if npm run "$gate"; then
+  if [[ "$gate" == build ]]; then
+    if run_build_gate; then
+      return 0
+    else
+      local gate_status=$?
+      echo "First QA failure: npm run $gate (status $gate_status)." >&2
+      echo "The PR remains Draft. Rerun: ./scripts/ralph-qa.sh --batch $BATCH_ID --scope $SCOPE" >&2
+      return "$gate_status"
+    fi
+  elif npm run "$gate"; then
     return 0
   else
     local gate_status=$?
@@ -615,7 +631,35 @@ run_gate() {
   fi
 }
 
-update_pr_and_ready() {
+run_build_gate() {
+  local next_env_file="next-env.d.ts"
+  local backup_file=""
+  local build_status=0
+
+  if git ls-files --error-unmatch -- "$next_env_file" >/dev/null 2>&1; then
+    backup_file="$(mktemp "${TMPDIR:-/tmp}/ralph-next-env.XXXXXX")"
+    cp "$next_env_file" "$backup_file"
+  fi
+
+  if npm run build; then
+    build_status=0
+  else
+    build_status="$?"
+  fi
+
+  if [[ -n "$backup_file" ]]; then
+    if ! cp "$backup_file" "$next_env_file"; then
+      rm -f -- "$backup_file"
+      echo "Unable to restore tracked $next_env_file after the build." >&2
+      return 70
+    fi
+    rm -f -- "$backup_file"
+  fi
+  return "$build_status"
+}
+
+write_pr_body() {
+  local qa_status="$1"
   PR_BODY_FILE="$(mktemp "${TMPDIR:-/tmp}/ralph-qa-pr-body.XXXXXX")"
   cat > "$PR_BODY_FILE" <<EOF
 # Ralph batch $BATCH_ID
@@ -626,7 +670,7 @@ update_pr_and_ready() {
 - Head: \`$RUN_BRANCH\`
 - Completed task range: \`$TASK_RANGE\`
 - Published HEAD: \`$LAST_PUSH_SHA\`
-- Independent QA: passed
+- Independent QA: $qa_status
 
 ## Commit SHAs
 $(git log --format='- `%H` %s' "origin/$BASE_BRANCH..HEAD")
@@ -658,9 +702,14 @@ $(git log --format='- `%H` %s' "origin/$BASE_BRANCH..HEAD")
 - [x] Console, network, loading, empty, error, and keyboard checks passed.
 - [x] Affected acceptance criteria were checked.
 - [x] QA did not modify application files.
+- [$([[ "$qa_status" == passed ]] && printf 'x' || printf ' ')] Final readiness revalidation passed.
 
 QA does not merge this PR. Merge remains a manual maintainer action.
 EOF
+}
+
+update_pr_and_ready() {
+  write_pr_body "pending final readiness revalidation"
   echo "=== Updating PR #$PR_NUMBER with the passing QA checklist ==="
   if gh pr edit "$PR_NUMBER" --body-file "$PR_BODY_FILE"; then
     :
@@ -671,6 +720,15 @@ EOF
   fi
   echo "=== Revalidating batch and PR immediately before marking #$PR_NUMBER ready ==="
   validate_final_readiness
+  write_pr_body "passed"
+  echo "=== Updating PR #$PR_NUMBER with the final passing QA checklist ==="
+  if gh pr edit "$PR_NUMBER" --body-file "$PR_BODY_FILE"; then
+    :
+  else
+    local final_edit_status=$?
+    echo "Unable to update PR #$PR_NUMBER with the final QA result; it remains Draft." >&2
+    exit "$final_edit_status"
+  fi
   if gh pr ready "$PR_NUMBER"; then
     :
   else
@@ -697,6 +755,7 @@ RUN_BRANCH="lote/${BATCH_ID}-${SCOPE_SLUG}"
 
 require_clean_tree
 require_commands
+require_database_url
 [[ "$(git branch --show-current)" == "$RUN_BRANCH" ]] ||
   fail_preflight "checked-out branch is not $RUN_BRANCH"
 read_batch_metadata
