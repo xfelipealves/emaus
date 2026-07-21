@@ -61,10 +61,10 @@
 ## Handoff
 
 - **Feature**: `.specs/features/emaus-mvp`
-- **Phase / Task**: M1 Foundation — T03 concluída
-- **Completed**: instalação do `tlc-spec-driven`; Specify aprovado; Design aprovado; milestones M1–M8 e tasks T01–T36 criados; T01 bootstrap local implementado com smoke unitário e E2E; T02 PostgreSQL local e contrato de ambiente implementados; T03 Prisma client, schema PostgreSQL mínimo e validação configurados; OpenCode Ralph Loop guardado por `.specs/loop-state.json`
-- **In-progress** (file:line): `.specs/features/emaus-mvp/tasks.md:96` — T04 aguardando execução
-- **Next step**: executar T04, configurando o shell autenticado e a navegação responsiva.
-- **Blockers**: nenhum para T04. OpenCode é o runner do loop; modelo permanece configurável por `OPENCODE_MODEL`. O loop para se uma task falhar, não fizer commit, deixar árvore suja ou não avançar `.specs/loop-state.json`; deploy, e-mail, backup e monitoramento permanecem postergados para depois da validação local.
-- **Uncommitted files**: alterações de T03 prontas para commit
+- **Phase / Task**: M1 Foundation — T04 concluída
+- **Completed**: instalação do `tlc-spec-driven`; Specify aprovado; Design aprovado; milestones M1–M8 e tasks T01–T36 criados; T01 bootstrap local implementado com smoke unitário e E2E; T02 PostgreSQL local e contrato de ambiente implementados; T03 Prisma client, schema PostgreSQL mínimo e validação configurados; T04 shell responsivo com navegação desktop/mobile e smoke E2E; OpenCode Ralph Loop guardado por `.specs/loop-state.json`
+- **In-progress** (file:line): `.specs/features/emaus-mvp/tasks.md:110` — T05 aguardando execução
+- **Next step**: executar T05, adicionando primitives compartilhadas de UI e estados de feedback.
+- **Blockers**: nenhum para T05. OpenCode é o runner do loop; modelo permanece configurável por `OPENCODE_MODEL`. O loop para se uma task falhar, não fizer commit, deixar árvore suja ou não avançar `.specs/loop-state.json`; deploy, e-mail, backup e monitoramento permanecem postergados para depois da validação local.
+- **Uncommitted files**: alterações de T04 prontas para commit
 - **Branch**: main

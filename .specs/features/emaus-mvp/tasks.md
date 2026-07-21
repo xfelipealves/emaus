@@ -100,9 +100,9 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Depends on**: T01
 **Requirement**: AUD-01
 **Done when**:
-- [ ] Desktop exposes Início, Pessoas, Ministérios, Encontros and Configurações.
-- [ ] Mobile exposes Início, Pessoas, Ministérios and Encontros; Configurações is under Mais.
-- [ ] Navigation has accessible labels and active state.
+- [x] Desktop exposes Início, Pessoas, Ministérios, Encontros and Configurações.
+- [x] Mobile exposes Início, Pessoas, Ministérios and Encontros; Configurações is under Mais.
+- [x] Navigation has accessible labels and active state.
 **Tests**: E2E smoke
 **Gate**: Full
 **Commit**: `feat: add responsive application shell`
