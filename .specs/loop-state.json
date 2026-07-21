@@ -1,6 +1,11 @@
 {
   "schemaVersion": 1,
   "feature": "emaus-mvp",
+  "batch": null,
+  "scope": null,
+  "baseBranch": null,
+  "runBranch": null,
+  "baseSha": null,
   "status": "ready",
   "currentTask": "T12",
   "completedTasks": ["T01", "T02", "T03", "T04", "T05", "T06", "T07", "T08", "T09", "T10", "T11"],

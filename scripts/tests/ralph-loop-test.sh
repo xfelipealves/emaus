@@ -3,6 +3,8 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SETUP_SCRIPT="$ROOT_DIR/scripts/setup-ralph-branches.sh"
+RALPH_LOOP_SCRIPT="$ROOT_DIR/scripts/ralph-loop.sh"
+TASK_RUNNER_SCRIPT="$ROOT_DIR/scripts/run-emaus-task.sh"
 TEST_ROOT=""
 TEST_ROOTS=()
 TEST_ENV_ROOT=""
@@ -55,6 +57,22 @@ assert_equal() {
 
   [[ "$expected" == "$actual" ]] ||
     fail "$description (expected '$expected', got '$actual')"
+}
+
+state_value() {
+  python3 - "$1" "$2" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as source:
+    state = json.load(source)
+
+value = state[sys.argv[2]]
+if isinstance(value, (dict, list)):
+    print(json.dumps(value, sort_keys=True))
+else:
+    print(value)
+PY
 }
 
 run_setup_case() {
@@ -249,8 +267,197 @@ run_existing_remote_dev_case() {
   printf 'PASS: existing remote dev\n'
 }
 
+run_branch_init_case() {
+  [[ -f "$RALPH_LOOP_SCRIPT" ]] || fail "missing loop script: $RALPH_LOOP_SCRIPT"
+  [[ -f "$TASK_RUNNER_SCRIPT" ]] || fail "missing task runner: $TASK_RUNNER_SCRIPT"
+
+  local remote
+  local source
+  local work
+  local dirty_work
+  local fake_bin
+  local remote_dev_sha
+  local created_sha
+  local initial_output
+  local initial_status
+  local collision_output
+  local collision_status
+  local resume_output
+  local resume_status
+  local checked_out_output
+  local checked_out_status
+  local metadata_output
+  local metadata_status
+  local branch_name='lote/L001-m3-auth-access'
+
+  TEST_ROOT="$(mktemp -d)"
+  TEST_ROOTS+=("$TEST_ROOT")
+
+  remote="$TEST_ROOT/remote.git"
+  source="$TEST_ROOT/source"
+  work="$TEST_ROOT/work"
+  dirty_work="$TEST_ROOT/dirty-work"
+  fake_bin="$TEST_ROOT/fake-bin"
+
+  git init --bare "$remote" >/dev/null
+  git init -b main "$source" >/dev/null
+  git -C "$source" config user.name 'Ralph Test'
+  git -C "$source" config user.email 'ralph-test@example.invalid'
+  printf 'Ralph loop branch init test\n' > "$source/README.md"
+  mkdir -p "$source/scripts" "$source/.specs/features/emaus-mvp"
+  cp "$RALPH_LOOP_SCRIPT" "$source/scripts/ralph-loop.sh"
+  cp "$TASK_RUNNER_SCRIPT" "$source/scripts/run-emaus-task.sh"
+  chmod +x "$source/scripts/ralph-loop.sh" "$source/scripts/run-emaus-task.sh"
+  cat > "$source/.specs/loop-state.json" <<'EOF'
+{
+  "schemaVersion": 1,
+  "feature": "emaus-mvp",
+  "status": "ready",
+  "currentTask": "T12",
+  "completedTasks": ["T01", "T02", "T03", "T04", "T05", "T06", "T07", "T08", "T09", "T10", "T11"],
+  "completedMilestones": [],
+  "lastCommit": "1111111111111111111111111111111111111111",
+  "lastGate": {
+    "command": "test gate",
+    "result": "passed"
+  },
+  "updatedAt": "2026-07-21",
+  "notes": "Preserve this sequencing data."
+}
+EOF
+  printf '%s\n' '# Ralph test tasks' '### T12: Test branch initialization' > \
+    "$source/.specs/features/emaus-mvp/tasks.md"
+  git -C "$source" add README.md scripts .specs
+  git -C "$source" commit -m 'test: seed main branch' >/dev/null
+  git -C "$source" remote add origin "$remote"
+  git -C "$source" push -u origin main >/dev/null
+  git -C "$source" switch -c dev >/dev/null
+  printf 'Ralph dev base\n' > "$source/DEV.md"
+  git -C "$source" add DEV.md
+  git -C "$source" commit -m 'test: seed dev branch' >/dev/null
+  git -C "$source" push -u origin dev >/dev/null
+  git --git-dir="$remote" symbolic-ref HEAD refs/heads/main
+  git clone "$remote" "$work" >/dev/null
+  git clone "$remote" "$dirty_work" >/dev/null
+
+  for repository in "$work" "$dirty_work"; do
+    git -C "$repository" config user.name 'Ralph Test'
+    git -C "$repository" config user.email 'ralph-test@example.invalid'
+  done
+
+  mkdir -p "$fake_bin"
+  printf '%s\n' '#!/usr/bin/env bash' 'exit 0' > "$fake_bin/opencode"
+  chmod +x "$fake_bin/opencode"
+  remote_dev_sha="$(git --git-dir="$remote" rev-parse refs/heads/dev)"
+
+  if initial_output="$(cd "$work" && PATH="$fake_bin:$PATH" ./scripts/ralph-loop.sh \
+    --batch L001 --scope 'M3 Auth/Access' --max-tasks 1 2>&1)"; then
+    fail 'new batch initialization should stop when the fake executor creates no commit'
+  else
+    initial_status="$?"
+  fi
+  assert_equal '65' "$initial_status" \
+    'initialization case should preserve the existing clean-tree stop'
+  assert_equal "$branch_name" "$(git -C "$work" branch --show-current)" \
+    'new batch should check out the normalized branch'
+  created_sha="$(git -C "$work" rev-parse HEAD)"
+  assert_equal "$remote_dev_sha" "$created_sha" \
+    'new batch should start at the exact origin/dev tip'
+  assert_equal 'L001' "$(state_value "$work/.specs/loop-state.json" batch)" \
+    'state should persist the batch ID'
+  assert_equal 'm3-auth-access' "$(state_value "$work/.specs/loop-state.json" scope)" \
+    'state should persist the normalized scope'
+  assert_equal 'dev' "$(state_value "$work/.specs/loop-state.json" baseBranch)" \
+    'state should persist the base branch'
+  assert_equal "$branch_name" "$(state_value "$work/.specs/loop-state.json" runBranch)" \
+    'state should persist the run branch'
+  assert_equal "$remote_dev_sha" "$(state_value "$work/.specs/loop-state.json" baseSha)" \
+    'state should persist the exact base SHA'
+  assert_equal 'T12' "$(state_value "$work/.specs/loop-state.json" currentTask)" \
+    'state should preserve the current task'
+  assert_equal 'ready' "$(state_value "$work/.specs/loop-state.json" status)" \
+    'state should preserve the loop status'
+  assert_equal '1111111111111111111111111111111111111111' \
+    "$(state_value "$work/.specs/loop-state.json" lastCommit)" \
+    'state should preserve the last task commit'
+  [[ "$initial_output" == *'starting T12'* ]] ||
+    fail 'initialization case should reach the existing task sequencing checks'
+
+  git -C "$work" add .specs/loop-state.json
+  git -C "$work" commit -m 'test: persist initialized batch metadata' >/dev/null
+  if collision_output="$(cd "$work" && PATH="$fake_bin:$PATH" ./scripts/ralph-loop.sh \
+    --batch L001 --scope m3-auth-access --max-tasks 1 2>&1)"; then
+    fail 'existing batch branch should be rejected without --resume'
+  else
+    collision_status="$?"
+  fi
+  assert_equal '66' "$collision_status" 'batch collision should be rejected'
+  [[ "$collision_output" == *'already exists'* ]] ||
+    fail 'batch collision should explain that the branch already exists'
+
+  if resume_output="$(cd "$work" && PATH="$fake_bin:$PATH" ./scripts/ralph-loop.sh \
+    --batch L001 --scope m3-auth-access --resume --max-tasks 1 2>&1)"; then
+    fail 'valid resume should still stop when the fake executor creates no commit'
+  else
+    resume_status="$?"
+  fi
+  assert_equal '68' "$resume_status" 'valid resume should reach task execution'
+  [[ "$resume_output" == *'starting T12'* ]] ||
+    fail 'valid resume should pass branch metadata validation'
+
+  git -C "$work" switch main >/dev/null
+  if checked_out_output="$(cd "$work" && PATH="$fake_bin:$PATH" ./scripts/ralph-loop.sh \
+    --batch L001 --scope m3-auth-access --resume --max-tasks 1 2>&1)"; then
+    fail 'resume from the wrong checked-out branch should be rejected'
+  else
+    checked_out_status="$?"
+  fi
+  assert_equal '66' "$checked_out_status" 'resume should require the recorded branch'
+  [[ "$checked_out_output" == *'checked-out branch'* ]] ||
+    fail 'wrong-branch resume should explain the checked-out branch requirement'
+  git -C "$work" switch "$branch_name" >/dev/null
+
+  python3 - "$work/.specs/loop-state.json" <<'PY'
+import json
+import sys
+
+path = sys.argv[1]
+with open(path, encoding="utf-8") as source:
+    state = json.load(source)
+state["scope"] = "other-scope"
+with open(path, "w", encoding="utf-8") as target:
+    json.dump(state, target, indent=2)
+    target.write("\n")
+PY
+  git -C "$work" add .specs/loop-state.json
+  git -C "$work" commit -m 'test: corrupt batch metadata' >/dev/null
+  if metadata_output="$(cd "$work" && PATH="$fake_bin:$PATH" ./scripts/ralph-loop.sh \
+    --batch L001 --scope m3-auth-access --resume --max-tasks 1 2>&1)"; then
+    fail 'resume with mismatched stored metadata should be rejected'
+  else
+    metadata_status="$?"
+  fi
+  assert_equal '66' "$metadata_status" 'resume metadata mismatch should be rejected'
+  [[ "$metadata_output" == *'metadata does not match'* ]] ||
+    fail 'metadata mismatch should explain the resume validation failure'
+
+  printf 'uncommitted change\n' > "$dirty_work/dirty.txt"
+  if dirty_output="$(cd "$dirty_work" && PATH="$fake_bin:$PATH" ./scripts/ralph-loop.sh \
+    --batch L002 --scope dirty-check --max-tasks 1 2>&1)"; then
+    fail 'dirty checkout should be rejected before batch branch creation'
+  fi
+  [[ "$dirty_output" == *'working tree is not clean'* ]] ||
+    fail 'dirty checkout should explain the clean-tree requirement'
+  if git -C "$dirty_work" show-ref --verify --quiet refs/heads/lote/L002-dirty-check; then
+    fail 'dirty checkout must not create a batch branch'
+  fi
+
+  printf 'PASS: branch initialization\n'
+}
+
 usage() {
   printf 'Usage: %s setup\n' "$0"
+  printf '       %s branch-init\n' "$0"
   printf '       %s all\n' "$0"
 }
 
@@ -259,9 +466,13 @@ case "${1:-}" in
     run_setup_case
     run_existing_remote_dev_case
     ;;
+  branch-init)
+    run_branch_init_case
+    ;;
   all)
     run_setup_case
     run_existing_remote_dev_case
+    run_branch_init_case
     ;;
   -h|--help)
     usage
