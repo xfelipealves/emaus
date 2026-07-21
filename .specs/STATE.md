@@ -66,5 +66,5 @@
 - **In-progress** (file:line): `.specs/features/emaus-mvp/tasks.md:199` — T11 aguardando execução
 - **Next step**: executar T11, adicionando hashing Argon2 e validação de credenciais.
 - **Blockers**: nenhum para T10. OpenCode é o runner do loop; modelo permanece configurável por `OPENCODE_MODEL`. O loop para se uma task falhar, não fizer commit, deixar árvore suja ou não avançar `.specs/loop-state.json`; deploy, e-mail, backup e monitoramento permanecem postergados para depois da validação local.
-- **Uncommitted files**: aguardando commit atômico da T10
+- **Uncommitted files**: nenhum
 - **Branch**: main
