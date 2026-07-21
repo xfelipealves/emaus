@@ -92,6 +92,56 @@ e cada retomada atualizam o corpo do mesmo PR com `gh pr edit`; o script nunca
 cria um segundo PR para o mesmo lote. `number`, `url`, `base`, `head` e `draft`
 ficam persistidos em `.specs/loop-state.json`.
 
+## QA Independente do Lote
+
+Depois que o lote terminar, execute a QA independente a partir da própria branch
+do lote. O script exige os metadados persistidos, a branch exata, uma árvore
+limpa, um Draft PR para o par `dev`/head correto e a extensão de tasks registrada
+desde o `baseSha`. A comparação e o log abrangem o intervalo completo
+`dev...HEAD`, não apenas o último commit:
+
+```bash
+RALPH_START_COMMAND='npm run dev -- --hostname 127.0.0.1' \
+RALPH_APP_URL='http://127.0.0.1:3000' \
+RALPH_BROWSER_VIEWPORTS='desktop,mobile' \
+RALPH_BROWSER_QA_COMMAND='comando-de-browser-qa' \
+./scripts/ralph-qa.sh --batch L001 --scope m3-auth-access
+```
+
+O hook definido em `RALPH_BROWSER_QA_COMMAND` recebe estas variáveis e o arquivo
+de checklist em `RALPH_BROWSER_QA_CHECKLIST`:
+
+- `RALPH_APP_URL` e `RALPH_BROWSER_VIEWPORTS` para iniciar e validar o app em
+  desktop e mobile;
+- `RALPH_QA_DIFF_BASE`, `RALPH_QA_DIFF_HEAD` e `RALPH_QA_TASK_RANGE` para
+  conferir o escopo completo e as tasks afetadas;
+- `RALPH_BROWSER_QA_CHECKLIST` com os critérios de aceite das tasks concluídas.
+
+O hook deve verificar navegação, estados de carregamento/vazio/erro, console,
+requisições de rede, foco/teclado e todos os critérios de aceite relevantes. O
+script inicia o app, espera a URL responder e encerra o processo ao terminar.
+Nem o hook nem a QA podem editar código da aplicação; uma árvore suja faz a QA
+falhar.
+
+As gates automatizadas rodam nesta ordem, usando exatamente o ambiente do
+chamador:
+
+```text
+npm run db:validate
+npm run typecheck
+npm run lint
+npm run build
+npm run test
+npm run test:integration
+npm run test:e2e
+```
+
+A primeira falha interrompe o fluxo, preserva seu status, não chama `gh pr ready`
+e mantém o PR como Draft. Quando todas as gates e a QA de browser passarem, o
+script atualiza o checklist do PR e executa `gh pr ready <PR_NUMBER>`. Ele nunca
+faz merge. O hook de browser é obrigatório para evitar que uma aprovação
+automática seja confundida com uma validação visual incompleta.
+
 Se o push passar mas a criação ou atualização do PR falhar, o loop para sem
 criar commit vazio. A branch e o commit permanecem preservados para uma nova
 execução com `--resume`.
@@ -123,6 +173,8 @@ O `scripts/ralph-loop.sh` também verifica, após cada chamada ao OpenCode:
 5. Aumentar o lote apenas quando o piloto estiver confiável.
 6. Ao fim de cada milestone, executar o Build Gate definido no `tasks.md`.
 7. Ao fim de T36, o loop para em `verification_required`; então disparar o Verifier TLC e criar `.specs/features/emaus-mvp/validation.md`.
+8. Ao fim de um lote, executar a [QA independente](#qa-independente-do-lote)
+   antes de solicitar revisão ou merge manual.
 
 ## Regras de parada
 

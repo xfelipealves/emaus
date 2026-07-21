@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SETUP_SCRIPT="$ROOT_DIR/scripts/setup-ralph-branches.sh"
 RALPH_LOOP_SCRIPT="$ROOT_DIR/scripts/ralph-loop.sh"
+RALPH_QA_SCRIPT="$ROOT_DIR/scripts/ralph-qa.sh"
 TASK_RUNNER_SCRIPT="$ROOT_DIR/scripts/run-emaus-task.sh"
 TEST_ROOT=""
 TEST_ROOTS=()
@@ -16,7 +17,7 @@ cleanup_test_roots() {
     rm -rf "$TEST_ENV_ROOT"
   fi
 
-  for test_root in "${TEST_ROOTS[@]}"; do
+  for test_root in "${TEST_ROOTS[@]-}"; do
     rm -rf "$test_root"
   done
 }
@@ -946,11 +947,308 @@ PY
   printf 'PASS: push and recovery\n'
 }
 
+run_qa_case() {
+  [[ -f "$RALPH_QA_SCRIPT" ]] || fail "missing QA script: $RALPH_QA_SCRIPT"
+
+  local remote
+  local source
+  local work
+  local fake_bin
+  local branch_name='lote/L010-qa-flow'
+  local dev_sha
+  local qa_commit
+  local output
+  local status
+  local dirty_output
+  local wrong_branch_output
+  local wrong_pr_output
+  local gate_failure_output
+  local gate_failure_status
+  local gate_log
+  local browser_log
+  local gh_log
+  local pr_body
+  local app_port=$((39000 + $$ % 1000))
+
+  TEST_ROOT="$(mktemp -d)"
+  TEST_ROOTS+=("$TEST_ROOT")
+  remote="$TEST_ROOT/remote.git"
+  source="$TEST_ROOT/source"
+  work="$TEST_ROOT/work"
+  fake_bin="$TEST_ROOT/fake-bin"
+  gate_log="$TEST_ROOT/gates.log"
+  browser_log="$TEST_ROOT/browser.log"
+  gh_log="$TEST_ROOT/gh.log"
+  pr_body="$TEST_ROOT/pr-body.md"
+
+  git init --bare "$remote" >/dev/null
+  git init -b main "$source" >/dev/null
+  git -C "$source" config user.name 'Ralph Test'
+  git -C "$source" config user.email 'ralph-test@example.invalid'
+  mkdir -p "$source/scripts" "$source/.specs/features/emaus-mvp"
+  printf '%s\n' 'Ralph QA test' > "$source/README.md"
+  cp "$RALPH_QA_SCRIPT" "$source/scripts/ralph-qa.sh"
+  chmod +x "$source/scripts/ralph-qa.sh"
+  cat > "$source/.specs/loop-state.json" <<'EOF'
+{
+  "schemaVersion": 1,
+  "feature": "emaus-mvp",
+  "batch": null,
+  "scope": null,
+  "baseBranch": null,
+  "runBranch": null,
+  "baseSha": null,
+  "status": "ready",
+  "currentTask": "T02",
+  "completedTasks": ["T01"],
+  "completedMilestones": [],
+  "lastCommit": "base-task",
+  "lastGate": {"command": "test gate", "result": "passed"},
+  "updatedAt": "2026-07-21"
+}
+EOF
+  printf '%s\n' '# Ralph QA test tasks' '### T01: Base task' '### T02: Batch task' > \
+    "$source/.specs/features/emaus-mvp/tasks.md"
+  git -C "$source" add README.md scripts .specs
+  git -C "$source" commit -m 'test: seed QA main branch' >/dev/null
+  git -C "$source" remote add origin "$remote"
+  git -C "$source" push -u origin main >/dev/null
+  git -C "$source" switch -c dev >/dev/null
+  printf '%s\n' 'QA dev base' > "$source/DEV.md"
+  git -C "$source" add DEV.md
+  git -C "$source" commit -m 'test: seed QA dev branch' >/dev/null
+  git -C "$source" push -u origin dev >/dev/null
+  git --git-dir="$remote" symbolic-ref HEAD refs/heads/main
+  dev_sha="$(git --git-dir="$remote" rev-parse refs/heads/dev)"
+  git clone "$remote" "$work" >/dev/null
+  git -C "$work" config user.name 'Ralph Test'
+  git -C "$work" config user.email 'ralph-test@example.invalid'
+  git -C "$work" branch dev origin/dev
+  git -C "$work" switch -c "$branch_name" "origin/dev" >/dev/null
+  printf '%s\n' 'batch change' > "$work/batch.txt"
+  python3 - "$work/.specs/loop-state.json" "$branch_name" "$dev_sha" <<'PY'
+import json
+import sys
+
+path, branch, base_sha = sys.argv[1:]
+with open(path, encoding='utf-8') as source:
+    state = json.load(source)
+state.update({
+    'batch': 'L010',
+    'scope': 'qa-flow',
+    'baseBranch': 'dev',
+    'runBranch': branch,
+    'baseSha': base_sha,
+    'currentTask': 'T03',
+    'completedTasks': ['T01', 'T02'],
+    'lastCommit': 'executor-T02',
+    'lastGate': {'command': 'npm run test', 'result': 'passed'},
+    'pullRequest': {
+        'number': 42,
+        'url': 'https://github.com/example/emaus/pull/42',
+        'base': 'dev',
+        'head': branch,
+        'draft': True,
+    },
+})
+with open(path, 'w', encoding='utf-8') as target:
+    json.dump(state, target, indent=2)
+    target.write('\n')
+PY
+  git -C "$work" add batch.txt .specs/loop-state.json
+  git -C "$work" commit -m 'feat: execute T02 for QA fixture' >/dev/null
+  qa_commit="$(git -C "$work" rev-parse HEAD)"
+  git -C "$work" push -u origin "$branch_name" >/dev/null
+
+  mkdir -p "$fake_bin"
+  cat > "$fake_bin/npm" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s %s\n' "${1:-}" "${2:-}" >> "${RALPH_TEST_GATE_LOG:?}"
+if [[ "${RALPH_TEST_GATE_FAILURE:-}" == "${2:-}" ]]; then
+  printf 'simulated gate failure: %s\n' "${2:-}" >&2
+  exit 77
+fi
+exit 0
+EOF
+  chmod +x "$fake_bin/npm"
+cat > "$fake_bin/start-app" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+exec python3 -m http.server "${RALPH_TEST_APP_PORT:?}" >/dev/null 2>&1
+EOF
+  chmod +x "$fake_bin/start-app"
+  cat > "$fake_bin/browser-qa" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s|%s|%s\n' "${RALPH_APP_URL:?}" "${RALPH_BROWSER_VIEWPORTS:?}" "${RALPH_BROWSER_QA_CHECKLIST:?}" >> "${RALPH_TEST_BROWSER_LOG:?}"
+python3 - "${RALPH_BROWSER_QA_CHECKLIST:?}" <<'PY'
+import sys
+
+with open(sys.argv[1], encoding='utf-8') as source:
+    checklist = source.read()
+for expected in ('desktop', 'mobile', 'console', 'network', 'acceptance criteria'):
+    if expected not in checklist.lower():
+        raise SystemExit(f'missing browser checklist item: {expected}')
+PY
+curl --fail --silent "${RALPH_APP_URL:?}" >/dev/null
+if [[ "${RALPH_TEST_BROWSER_FAILURE:-false}" == 'true' ]]; then
+  printf 'simulated browser QA failure\n' >&2
+  exit 78
+fi
+EOF
+  chmod +x "$fake_bin/browser-qa"
+  cat > "$fake_bin/gh" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+printf 'gh=%s\n' "$*" >> "${RALPH_TEST_GH_LOG:?}"
+if [[ "${1:-}" == 'auth' && "${2:-}" == 'status' ]]; then
+  exit 0
+fi
+if [[ "${1:-}" != 'pr' ]]; then
+  exit 64
+fi
+body_file=''
+for ((index = 1; index <= $#; index++)); do
+  if [[ "${!index}" == '--body-file' ]]; then
+    next_index=$((index + 1))
+    body_file="${!next_index}"
+  fi
+done
+if [[ -n "$body_file" ]]; then
+  cp "$body_file" "${RALPH_TEST_PR_BODY:?}"
+fi
+case "${2:-}" in
+  list)
+    printf '[{"number":42,"url":"https://github.com/example/emaus/pull/42","isDraft":true}]\n'
+    ;;
+  view)
+    if [[ "${RALPH_TEST_WRONG_PR:-false}" == 'true' ]]; then
+      printf '{"number":42,"url":"https://github.com/example/emaus/pull/42","isDraft":true,"baseRefName":"main","headRefName":"wrong-head","body":""}\n'
+    else
+      printf '{"number":42,"url":"https://github.com/example/emaus/pull/42","isDraft":true,"baseRefName":"dev","headRefName":"%s","body":""}\n' "${RALPH_TEST_PR_HEAD:?}"
+    fi
+    ;;
+  edit)
+    ;;
+  ready)
+    touch "${RALPH_TEST_PR_READY:?}"
+    ;;
+  *)
+    exit 64
+    ;;
+esac
+EOF
+  chmod +x "$fake_bin/gh"
+
+  : > "$gate_log"
+  : > "$browser_log"
+  : > "$gh_log"
+  rm -f "$pr_body" "$TEST_ROOT/pr-ready"
+  export RALPH_TEST_GATE_LOG="$gate_log"
+  export RALPH_TEST_BROWSER_LOG="$browser_log"
+  export RALPH_TEST_GH_LOG="$gh_log"
+  export RALPH_TEST_PR_BODY="$pr_body"
+  export RALPH_TEST_PR_READY="$TEST_ROOT/pr-ready"
+  export RALPH_TEST_PR_HEAD="$branch_name"
+  export RALPH_TEST_APP_PORT="$app_port"
+  export RALPH_START_COMMAND="$fake_bin/start-app"
+  export RALPH_BROWSER_QA_COMMAND="$fake_bin/browser-qa"
+  export RALPH_APP_URL="http://127.0.0.1:$app_port"
+  export RALPH_BROWSER_VIEWPORTS='desktop,mobile'
+  export RALPH_TEST_GATE_FAILURE='typecheck'
+  if gate_failure_output="$(cd "$work" && PATH="$fake_bin:$PATH" ./scripts/ralph-qa.sh \
+    --batch L010 --scope qa-flow 2>&1)"; then
+    fail 'QA must stop on the first failing gate'
+  else
+    gate_failure_status="$?"
+  fi
+  assert_equal '77' "$gate_failure_status" 'QA must preserve the first gate failure status'
+  assert_equal $'run db:validate\nrun typecheck' "$(tr -d '\r' < "$gate_log")" \
+    'QA must stop before later gates and browser checks after the first failure'
+  [[ "$gate_failure_output" == *'npm run typecheck'* ]] ||
+    fail 'QA failure must print the exact failed command'
+  [[ ! -e "$TEST_ROOT/pr-ready" ]] || fail 'failed QA must not mark the PR ready'
+  export RALPH_TEST_GATE_FAILURE=''
+
+  printf 'dirty\n' > "$work/dirty.txt"
+  if dirty_output="$(cd "$work" && PATH="$fake_bin:$PATH" ./scripts/ralph-qa.sh \
+    --batch L010 --scope qa-flow 2>&1)"; then
+    fail 'QA must reject a dirty checkout'
+  fi
+  [[ "$dirty_output" == *'working tree is not clean'* ]] ||
+    fail 'dirty QA rejection must explain the clean-tree requirement'
+  rm "$work/dirty.txt"
+
+  git -C "$work" switch dev >/dev/null
+  if wrong_branch_output="$(cd "$work" && PATH="$fake_bin:$PATH" ./scripts/ralph-qa.sh \
+    --batch L010 --scope qa-flow 2>&1)"; then
+    fail 'QA must reject the wrong checked-out branch'
+  fi
+  [[ "$wrong_branch_output" == *'checked-out branch'* ]] ||
+    fail 'wrong-branch QA rejection must explain the branch mismatch'
+  git -C "$work" switch "$branch_name" >/dev/null
+
+  export RALPH_TEST_WRONG_PR=true
+  if wrong_pr_output="$(cd "$work" && PATH="$fake_bin:$PATH" ./scripts/ralph-qa.sh \
+    --batch L010 --scope qa-flow 2>&1)"; then
+    fail 'QA must reject a PR with the wrong base or head'
+  fi
+  [[ "$wrong_pr_output" == *'base/head'* ]] ||
+    fail 'wrong PR rejection must explain the base/head mismatch'
+  export RALPH_TEST_WRONG_PR=false
+
+  export RALPH_TEST_BROWSER_FAILURE=true
+  if browser_failure_output="$(cd "$work" && PATH="$fake_bin:$PATH" ./scripts/ralph-qa.sh \
+    --batch L010 --scope qa-flow 2>&1)"; then
+    fail 'browser QA failure must stop before PR readiness'
+  fi
+  [[ "$browser_failure_output" == *'Browser QA hook failed'* ]] ||
+    fail 'browser QA failure should explain the failed hook'
+  [[ ! -e "$TEST_ROOT/pr-ready" ]] || fail 'browser QA failure must not mark the PR ready'
+  export RALPH_TEST_BROWSER_FAILURE=false
+
+  : > "$gate_log"
+  : > "$browser_log"
+  rm -f "$pr_body" "$TEST_ROOT/pr-ready"
+  if ! output="$(cd "$work" && PATH="$fake_bin:$PATH" ./scripts/ralph-qa.sh \
+    --batch L010 --scope qa-flow 2>&1)"; then
+    fail "successful QA fixture should pass: $output"
+  fi
+  [[ "$output" == *'QA passed'* ]] || fail 'successful QA should print a pass summary'
+  assert_equal '7' "$(wc -l < "$gate_log" | tr -d ' ')" \
+    'successful QA must run every configured gate'
+  assert_equal '1' "$(wc -l < "$browser_log" | tr -d ' ')" \
+    'successful QA must invoke the browser hook once'
+  [[ -e "$TEST_ROOT/pr-ready" ]] || fail 'successful QA must mark the PR ready'
+  [[ -z "$(git -C "$work" status --porcelain)" ]] ||
+    fail 'QA must not modify the application checkout'
+  python3 - "$pr_body" <<'PY'
+import sys
+
+with open(sys.argv[1], encoding='utf-8') as source:
+    body = source.read()
+lower_body = body.lower()
+for expected in ('L010', 'qa-flow', 'T02', 'desktop', 'mobile', 'console', 'network'):
+    if expected.lower() not in lower_body:
+        raise SystemExit(f'PR body is missing {expected!r}')
+if body.count('- [x]') < 6:
+    raise SystemExit('PR body does not mark the QA checklist complete')
+PY
+  assert_equal '0' "$(grep -c 'gh=pr merge' "$gh_log" || true)" \
+    'QA must never merge the PR'
+  assert_equal "$qa_commit" "$(git -C "$work" rev-parse HEAD)" \
+    'QA must not create application commits'
+
+  printf 'PASS: independent QA\n'
+}
+
 usage() {
   printf 'Usage: %s setup\n' "$0"
   printf '       %s branch-init\n' "$0"
   printf '       %s push\n' "$0"
   printf '       %s pull-request\n' "$0"
+  printf '       %s qa\n' "$0"
   printf '       %s all\n' "$0"
 }
 
@@ -968,11 +1266,15 @@ case "${1:-}" in
   pull-request)
     run_push_case
     ;;
+  qa)
+    run_qa_case
+    ;;
   all)
     run_setup_case
     run_existing_remote_dev_case
     run_branch_init_case
     run_push_case
+    run_qa_case
     ;;
   -h|--help)
     usage
