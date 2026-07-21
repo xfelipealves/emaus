@@ -2,13 +2,13 @@
   "schemaVersion": 1,
   "feature": "emaus-mvp",
   "status": "ready",
-  "currentTask": "T05",
-  "completedTasks": ["T01", "T02", "T03", "T04"],
+  "currentTask": "T06",
+  "completedTasks": ["T01", "T02", "T03", "T04", "T05"],
   "completedMilestones": [],
-  "lastCommit": "9bbf1cc",
+  "lastCommit": "pending",
   "lastGate": {
-    "command": "npm run test:integration && npm run test:e2e",
-    "result": "passed: 1 Vitest test passed; 2 Playwright tests passed"
+    "command": "npm run test",
+    "result": "passed: 2 Vitest test files; 7 tests passed"
   },
   "updatedAt": "2026-07-21",
   "notes": "The Ralph Loop may execute only currentTask. It advances this file after a passing task gate and atomic commit."

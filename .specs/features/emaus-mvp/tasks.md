@@ -115,8 +115,9 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Requirement**: AUD-01
 **Done when**:
 - [ ] Components use Tailwind and no external visual library.
-- [ ] Dialog supports explicit confirm/cancel actions.
-- [ ] Empty state contains one primary action.
+- [x] Components use Tailwind and no external visual library.
+- [x] Dialog supports explicit confirm/cancel actions.
+- [x] Empty state contains one primary action.
 **Tests**: unit
 **Gate**: Quick
 **Commit**: `feat: add Emaus UI primitives`
