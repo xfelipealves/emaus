@@ -489,11 +489,13 @@ run_push_case() {
   local work
   local failure_work
   local pr_failure_work
+  local post_task_failure_work
   local fresh_work
   local fake_bin
   local real_git
   local push_log
   local failure_push_log
+  local post_task_push_log
   local gh_log
   local gh_pr_exists
   local gh_body
@@ -519,7 +521,11 @@ run_push_case() {
   local pr_failure_output
   local pr_failure_status
   local pr_failure_calls
+  local post_task_calls
   local extra_commit_status
+  local post_task_failure_output
+  local post_task_failure_status
+  local post_task_recovery_output
 
   TEST_ROOT="$(mktemp -d)"
   TEST_ROOTS+=("$TEST_ROOT")
@@ -529,22 +535,27 @@ run_push_case() {
   work="$TEST_ROOT/work"
   failure_work="$TEST_ROOT/failure-work"
   pr_failure_work="$TEST_ROOT/pr-failure-work"
+  post_task_failure_work="$TEST_ROOT/post-task-failure-work"
   fresh_work="$TEST_ROOT/fresh-work"
   fake_bin="$TEST_ROOT/fake-bin"
   push_log="$TEST_ROOT/push.log"
   failure_push_log="$TEST_ROOT/failure-push.log"
+  post_task_push_log="$TEST_ROOT/post-task-push.log"
   gh_log="$TEST_ROOT/gh.log"
   gh_pr_exists="$TEST_ROOT/gh-pr-exists"
   gh_body="$TEST_ROOT/gh-body.md"
   pr_failure_calls="$TEST_ROOT/pr-failure-opencode-calls.log"
+  post_task_calls="$TEST_ROOT/post-task-opencode-calls.log"
   opencode_calls="$TEST_ROOT/opencode-calls.log"
   failure_opencode_calls="$TEST_ROOT/failure-opencode-calls.log"
   mkdir -p "$fake_bin"
   : > "$push_log"
   : > "$failure_push_log"
+  : > "$post_task_push_log"
   : > "$gh_log"
   : > "$gh_body"
   : > "$pr_failure_calls"
+  : > "$post_task_calls"
   rm -f "$gh_pr_exists"
   : > "$opencode_calls"
   : > "$failure_opencode_calls"
@@ -593,8 +604,9 @@ EOF
   git clone "$remote" "$work" >/dev/null
   git clone "$remote" "$failure_work" >/dev/null
   git clone "$remote" "$pr_failure_work" >/dev/null
+  git clone "$remote" "$post_task_failure_work" >/dev/null
 
-  for repository in "$work" "$failure_work" "$pr_failure_work"; do
+  for repository in "$work" "$failure_work" "$pr_failure_work" "$post_task_failure_work"; do
     git -C "$repository" config user.name 'Ralph Test'
     git -C "$repository" config user.email 'ralph-test@example.invalid'
   done
@@ -709,6 +721,19 @@ if [[ -n "$body_file" ]]; then
 fi
 case "${2:-}" in
   list)
+    if [[ "${RALPH_TEST_PR_LIST_FAIL_AFTER_TASK:-false}" == 'true' ]] &&
+      python3 - .specs/loop-state.json <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding='utf-8') as source:
+    state = json.load(source)
+raise SystemExit(0 if 'T12' in state.get('completedTasks', []) else 1)
+PY
+    then
+      printf 'simulated post-task PR validation failure\n' >&2
+      exit 79
+    fi
     if [[ "${RALPH_TEST_PR_COUNT:-1}" == '2' ]]; then
       printf '[{"number":42,"url":"https://github.com/example/emaus/pull/42","isDraft":true},{"number":43,"url":"https://github.com/example/emaus/pull/43","isDraft":true}]\n'
     elif [[ -f "${RALPH_TEST_PR_EXISTS:?}" ]]; then
@@ -741,6 +766,7 @@ EOF
   export RALPH_TEST_PR_EXISTS="$gh_pr_exists"
   export RALPH_TEST_PR_BODY="$gh_body"
   export RALPH_TEST_PR_CREATE_FAIL=false
+  export RALPH_TEST_PR_LIST_FAIL_AFTER_TASK=false
   export RALPH_TEST_REQUIRE_PR_FOR_EXECUTION=true
   if ! success_output="$(cd "$work" && PATH="$fake_bin:$PATH" ./scripts/ralph-loop.sh \
     --batch L003 --scope push-order --max-tasks 2 2>&1)"; then
@@ -879,6 +905,36 @@ with open(sys.argv[1], encoding='utf-8') as source:
     print(sum(1 for line in source if line.startswith('gh=pr edit ')))
 PY
   )" 'resume must retry and update the same PR body'
+
+  rm -f "$gh_pr_exists"
+  export RALPH_TEST_PR_LIST_FAIL_AFTER_TASK=true
+  export RALPH_TEST_PUSH_LOG="$post_task_push_log"
+  export RALPH_TEST_OPENCODE_CALLS="$post_task_calls"
+  if post_task_failure_output="$(cd "$post_task_failure_work" && PATH="$fake_bin:$PATH" ./scripts/ralph-loop.sh \
+    --batch L006 --scope post-task-pr-failure --max-tasks 1 2>&1)"; then
+    fail 'post-task PR validation failure must stop the loop'
+  else
+    post_task_failure_status="$?"
+  fi
+  assert_equal '69' "$post_task_failure_status" \
+    'post-task PR validation failure must stop with the runner preflight status'
+  [[ "$post_task_failure_output" == *'Unable to query open PRs'* ]] ||
+    fail 'post-task PR validation failure should explain the PR query failure'
+  [[ "$(git -C "$post_task_failure_work" status --porcelain)" == ' M .specs/loop-state.json' ]] ||
+    fail "post-task PR validation failure should leave only runner metadata dirty (status: $(git -C "$post_task_failure_work" status --porcelain))"
+  assert_equal 'T13' "$(state_value "$post_task_failure_work/.specs/loop-state.json" currentTask)" \
+    'post-task failure must preserve the committed next task'
+  export RALPH_TEST_PR_LIST_FAIL_AFTER_TASK=false
+  if ! post_task_recovery_output="$(cd "$post_task_failure_work" && PATH="$fake_bin:$PATH" ./scripts/ralph-loop.sh \
+    --batch L006 --scope post-task-pr-failure --resume --max-tasks 1 2>&1)"; then
+    fail "resume must recover post-task PR validation failure: $post_task_recovery_output"
+  fi
+  assert_equal $'T12\nT13' "$(tr -d '\r' < "$post_task_calls")" \
+    "resume must not rerun the task whose commit preceded PR validation failure (output: $post_task_recovery_output, state: $(state_value "$post_task_failure_work/.specs/loop-state.json" currentTask))"
+  [[ -z "$(git -C "$post_task_failure_work" status --porcelain)" ]] ||
+    fail 'post-task PR recovery must leave the working tree clean'
+  export RALPH_TEST_PUSH_LOG="$push_log"
+  export RALPH_TEST_OPENCODE_CALLS="$opencode_calls"
 
   export RALPH_TEST_PR_DRAFT=false
   if ready_pr_output="$(cd "$work" && PATH="$fake_bin:$PATH" ./scripts/ralph-loop.sh \
@@ -1099,6 +1155,7 @@ run_qa_case() {
   local remote
   local source
   local work
+  local mutation_work
   local fake_bin
   local branch_name='lote/L010-qa-flow'
   local dev_sha
@@ -1113,6 +1170,13 @@ run_qa_case() {
   local gate_failure_status
   local gate_log
   local browser_log
+  local preexisting_app_pid
+  local preexisting_ready
+  local preexisting_listener_pids
+  local preexisting_output
+  local preexisting_status
+  local remaining_listener_pids
+  local toctou_output
   local gh_log
   local pr_body
   local app_port=$((39000 + $$ % 1000))
@@ -1122,6 +1186,7 @@ run_qa_case() {
   remote="$TEST_ROOT/remote.git"
   source="$TEST_ROOT/source"
   work="$TEST_ROOT/work"
+  mutation_work="$TEST_ROOT/mutation-work"
   fake_bin="$TEST_ROOT/fake-bin"
   gate_log="$TEST_ROOT/gates.log"
   browser_log="$TEST_ROOT/browser.log"
@@ -1260,6 +1325,12 @@ for expected in ('desktop', 'mobile', 'console', 'network', 'acceptance criteria
         raise SystemExit(f'missing browser checklist item: {expected}')
 PY
 curl --fail --silent "${RALPH_APP_URL:?}" >/dev/null
+if [[ "${RALPH_TEST_MUTATE_REMOTE:-false}" == 'true' ]]; then
+  printf 'concurrent remote mutation\n' > "${RALPH_TEST_MUTATION_REPO:?}/concurrent-mutation.txt"
+  git -C "${RALPH_TEST_MUTATION_REPO:?}" add concurrent-mutation.txt
+  git -C "${RALPH_TEST_MUTATION_REPO:?}" commit -m 'test: concurrent remote mutation' >/dev/null
+  git -C "${RALPH_TEST_MUTATION_REPO:?}" push origin "HEAD:${RALPH_QA_DIFF_HEAD:?}" >/dev/null
+fi
 if [[ "${RALPH_TEST_BROWSER_FAILURE:-false}" == 'true' ]]; then
   printf 'simulated browser QA failure\n' >&2
   exit 78
@@ -1341,6 +1412,31 @@ EOF
   [[ ! -e "$TEST_ROOT/pr-ready" ]] || fail 'failed QA must not mark the PR ready'
   export RALPH_TEST_GATE_FAILURE=''
 
+  python3 -m http.server "$app_port" --bind 127.0.0.1 >/dev/null 2>&1 &
+  preexisting_app_pid=$!
+  preexisting_ready=false
+  for _ in {1..10}; do
+    if curl --fail --silent "http://127.0.0.1:$app_port" >/dev/null 2>&1; then
+      preexisting_ready=true
+      break
+    fi
+    sleep 1
+  done
+  [[ "$preexisting_ready" == true ]] || fail 'QA preexisting-server fixture did not become ready'
+  preexisting_listener_pids="$(lsof -nP -a -iTCP:"$app_port" -sTCP:LISTEN -t 2>/dev/null || true)"
+  if preexisting_output="$(cd "$work" && PATH="$fake_bin:$PATH" ./scripts/ralph-qa.sh \
+    --batch L010 --scope qa-flow 2>&1)"; then
+    fail "QA must reject a healthy preexisting server instead of accepting its curl response (pid: $preexisting_app_pid, listeners: $preexisting_listener_pids, output: $preexisting_output)"
+  else
+    preexisting_status="$?"
+  fi
+  kill "$preexisting_app_pid" >/dev/null 2>&1 || true
+  wait "$preexisting_app_pid" >/dev/null 2>&1 || true
+  assert_equal '70' "$preexisting_status" \
+    "preexisting server rejection must report application readiness failure (pid: $preexisting_app_pid, listeners: $preexisting_listener_pids, output: $preexisting_output)"
+  [[ "$preexisting_output" == *'already in use'* || "$preexisting_output" == *'did not become ready'* || "$preexisting_output" == *'exited before becoming ready'* ]] ||
+    fail 'preexisting server rejection should identify spawned-process readiness failure'
+
   printf 'dirty\n' > "$work/dirty.txt"
   if dirty_output="$(cd "$work" && PATH="$fake_bin:$PATH" ./scripts/ralph-qa.sh \
     --batch L010 --scope qa-flow 2>&1)"; then
@@ -1402,6 +1498,9 @@ EOF
   [[ -e "$TEST_ROOT/pr-ready" ]] || fail 'successful QA must mark the PR ready'
   [[ -z "$(git -C "$work" status --porcelain)" ]] ||
     fail 'QA must not modify the application checkout'
+  remaining_listener_pids="$(lsof -nP -a -iTCP:"$app_port" -sTCP:LISTEN -t 2>/dev/null || true)"
+  [[ -z "$remaining_listener_pids" ]] ||
+    fail "QA must clean up the spawned application listener (remaining: $remaining_listener_pids)"
   python3 - "$pr_body" "$qa_commit" <<'PY'
 import sys
 
@@ -1422,6 +1521,23 @@ PY
     'QA must never merge the PR'
   assert_equal "$qa_head" "$(git -C "$work" rev-parse HEAD)" \
     'QA must not create application commits'
+
+  git clone "$remote" "$mutation_work" >/dev/null
+  git -C "$mutation_work" config user.name 'Ralph Test'
+  git -C "$mutation_work" config user.email 'ralph-test@example.invalid'
+  git -C "$mutation_work" switch -c mutation "origin/$branch_name" >/dev/null
+  export RALPH_TEST_MUTATION_REPO="$mutation_work"
+  export RALPH_TEST_MUTATE_REMOTE=true
+  rm -f "$TEST_ROOT/pr-ready"
+  if toctou_output="$(cd "$work" && PATH="$fake_bin:$PATH" ./scripts/ralph-qa.sh \
+    --batch L010 --scope qa-flow 2>&1)"; then
+    fail 'QA must stop when the published batch head changes after browser validation'
+  fi
+  [[ "$toctou_output" == *'origin/lote/'* || "$toctou_output" == *'published'* ]] ||
+    fail 'readiness TOCTOU rejection should identify the changed published state'
+  [[ ! -e "$TEST_ROOT/pr-ready" ]] ||
+    fail 'readiness TOCTOU rejection must leave the PR Draft'
+  export RALPH_TEST_MUTATE_REMOTE=false
 
   git -C "$source" fetch origin "$branch_name" >/dev/null
   git -C "$source" switch -c qa-unpublished "origin/$branch_name" >/dev/null

@@ -23,6 +23,10 @@ PR_BODY_FILE=""
 CHECKLIST_FILE=""
 APP_LOG_FILE=""
 APP_PID=""
+APP_PORT=""
+TESTED_HEAD_SHA=""
+TESTED_STATE_SHA=""
+TESTED_DIFF_SHA=""
 START_COMMAND="${RALPH_START_COMMAND:-npm run dev -- --hostname 127.0.0.1}"
 APP_URL="${RALPH_APP_URL:-http://127.0.0.1:3000}"
 BROWSER_VIEWPORTS="${RALPH_BROWSER_VIEWPORTS:-desktop,mobile}"
@@ -32,10 +36,7 @@ WAIT_FOR_APP="${RALPH_WAIT_FOR_APP:-true}"
 cleanup() {
   local exit_status=$?
 
-  if [[ -n "$APP_PID" ]] && kill -0 "$APP_PID" >/dev/null 2>&1; then
-    kill "$APP_PID" >/dev/null 2>&1 || true
-    wait "$APP_PID" >/dev/null 2>&1 || true
-  fi
+  stop_app
   [[ -z "$PR_BODY_FILE" ]] || rm -f -- "$PR_BODY_FILE"
   [[ -z "$CHECKLIST_FILE" ]] || rm -f -- "$CHECKLIST_FILE"
   [[ -z "$APP_LOG_FILE" ]] || rm -f -- "$APP_LOG_FILE"
@@ -145,7 +146,7 @@ require_clean_tree() {
 
 require_commands() {
   local command_name
-  for command_name in git gh npm python3; do
+  for command_name in git gh npm python3 curl lsof; do
     command -v "$command_name" >/dev/null 2>&1 || {
       echo "Required command is not on PATH: $command_name" >&2
       exit 69
@@ -350,6 +351,44 @@ PY
   fi
 }
 
+capture_tested_snapshot() {
+  TESTED_HEAD_SHA="$(git rev-parse HEAD)"
+  TESTED_STATE_SHA="$(git hash-object -- "$STATE_FILE")"
+  TESTED_DIFF_SHA="$(git diff --binary "origin/$BASE_BRANCH...$TESTED_HEAD_SHA" | git hash-object --stdin)"
+}
+
+validate_final_readiness() {
+  local current_base_sha
+  local remote_head
+  local remote_state_sha
+  local current_diff_sha
+
+  fetch_origin_base
+  git fetch origin "$RUN_BRANCH" >/dev/null 2>&1 ||
+    fail_preflight "unable to refetch origin/$RUN_BRANCH immediately before readiness"
+  current_base_sha="$(git rev-parse --verify "refs/remotes/origin/$BASE_BRANCH^{commit}" 2>/dev/null)" ||
+    fail_preflight "origin/$BASE_BRANCH is missing immediately before readiness"
+  [[ "$current_base_sha" == "$BASE_SHA" ]] ||
+    fail_preflight "origin/$BASE_BRANCH changed after QA began"
+  [[ "$(git rev-parse HEAD)" == "$TESTED_HEAD_SHA" ]] ||
+    fail_preflight "checked-out HEAD changed after QA completed"
+  remote_head="$(git rev-parse --verify "refs/remotes/origin/$RUN_BRANCH^{commit}" 2>/dev/null)" ||
+    fail_preflight "origin/$RUN_BRANCH is missing immediately before readiness"
+  [[ "$remote_head" == "$TESTED_HEAD_SHA" ]] ||
+    fail_preflight "origin/$RUN_BRANCH changed after QA completed"
+  [[ "$(git hash-object -- "$STATE_FILE")" == "$TESTED_STATE_SHA" ]] ||
+    fail_preflight "loop state changed after QA completed"
+  remote_state_sha="$(git rev-parse "$remote_head:$STATE_FILE" 2>/dev/null)" ||
+    fail_preflight "remote batch HEAD does not contain loop state"
+  [[ "$remote_state_sha" == "$TESTED_STATE_SHA" ]] ||
+    fail_preflight "published loop state changed after QA completed"
+  current_diff_sha="$(git diff --binary "origin/$BASE_BRANCH...$TESTED_HEAD_SHA" | git hash-object --stdin)"
+  [[ "$current_diff_sha" == "$TESTED_DIFF_SHA" ]] ||
+    fail_preflight "tested batch diff changed after QA completed"
+  read_batch_metadata
+  validate_pr_metadata
+}
+
 build_browser_checklist() {
   CHECKLIST_FILE="$(mktemp "${TMPDIR:-/tmp}/ralph-browser-checklist.XXXXXX")"
   python3 - "$CHECKLIST_FILE" "$BATCH_ID" "$SCOPE_SLUG" "$TASK_RANGE" \
@@ -404,20 +443,91 @@ with open(path, "w", encoding="utf-8") as target:
 PY
 }
 
+app_port_from_url() {
+  python3 - "$APP_URL" <<'PY'
+from urllib.parse import urlparse
+import sys
+
+parsed = urlparse(sys.argv[1])
+if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+    raise SystemExit("application URL must be an HTTP or HTTPS URL")
+port = parsed.port or (443 if parsed.scheme == "https" else 80)
+if not 1 <= port <= 65535:
+    raise SystemExit("application URL port is outside the valid range")
+print(port)
+PY
+}
+
+app_descendant_pids() {
+  local parent_pid="$1"
+  local child_pid
+
+  while read -r child_pid; do
+    [[ -n "$child_pid" ]] || continue
+    printf '%s\n' "$child_pid"
+    app_descendant_pids "$child_pid"
+  done < <(pgrep -P "$parent_pid" 2>/dev/null || true)
+}
+
+process_belongs_to_app() {
+  local process_pid="$1"
+  local parent_pid
+
+  while [[ "$process_pid" =~ ^[0-9]+$ && "$process_pid" -gt 1 ]]; do
+    [[ "$process_pid" == "$APP_PID" ]] && return 0
+    parent_pid="$(ps -o ppid= -p "$process_pid" 2>/dev/null | tr -d ' ')"
+    [[ "$parent_pid" =~ ^[0-9]+$ ]] || break
+    process_pid="$parent_pid"
+  done
+  return 1
+}
+
+stop_app() {
+  local descendant_pids
+  local process_pid
+
+  [[ -n "$APP_PID" ]] || return 0
+  descendant_pids="$(app_descendant_pids "$APP_PID")"
+  while read -r process_pid; do
+    [[ "$process_pid" =~ ^[0-9]+$ ]] || continue
+    kill "$process_pid" >/dev/null 2>&1 || true
+  done <<< "$descendant_pids"
+  kill "$APP_PID" >/dev/null 2>&1 || true
+  wait "$APP_PID" >/dev/null 2>&1 || true
+  APP_PID=""
+}
+
 wait_for_app() {
   [[ "$WAIT_FOR_APP" == true ]] || return 0
   command -v curl >/dev/null 2>&1 || {
     echo "curl is required to wait for the browser QA application." >&2
     exit 69
   }
+  APP_PORT="$(app_port_from_url)" || {
+    echo "Unable to determine the application port from $APP_URL." >&2
+    exit 69
+  }
   for _ in {1..30}; do
-    if curl --fail --silent --show-error "$APP_URL" >/dev/null 2>&1; then
-      return 0
-    fi
     if [[ -n "$APP_PID" ]] && ! kill -0 "$APP_PID" >/dev/null 2>&1; then
       echo "Browser QA application exited before becoming ready." >&2
       cat "$APP_LOG_FILE" >&2 || true
       exit 70
+    fi
+    app_listener_ready=false
+    while read -r listener_pid; do
+      if [[ "$listener_pid" =~ ^[0-9]+$ ]] && process_belongs_to_app "$listener_pid"; then
+        app_listener_ready=true
+        break
+      fi
+    done < <(lsof -nP -a -iTCP:"$APP_PORT" -sTCP:LISTEN -t 2>/dev/null || true)
+    if [[ "$app_listener_ready" == true ]] &&
+      curl --fail --silent --show-error "$APP_URL" >/dev/null 2>&1; then
+      kill -0 "$APP_PID" >/dev/null 2>&1 || {
+        echo "Browser QA application exited after becoming ready." >&2
+        cat "$APP_LOG_FILE" >&2 || true
+        exit 70
+      }
+      return 0
     fi
     sleep 1
   done
@@ -433,9 +543,18 @@ run_browser_qa() {
   }
   build_browser_checklist
   APP_LOG_FILE="$(mktemp "${TMPDIR:-/tmp}/ralph-browser-app.XXXXXX")"
+  APP_PORT="$(app_port_from_url)" || {
+    echo "Unable to determine the application port from $APP_URL." >&2
+    exit 69
+  }
+  if [[ -n "$(lsof -nP -a -iTCP:"$APP_PORT" -sTCP:LISTEN -t 2>/dev/null || true)" ]]; then
+    echo "Browser QA application port $APP_PORT is already in use; refusing to validate a preexisting server." >&2
+    exit 70
+  fi
   echo "=== Browser QA: starting application ==="
   bash -c "$START_COMMAND" >"$APP_LOG_FILE" 2>&1 &
   APP_PID=$!
+  echo "Started browser QA application PID $APP_PID for $APP_URL"
   wait_for_app
 
   export RALPH_APP_URL="$APP_URL"
@@ -525,7 +644,8 @@ EOF
     echo "Unable to update PR #$PR_NUMBER; it remains Draft." >&2
     exit "$edit_status"
   fi
-  echo "=== Marking PR #$PR_NUMBER ready ==="
+  echo "=== Revalidating batch and PR immediately before marking #$PR_NUMBER ready ==="
+  validate_final_readiness
   if gh pr ready "$PR_NUMBER"; then
     :
   else
@@ -559,6 +679,7 @@ fetch_origin_base
 validate_published_head
 validate_git_range
 validate_pr_metadata
+capture_tested_snapshot
 
 for gate in db:validate typecheck lint build test test:integration test:e2e; do
   if run_gate "$gate"; then

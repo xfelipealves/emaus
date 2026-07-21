@@ -142,9 +142,12 @@ de checklist em `RALPH_BROWSER_QA_CHECKLIST`:
 
 O hook deve verificar navegação, estados de carregamento/vazio/erro, console,
 requisições de rede, foco/teclado e todos os critérios de aceite relevantes. O
-script inicia o app, espera a URL responder e encerra o processo ao terminar.
-Nem o hook nem a QA podem editar código da aplicação; uma árvore suja faz a QA
-falhar.
+script registra o PID e a URL do app, recusa uma porta já ocupada, exige que o
+listener pronto pertença à árvore de processos iniciada pela QA, confirma que o
+PID continua vivo depois do health check e encerra a árvore de processos ao
+terminar. Assim, uma resposta `curl` de um servidor preexistente nunca prova a
+prontidão do app testado. Nem o hook nem a QA podem editar código da aplicação;
+uma árvore suja faz a QA falhar.
 
 As gates automatizadas rodam nesta ordem, usando exatamente o ambiente do
 chamador:
@@ -161,8 +164,11 @@ npm run test:e2e
 
 A primeira falha interrompe o fluxo, preserva seu status, não chama `gh pr ready`
 e mantém o PR como Draft. Quando todas as gates e a QA de browser passarem, o
-script atualiza o checklist do PR e executa `gh pr ready <PR_NUMBER>`. Ele nunca
-faz merge. O hook de browser é obrigatório para evitar que uma aprovação
+script atualiza o checklist do PR, refaz imediatamente a validação de
+`origin/dev`, do `HEAD` remoto do lote, do loop state local/remoto, do base/head e
+Draft do PR e do SHA/diff testados, e só então executa `gh pr ready <PR_NUMBER>`.
+Qualquer mudança nessa janela mantém o PR como Draft e interrompe o fluxo. Ele
+nunca faz merge. O hook de browser é obrigatório para evitar que uma aprovação
 automática seja confundida com uma validação visual incompleta.
 
 Se a publicação de estado, a criação ou a atualização do PR falhar, o loop para

@@ -167,11 +167,16 @@ task range, full commit SHAs, individual gate results, push status, known risks,
 and the independent QA checklist.
 
 If a push fails, stop with the local state transition preserved and retry on the
-same batch branch. If PR creation fails before the first task, stop without
-executing or pushing a task and retry PR setup without creating an empty commit.
-Batch, PR, and push metadata are committed in runner-owned state transitions; no
-`skip-worktree` overlay is required. If `dev` changes during a batch,
-report the divergence and wait for an explicit rebase or restart decision.
+same batch branch. If post-task PR or metadata validation fails after the task
+commit, the runner permits `--resume` only when the dirty change is the runner's
+loop-state metadata, `lastCommit` is the committed `HEAD`, and the task
+transition is still pending publication. Resume then retries PR setup and
+commits the runner metadata deterministically without rerunning that task. If
+PR creation fails before the first task, stop without executing or pushing a
+task and retry PR setup without creating an empty commit. Batch, PR, and push
+metadata are committed in runner-owned state transitions; no `skip-worktree`
+overlay is required. If `dev` changes during a batch, report the divergence and
+wait for an explicit rebase or restart decision.
 
 ## Independent QA
 
@@ -187,7 +192,10 @@ git log --oneline origin/dev..HEAD
 
 Check branch and PR metadata, loop state, recorded `lastPush.sha` in the
 published remote history, and the published remote head before validating the
-complete range. Check commit
+complete range. The final readiness step refetches `origin/dev` and the batch
+branch, then revalidates the loop-state blobs, PR base/head/Draft state, tested
+`HEAD`, and complete diff immediately before `gh pr ready`. If any value differs,
+leave the PR Draft and stop. Check commit
 ancestry, configured project
 gates, browser behavior on desktop and mobile-sized viewports, console and
 network errors, keyboard access for affected flows, secrets, generated files,

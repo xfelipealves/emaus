@@ -151,6 +151,9 @@ gate and commit.
 - Dirty tree after the executor: stop and require human inspection.
 - Push failure: stop with the local commit preserved; retry on the same batch
   branch.
+- Post-task PR or metadata validation failure: allow `--resume` to recover only
+  from runner-only loop-state metadata dirty at the committed task `HEAD`, then
+  commit the pending metadata before continuing without rerunning the task.
 - PR creation failure: stop after the branch is safely pushed; retry PR setup on
   the same batch.
 - Existing batch branch or mismatched batch metadata: stop instead of silently
@@ -186,12 +189,18 @@ not only the last task:
   E2E gates with the required local environment.
 - Start the application from the batch branch and run browser QA on desktop
   and mobile-sized viewports.
+- Require the health endpoint to be served by the spawned QA process tree, reject
+  preexisting listeners, verify the spawned PID remains alive, and clean up the
+  process tree afterward.
 - Check console errors, failed network requests, loading/error/empty states,
   keyboard accessibility for affected flows, and the task acceptance criteria.
 - Inspect the complete PR diff for scope drift, secrets, generated artifacts,
   and missing tests.
 - Keep the PR Draft when any check fails; mark it ready only after all checks
   pass.
+- Immediately before `gh pr ready`, refetch and revalidate `origin/dev`, the
+  remote batch `HEAD`, local and remote loop state, PR base/head/Draft metadata,
+  and the tested `HEAD` and complete diff; any change leaves the PR Draft.
 
 The QA process may report findings or create follow-up fix tasks, but it does
 not merge the PR automatically.

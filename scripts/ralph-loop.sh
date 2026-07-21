@@ -616,7 +616,19 @@ PY
 }
 
 has_pending_task_commit() {
-  python3 - "$STATE_FILE" "$BASE_SHA" <<'PY'
+  local base_sha="${BASE_SHA:-}"
+  if [[ -z "$base_sha" ]]; then
+    base_sha="$(python3 - "$STATE_FILE" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as source:
+    print(json.load(source).get("baseSha", ""))
+PY
+    )"
+  fi
+  [[ -n "$base_sha" ]] || return 1
+  python3 - "$STATE_FILE" "$base_sha" <<'PY'
 import json
 import subprocess
 import sys
@@ -638,6 +650,13 @@ allow_resume_push_state() {
   local status
   status="$(git status --porcelain)"
   [[ -z "$status" || "$status" == " M $STATE_FILE" ]] || return 1
+  [[ -z "$status" ]] && return 0
+
+  if [[ "$(state_last_commit)" == "$(git rev-parse HEAD)" ]] &&
+    has_pending_task_commit; then
+    return 0
+  fi
+
   [[ "$(last_pushed_sha)" == "$(git rev-parse HEAD)" ]] || return 1
   [[ "$(python3 - "$STATE_FILE" <<'PY'
 import json
