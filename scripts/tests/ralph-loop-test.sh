@@ -35,7 +35,11 @@ run_setup_case() {
   local work
   local first_refs
   local second_refs
+  local dirty_refs
   local dirty_output
+  local remote_failure_output
+  local fake_git
+  local real_git
 
   TEST_ROOT="$(mktemp -d)"
   trap 'rm -rf "${TEST_ROOT:-}"' EXIT
@@ -77,12 +81,33 @@ run_setup_case() {
   second_refs="$(git -C "$work" for-each-ref --format='%(refname) %(objectname)' refs/heads refs/remotes/origin)"
   assert_equal "$first_refs" "$second_refs" 'second setup run must be idempotent'
 
+  real_git="$(command -v git)"
+  fake_git="$TEST_ROOT/fake-bin/git"
+  mkdir -p "$(dirname "$fake_git")"
+  {
+    printf '%s\n' '#!/usr/bin/env bash'
+    printf '%s\n' 'if [[ "${1:-}" == "ls-remote" ]]; then'
+    printf '%s\n' '  printf "simulated remote lookup failure\\n" >&2'
+    printf '%s\n' '  exit 1'
+    printf '%s\n' 'fi'
+    printf 'exec %q "$@"\n' "$real_git"
+  } > "$fake_git"
+  chmod +x "$fake_git"
+  if remote_failure_output="$(cd "$work" && PATH="$(dirname "$fake_git"):$PATH" ./scripts/setup-ralph-branches.sh 2>&1)"; then
+    fail 'setup must reject a failed remote dev lookup'
+  fi
+  [[ "$remote_failure_output" == *'unable to query origin/dev'* ]] ||
+    fail 'remote lookup failure should explain that origin/dev could not be queried'
+
   printf 'uncommitted change\n' > "$work/dirty.txt"
   if dirty_output="$(cd "$work" && ./scripts/setup-ralph-branches.sh 2>&1)"; then
     fail 'setup must reject a dirty checkout'
   fi
   [[ "$dirty_output" == *'working tree is not clean'* ]] ||
     fail 'dirty checkout failure should explain the clean-tree requirement'
+  dirty_refs="$(git -C "$work" for-each-ref --format='%(refname) %(objectname)' refs/heads refs/remotes/origin)"
+  assert_equal "$first_refs" "$dirty_refs" \
+    'dirty checkout rejection must not change branch refs'
 
   printf 'PASS: setup\n'
 }

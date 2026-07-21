@@ -19,7 +19,14 @@ if git ls-remote --exit-code --heads origin dev >/dev/null 2>&1; then
   git fetch origin dev
   remote_dev_exists=true
 else
-  remote_dev_exists=false
+  remote_dev_status=$?
+  if [[ "$remote_dev_status" -eq 2 ]]; then
+    remote_dev_exists=false
+  else
+    printf 'Refusing to continue: unable to query origin/dev (git ls-remote exited %d).\n' \
+      "$remote_dev_status" >&2
+    exit "$remote_dev_status"
+  fi
 fi
 
 git switch main
