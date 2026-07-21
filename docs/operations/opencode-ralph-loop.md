@@ -53,7 +53,11 @@ Para deixar o Ralph Loop consumir automaticamente a task atual e avançar soment
 `--max-tasks 1` é o padrão seguro. Após validar o piloto, é possível executar um lote limitado:
 
 ```bash
-./scripts/ralph-loop.sh --model 'provider/model-confirmado' --max-tasks 3
+./scripts/ralph-loop.sh \
+  --model 'provider/model-confirmado' \
+  --batch L001 \
+  --scope m3-auth-access \
+  --max-tasks 3
 ```
 
 Flags operacionais:
@@ -73,21 +77,25 @@ Antes de chamar o modelo, valide a sequência planejada sem efeitos colaterais:
 ```
 
 Em uma execução real, `ralph-loop.sh` cria a branch `lote/<batch>-<scope-slug>`
-a partir de `origin/dev`. Não crie essa branch manualmente. Para uma branch de
+a partir de `origin/dev`, publica o estado inicial e abre ou reutiliza o Draft PR
+antes de chamar o executor. Não crie essa branch manualmente. Para uma branch de
 lote já existente, use `--resume` com o mesmo batch, escopo e checkout da
 branch registrada.
 
 ## Ciclo do Draft PR
 
 Em uma execução não simulada, o script valida `gh` e sua autenticação antes de
-criar ou trocar de branch. Depois do primeiro push bem-sucedido de uma task, ele
-consulta:
+criar ou trocar de branch. Antes da primeira task e antes de cada task seguinte,
+ele consulta:
 
 ```bash
 gh pr list --head "$RUN_BRANCH" --base "$BASE_BRANCH" --state open --json number,url,isDraft
 ```
 
-Se não houver PR aberto para o par exato de branch, cria exatamente um Draft PR:
+No primeiro início, se ainda não houver PR, cria exatamente um Draft PR. Depois
+disso, o par exato deve sempre ter exatamente um PR aberto e Draft. Zero, múltiplos
+PRs ou um PR já pronto interrompem o fluxo com segurança, sem executar outra task
+nem publicar outro commit de task:
 
 ```bash
 gh pr create --draft --base dev --head "$RUN_BRANCH" \
@@ -100,16 +108,20 @@ do push, riscos conhecidos e checklist de QA.
 Ele não inclui valores completos de ambiente ou credenciais. Cada task seguinte
 e cada retomada atualizam o corpo do mesmo PR com `gh pr edit`; o script nunca
 cria um segundo PR para o mesmo lote. `number`, `url`, `base`, `head` e `draft`
-ficam persistidos em `.specs/loop-state.json`.
+ficam persistidos em `.specs/loop-state.json`. Os metadados de lote, PR e push
+são commits de estado controlados pelo runner; o fluxo não usa `skip-worktree` nem
+overlays locais. Assim, um clone novo da branch publicada consegue retomar sem
+depender de metadata do índice local.
 
 ## QA Independente do Lote
 
 Depois que o lote terminar, execute a QA independente a partir da própria branch
 do lote. O script exige os metadados persistidos, a branch exata, uma árvore
-limpa, `HEAD == origin/<runBranch>`, `lastPush.sha` igual ao head remoto, um
+limpa, `HEAD == origin/<runBranch>`, `lastPush.sha` publicado no histórico remoto, um
 Draft PR para o par `dev`/head correto e a extensão de tasks registrada desde o
-`baseSha`. A comparação e o log abrangem o intervalo completo
-`dev...HEAD`, não apenas o último commit:
+`baseSha`. Antes de determinar o diff, a QA atualiza `origin/dev`; a comparação e
+o log abrangem o intervalo completo `origin/dev...HEAD`, não apenas o último
+commit:
 
 ```bash
 RALPH_START_COMMAND='npm run dev -- --hostname 127.0.0.1' \
@@ -153,9 +165,9 @@ script atualiza o checklist do PR e executa `gh pr ready <PR_NUMBER>`. Ele nunca
 faz merge. O hook de browser é obrigatório para evitar que uma aprovação
 automática seja confundida com uma validação visual incompleta.
 
-Se o push passar mas a criação ou atualização do PR falhar, o loop para sem
-criar commit vazio. A branch e o commit permanecem preservados para uma nova
-execução com `--resume`.
+Se a publicação de estado, a criação ou a atualização do PR falhar, o loop para
+sem executar outra task. Os commits e o estado rastreado permanecem preservados
+para uma nova execução com `--resume`.
 
 ## Contrato do executor
 
@@ -171,8 +183,9 @@ O prompt embutido em `scripts/run-emaus-task.sh` obriga o OpenCode a:
 O `scripts/ralph-loop.sh` também verifica, após cada chamada ao OpenCode:
 
 - árvore Git limpa;
-- existência de um commit novo;
-- exatamente um novo commit por task e transição sequencial sem tasks puladas;
+- existência de exatamente um novo commit do executor;
+- transição sequencial sem tasks puladas; commits adicionais são somente os
+  commits controlados de publicação dos metadados do runner;
 - avanço correto da task atual para a próxima;
 - parada obrigatória em `blocked`, `verification_required` ou `complete`.
 

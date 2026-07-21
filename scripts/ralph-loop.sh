@@ -216,7 +216,6 @@ with tempfile.NamedTemporaryFile("w", dir=directory, encoding="utf-8", delete=Fa
     temporary_path = target.name
 os.replace(temporary_path, path)
 PY
-  mark_state_metadata_clean
 }
 
 persist_last_push() {
@@ -246,7 +245,6 @@ with tempfile.NamedTemporaryFile("w", dir=directory, encoding="utf-8", delete=Fa
     temporary_path = target.name
 os.replace(temporary_path, path)
 PY
-  mark_state_metadata_clean
 }
 
 persist_task_metadata() {
@@ -284,7 +282,6 @@ with tempfile.NamedTemporaryFile("w", dir=directory, encoding="utf-8", delete=Fa
     temporary_path = target.name
 os.replace(temporary_path, path)
 PY
-  mark_state_metadata_clean
 }
 
 persist_pull_request() {
@@ -315,19 +312,27 @@ with tempfile.NamedTemporaryFile("w", dir=directory, encoding="utf-8", delete=Fa
     temporary_path = target.name
 os.replace(temporary_path, path)
 PY
-  mark_state_metadata_clean
 }
 
-mark_state_metadata_clean() {
-  # Push and PR metadata is only knowable after the task commit exists. Keep
-  # that control-plane overlay out of the governed task commit while making
-  # the checkout clean for QA and resume. The next task clears this bit and
-  # commits the complete state transition with its own task changes.
-  git update-index --skip-worktree -- "$STATE_FILE"
+commit_state_transition() {
+  local message="$1"
+  if git diff --quiet -- "$STATE_FILE"; then
+    return 0
+  fi
+  git add -- "$STATE_FILE"
+  git commit -m "$message"
 }
 
-prepare_task_state() {
-  git update-index --no-skip-worktree -- "$STATE_FILE"
+push_published_state() {
+  local push_status
+  if git push origin "$RUN_BRANCH"; then
+    return 0
+  else
+    push_status="$?"
+    printf 'Metadata push failed for %s; local state is preserved. Retry with --resume.\n' \
+      "$RUN_BRANCH" >&2
+    return "$push_status"
+  fi
 }
 
 stored_pull_request() {
@@ -499,6 +504,11 @@ require_open_pr_draft() {
       "$RUN_BRANCH" "$BASE_BRANCH" >&2
     return 66
   fi
+  if [[ "${#pr_rows[@]}" -eq 0 ]]; then
+    printf 'No open Draft PR exists for %s -> %s; refusing to continue.\n' \
+      "$RUN_BRANCH" "$BASE_BRANCH" >&2
+    return 66
+  fi
   if [[ "${#pr_rows[@]}" -eq 1 ]]; then
     IFS=$'\t' read -r pr_number pr_url pr_draft <<< "${pr_rows[0]}"
     if [[ "$pr_draft" != true ]]; then
@@ -510,9 +520,9 @@ require_open_pr_draft() {
 }
 
 ensure_pull_request() {
+  local allow_create="${1:-false}"
   local pr_list_output
   local parsed_prs
-  local stored_pr
   local pr_number
   local pr_url
   local pr_draft
@@ -546,9 +556,7 @@ ensure_pull_request() {
 
   if [[ "${#pr_rows[@]}" -eq 1 ]]; then
     IFS=$'\t' read -r pr_number pr_url pr_draft <<< "${pr_rows[0]}"
-  elif stored_pr="$(stored_pull_request 2>/dev/null)"; then
-    IFS=$'\t' read -r pr_number pr_url pr_draft <<< "$stored_pr"
-  else
+  elif [[ "$allow_create" == true ]]; then
     if create_output="$(gh pr create --draft --base "$BASE_BRANCH" --head "$RUN_BRANCH" \
       --title "[$BATCH_ID] $SCOPE_SLUG" --body-file "$PR_BODY_FILE" 2>&1)"; then
       :
@@ -574,6 +582,10 @@ PY
     fi
     IFS=$'\t' read -r pr_number pr_url pr_draft <<< "$created_metadata"
     created_pr=true
+  else
+    printf 'No open PR exists for %s -> %s; refusing to create or execute another task.\n' \
+      "$RUN_BRANCH" "$BASE_BRANCH" >&2
+    return 66
   fi
 
   if [[ "$pr_draft" != true ]]; then
@@ -702,7 +714,7 @@ require_gh() {
   fi
 }
 
-push_batch_branch() {
+push_batch_branch_ref() {
   local commit_sha="$1"
   local upstream=""
   local push_status
@@ -728,7 +740,57 @@ push_batch_branch() {
     fi
   fi
 
-  persist_last_push "$commit_sha"
+}
+
+state_last_commit() {
+  python3 - "$STATE_FILE" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as source:
+    print(json.load(source).get("lastCommit", ""))
+PY
+}
+
+state_file_dirty() {
+  [[ -n "$(git status --porcelain -- "$STATE_FILE")" ]]
+}
+
+ensure_branch_published() {
+  local remote_head
+  git fetch origin "$RUN_BRANCH" >/dev/null 2>&1 || true
+  remote_head="$(git rev-parse --verify "refs/remotes/origin/$RUN_BRANCH^{commit}" 2>/dev/null || true)"
+  if [[ "$remote_head" != "$(git rev-parse HEAD)" ]]; then
+    push_batch_branch_ref "$(git rev-parse HEAD)"
+  fi
+}
+
+prepare_draft_pr() {
+  local stored_pr=false
+
+  if stored_pull_request >/dev/null 2>&1; then
+    stored_pr=true
+    require_open_pr_draft || return $?
+  else
+    ensure_branch_published
+    ensure_pull_request true || return $?
+  fi
+
+  if [[ "$stored_pr" == true ]] && state_file_dirty; then
+    ensure_pull_request false || return $?
+  fi
+
+  if [[ "$RESUME" == true && -z "$(last_pushed_sha)" ]] && has_pending_task_commit; then
+    persist_last_push "$(state_last_commit)"
+  fi
+
+  if state_file_dirty; then
+    commit_state_transition "chore: publish Ralph state metadata"
+    push_published_state
+  fi
+
+  ensure_branch_published
+  require_open_pr_draft
 }
 
 validate_resume_state() {
@@ -828,6 +890,8 @@ initialize_batch() {
     exit 66
   fi
   persist_batch_state
+  commit_state_transition "chore: initialize Ralph batch state"
+  push_batch_branch_ref "$(git rev-parse HEAD)"
   printf 'Initialized batch %s on %s from origin/%s at %s.\n' \
     "$BATCH_ID" "$RUN_BRANCH" "$BASE_BRANCH" "$BASE_SHA"
 }
@@ -849,35 +913,7 @@ fi
 
 if [[ "$DRY_RUN" == false ]]; then
   initialize_batch
-fi
-
-if [[ "$DRY_RUN" == false && "$RESUME" == true ]]; then
-  current_head="$(git rev-parse HEAD)"
-  if has_pending_task_commit &&
-    [[ "$current_head" != "$BASE_SHA" && "$current_head" != "$(last_pushed_sha)" ]]; then
-    echo "=== Ralph Loop: retrying push for preserved commit $current_head ==="
-    push_batch_branch "$current_head" || {
-      push_status="$?"
-      exit "$push_status"
-    }
-  fi
-  if [[ "$current_head" == "$(last_pushed_sha)" ]] &&
-    [[ "$(python3 - "$STATE_FILE" <<'PY'
-import json
-import sys
-
-with open(sys.argv[1], encoding="utf-8") as source:
-    state = json.load(source)
-print(state.get("lastPush", {}).get("status", ""))
-PY
-)" == "passed" ]]; then
-    # A pushed task without usable PR metadata, or a previous PR update
-    # failure, must retry PR setup before another task can run.
-    ensure_pull_request || {
-      pr_status="$?"
-      exit "$pr_status"
-    }
-  fi
+  prepare_draft_pr
 fi
 
 dry_run_task=""
@@ -902,8 +938,7 @@ for ((iteration = 1; iteration <= MAX_TASKS; iteration++)); do
       ;;
   esac
 
-  if [[ "$DRY_RUN" == false && "$iteration" -gt 1 &&
-    "$(git rev-parse HEAD)" == "$(last_pushed_sha)" ]]; then
+  if [[ "$DRY_RUN" == false ]]; then
     require_open_pr_draft || {
       pr_status="$?"
       exit "$pr_status"
@@ -923,7 +958,6 @@ for ((iteration = 1; iteration <= MAX_TASKS; iteration++)); do
   before_commit="$(git rev-parse HEAD)"
   TASK_STATE_SNAPSHOT="$(mktemp "${TMPDIR:-/tmp}/ralph-task-state.XXXXXX")"
   cp "$STATE_FILE" "$TASK_STATE_SNAPSHOT"
-  prepare_task_state
   echo "=== Ralph Loop: starting $task_id (iteration $iteration/$MAX_TASKS) ==="
 
   if [[ -n "$MODEL" ]]; then
@@ -950,13 +984,19 @@ for ((iteration = 1; iteration <= MAX_TASKS; iteration++)); do
   TASK_STATE_SNAPSHOT=""
   persist_task_metadata "$task_id" "$after_commit"
 
-  push_batch_branch "$after_commit" || {
-    push_status="$?"
-    exit "$push_status"
-  }
-  ensure_pull_request || {
+  require_open_pr_draft || {
     pr_status="$?"
     exit "$pr_status"
+  }
+  persist_last_push "$after_commit"
+  ensure_pull_request false || {
+    pr_status="$?"
+    exit "$pr_status"
+  }
+  commit_state_transition "chore: publish Ralph task metadata"
+  push_published_state || {
+    push_status="$?"
+    exit "$push_status"
   }
 
   echo "=== Ralph Loop: completed $task_id in commit $after_commit ==="

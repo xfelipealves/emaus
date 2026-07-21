@@ -269,28 +269,33 @@ validate_published_head() {
     fail_preflight "origin/$RUN_BRANCH is missing"
   [[ "$(git rev-parse HEAD)" == "$remote_head" ]] ||
     fail_preflight "local HEAD is not published to origin/$RUN_BRANCH"
-  [[ "$LAST_PUSH_SHA" == "$remote_head" ]] ||
-    fail_preflight "lastPush.sha is not the published origin/$RUN_BRANCH HEAD"
+  git merge-base --is-ancestor "$LAST_PUSH_SHA" "$remote_head" ||
+    fail_preflight "lastPush.sha is not published in origin/$RUN_BRANCH history"
 }
 
 validate_git_range() {
   local current_base_sha
   local diff_stat
 
-  current_base_sha="$(git rev-parse --verify "refs/heads/$BASE_BRANCH^{commit}" 2>/dev/null)" ||
-    fail_preflight "local base branch $BASE_BRANCH is missing"
+  current_base_sha="$(git rev-parse --verify "refs/remotes/origin/$BASE_BRANCH^{commit}" 2>/dev/null)" ||
+    fail_preflight "origin/$BASE_BRANCH is missing"
   [[ "$current_base_sha" == "$BASE_SHA" ]] ||
-    fail_preflight "local $BASE_BRANCH changed from recorded base $BASE_SHA to $current_base_sha"
+    fail_preflight "origin/$BASE_BRANCH changed from recorded base $BASE_SHA to $current_base_sha"
   git merge-base --is-ancestor "$BASE_SHA" HEAD ||
     fail_preflight "checked-out branch is not based on recorded $BASE_BRANCH"
-  git diff --quiet "$BASE_BRANCH...HEAD" &&
-    fail_preflight "the complete $BASE_BRANCH...HEAD range is empty"
-  git diff --check "$BASE_BRANCH...HEAD" ||
-    fail_preflight "the complete $BASE_BRANCH...HEAD diff has whitespace errors"
-  diff_stat="$(git diff --stat "$BASE_BRANCH...HEAD")"
-  printf 'Validated diff %s...HEAD (%s):\n%s\n' "$BASE_BRANCH" "$TASK_RANGE" "$diff_stat"
+  git diff --quiet "origin/$BASE_BRANCH...HEAD" &&
+    fail_preflight "the complete origin/$BASE_BRANCH...HEAD range is empty"
+  git diff --check "origin/$BASE_BRANCH...HEAD" ||
+    fail_preflight "the complete origin/$BASE_BRANCH...HEAD diff has whitespace errors"
+  diff_stat="$(git diff --stat "origin/$BASE_BRANCH...HEAD")"
+  printf 'Validated diff origin/%s...HEAD (%s):\n%s\n' "$BASE_BRANCH" "$TASK_RANGE" "$diff_stat"
   printf 'Validated commits:\n'
-  git log --oneline "$BASE_BRANCH..HEAD"
+  git log --oneline "origin/$BASE_BRANCH..HEAD"
+}
+
+fetch_origin_base() {
+  git fetch origin "$BASE_BRANCH" >/dev/null 2>&1 ||
+    fail_preflight "unable to fetch origin/$BASE_BRANCH"
 }
 
 validate_pr_metadata() {
@@ -362,7 +367,7 @@ with open(tasks_path, encoding="utf-8") as source:
 
 lines = [
     f"Ralph browser QA checklist for {batch} ({scope})",
-    f"Diff: {base}...{head}",
+    f"Diff: origin/{base}...{head}",
     f"Task range: {task_range}",
     "",
     "- Start application from the checked-out batch branch.",
@@ -439,7 +444,7 @@ run_browser_qa() {
   export RALPH_QA_BATCH="$BATCH_ID"
   export RALPH_QA_SCOPE="$SCOPE_SLUG"
   export RALPH_QA_TASK_RANGE="$TASK_RANGE"
-  export RALPH_QA_DIFF_BASE="$BASE_BRANCH"
+  export RALPH_QA_DIFF_BASE="origin/$BASE_BRANCH"
   export RALPH_QA_DIFF_HEAD="$RUN_BRANCH"
   echo "=== Browser QA: desktop/mobile, console/network, and acceptance criteria ==="
   if bash -c "$BROWSER_QA_COMMAND"; then
@@ -480,7 +485,7 @@ update_pr_and_ready() {
 - Independent QA: passed
 
 ## Commit SHAs
-$(git log --format='- `%H` %s' "$BASE_BRANCH..HEAD")
+$(git log --format='- `%H` %s' "origin/$BASE_BRANCH..HEAD")
 
 ## Gate Results
 - \`npm run db:validate\`: passed
@@ -503,7 +508,7 @@ $(git log --format='- `%H` %s' "$BASE_BRANCH..HEAD")
 
 ## QA Checklist
 - [x] Recorded batch, branch, base, head, and Draft PR metadata match.
-- [x] Complete \`$BASE_BRANCH...HEAD\` diff and task range validated.
+- [x] Complete \`origin/$BASE_BRANCH...HEAD\` diff and task range validated.
 - [x] Database, typecheck, lint, build, unit, integration, and E2E gates passed.
 - [x] Browser QA passed on desktop and mobile viewports.
 - [x] Console, network, loading, empty, error, and keyboard checks passed.
@@ -550,6 +555,7 @@ require_commands
 [[ "$(git branch --show-current)" == "$RUN_BRANCH" ]] ||
   fail_preflight "checked-out branch is not $RUN_BRANCH"
 read_batch_metadata
+fetch_origin_base
 validate_published_head
 validate_git_range
 validate_pr_metadata

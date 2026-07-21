@@ -152,22 +152,25 @@ For each approved task, Ralph must preserve the existing task protections:
    the current task while `currentTask` became the next sequential task.
 5. Push the validated commit to the batch branch before starting the next task.
 
-After the first pushed task commit, open one Draft PR from the batch branch to
-`dev`:
+Before the first task, publish the initialized state and open exactly one Draft
+PR from the batch branch to `dev`:
 
 ```bash
 gh pr create --draft --base dev --head lote/L001-m3-auth-access --title "[L001] m3-auth-access" --body-file /path/to/batch-pr-body.md
 ```
 
-Later task commits stay in the same PR. Query and reuse an existing PR for the
-same head and base; do not create duplicates. An existing ready PR is a safe
-stop: Ralph never edits around the Draft-until-QA rule. The PR body must retain
-the task range, full commit SHAs, individual gate results, push status, known
-risks, and the independent QA checklist.
+Later task commits stay in the same PR. Query and reuse the single existing PR
+for the same head and base; zero or multiple matching PRs are safe stops and do
+not permit another task or task push. An existing ready PR is also a safe stop:
+Ralph never edits around the Draft-until-QA rule. The PR body must retain the
+task range, full commit SHAs, individual gate results, push status, known risks,
+and the independent QA checklist.
 
-If a push fails, stop with the local commit preserved and retry on the same
-batch branch. If PR creation fails, stop after the branch is pushed and retry
-PR setup without creating an empty commit. If `dev` changes during a batch,
+If a push fails, stop with the local state transition preserved and retry on the
+same batch branch. If PR creation fails before the first task, stop without
+executing or pushing a task and retry PR setup without creating an empty commit.
+Batch, PR, and push metadata are committed in runner-owned state transitions; no
+`skip-worktree` overlay is required. If `dev` changes during a batch,
 report the divergence and wait for an explicit rebase or restart decision.
 
 ## Independent QA
@@ -177,12 +180,14 @@ Validate the complete batch range, not only the last task:
 ```bash
 git fetch origin lote/L001-m3-auth-access
 test "$(git rev-parse HEAD)" = "$(git rev-parse origin/lote/L001-m3-auth-access)"
+git fetch origin dev
 git diff --stat origin/dev...HEAD
 git log --oneline origin/dev..HEAD
 ```
 
-Check branch and PR metadata, loop state, recorded `lastPush.sha`, and the
-published remote head before validating the complete range. Check commit
+Check branch and PR metadata, loop state, recorded `lastPush.sha` in the
+published remote history, and the published remote head before validating the
+complete range. Check commit
 ancestry, configured project
 gates, browser behavior on desktop and mobile-sized viewports, console and
 network errors, keyboard access for affected flows, secrets, generated files,
