@@ -2,13 +2,13 @@
   "schemaVersion": 1,
   "feature": "emaus-mvp",
   "status": "ready",
-  "currentTask": "T03",
-  "completedTasks": ["T01", "T02"],
+  "currentTask": "T04",
+  "completedTasks": ["T01", "T02", "T03"],
   "completedMilestones": [],
-  "lastCommit": "b277725",
+  "lastCommit": "f05a80b",
   "lastGate": {
-    "command": "npm run db:validate && npm run typecheck && npm run lint && npm run build && npm run test",
-    "result": "passed: docker compose up -d healthy on localhost:5433; 1 Vitest test, build/lint/typecheck/db validation exit 0"
+    "command": "DATABASE_URL='postgresql://emaus:emaus-local@localhost:5433/emaus?schema=public' npm run db:validate && DATABASE_URL='postgresql://emaus:emaus-local@localhost:5433/emaus?schema=public' npm run typecheck && DATABASE_URL='postgresql://emaus:emaus-local@localhost:5433/emaus?schema=public' npm run lint && DATABASE_URL='postgresql://emaus:emaus-local@localhost:5433/emaus?schema=public' npm run build && DATABASE_URL='postgresql://emaus:emaus-local@localhost:5433/emaus?schema=public' npm run test",
+    "result": "passed: Prisma schema valid; typecheck, lint and build exit 0; 1 Vitest test passed"
   },
   "updatedAt": "2026-07-21",
   "notes": "The Ralph Loop may execute only currentTask. It advances this file after a passing task gate and atomic commit."

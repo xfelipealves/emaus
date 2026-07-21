@@ -86,9 +86,9 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Depends on**: T02
 **Requirement**: AUD-01
 **Done when**:
-- [ ] Prisma validates against local PostgreSQL.
-- [ ] Client singleton avoids duplicate clients in development.
-- [ ] `npm run db:validate` runs Prisma validation.
+- [x] Prisma validates against local PostgreSQL.
+- [x] Client singleton avoids duplicate clients in development.
+- [x] `npm run db:validate` runs Prisma validation.
 **Tests**: none (schema/config)
 **Gate**: Build
 **Commit**: `chore: configure Prisma workflow`
