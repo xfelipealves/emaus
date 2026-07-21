@@ -36,7 +36,9 @@ WAIT_FOR_APP="${RALPH_WAIT_FOR_APP:-true}"
 cleanup() {
   local exit_status=$?
 
-  stop_app
+  if declare -F stop_app >/dev/null 2>&1; then
+    stop_app
+  fi
   [[ -z "$PR_BODY_FILE" ]] || rm -f -- "$PR_BODY_FILE"
   [[ -z "$CHECKLIST_FILE" ]] || rm -f -- "$CHECKLIST_FILE"
   [[ -z "$APP_LOG_FILE" ]] || rm -f -- "$APP_LOG_FILE"

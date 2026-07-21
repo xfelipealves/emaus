@@ -1163,6 +1163,10 @@ run_qa_case() {
   local qa_head
   local output
   local status
+  local help_output
+  local help_status
+  local early_failure_output
+  local early_failure_status
   local dirty_output
   local wrong_branch_output
   local wrong_pr_output
@@ -1201,6 +1205,27 @@ run_qa_case() {
   printf '%s\n' 'Ralph QA test' > "$source/README.md"
   cp "$RALPH_QA_SCRIPT" "$source/scripts/ralph-qa.sh"
   chmod +x "$source/scripts/ralph-qa.sh"
+
+  if help_output="$(cd "$source" && ./scripts/ralph-qa.sh --help 2>&1)"; then
+    help_status=0
+  else
+    help_status="$?"
+  fi
+  assert_equal '0' "$help_status" 'QA --help must exit successfully'
+  [[ "$help_output" != *'command not found'* ]] ||
+    fail "QA --help must not report a cleanup command error: $help_output"
+
+  if early_failure_output="$(cd "$source" && ./scripts/ralph-qa.sh --batch 2>&1)"; then
+    fail 'QA must reject an incomplete early preflight argument'
+  else
+    early_failure_status="$?"
+  fi
+  assert_equal '64' "$early_failure_status" 'incomplete early preflight argument must be rejected'
+  [[ "$early_failure_output" == *'Missing value for --batch'* ]] ||
+    fail 'early preflight failure should explain the missing batch value'
+  [[ "$early_failure_output" != *'command not found'* ]] ||
+    fail "early preflight failure must not report a cleanup command error: $early_failure_output"
+
   cat > "$source/.specs/loop-state.json" <<'EOF'
 {
   "schemaVersion": 1,
