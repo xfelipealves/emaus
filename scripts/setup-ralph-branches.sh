@@ -29,18 +29,44 @@ else
   fi
 fi
 
+local_dev_exists=false
+if git show-ref --verify --quiet refs/heads/dev; then
+  local_dev_exists=true
+fi
+
+if [[ "$local_dev_exists" == true ]]; then
+  if [[ "$remote_dev_exists" != true ]]; then
+    echo "Refusing to continue: existing local dev branch requires origin/dev." >&2
+    exit 66
+  fi
+
+  local_dev_sha="$(git rev-parse refs/heads/dev)"
+  remote_dev_sha="$(git rev-parse refs/remotes/origin/dev)"
+  if [[ "$local_dev_sha" != "$remote_dev_sha" ]]; then
+    printf 'Refusing to continue: local dev does not match origin/dev (local %s, remote %s).\n' \
+      "$local_dev_sha" "$remote_dev_sha" >&2
+    exit 66
+  fi
+
+  if ! local_dev_upstream="$(git rev-parse --abbrev-ref dev@{upstream} 2>/dev/null)"; then
+    echo "Refusing to continue: local dev must track origin/dev, but it has no upstream." >&2
+    exit 66
+  fi
+  if [[ "$local_dev_upstream" != "origin/dev" ]]; then
+    printf 'Refusing to continue: local dev must track origin/dev, but tracks %s.\n' \
+      "$local_dev_upstream" >&2
+    exit 66
+  fi
+fi
+
 git switch main
 git pull --ff-only origin main
 
 if [[ "$remote_dev_exists" == true ]]; then
-  if ! git show-ref --verify --quiet refs/heads/dev; then
+  if [[ "$local_dev_exists" != true ]]; then
     git branch --track dev origin/dev
   fi
 else
-  if git show-ref --verify --quiet refs/heads/dev; then
-    echo "Refusing to publish an existing local dev branch without origin/dev." >&2
-    exit 66
-  fi
   git branch dev main
   if git push -u origin dev; then
     :

@@ -4,6 +4,17 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SETUP_SCRIPT="$ROOT_DIR/scripts/setup-ralph-branches.sh"
 TEST_ROOT=""
+TEST_ROOTS=()
+
+cleanup_test_roots() {
+  local test_root
+
+  for test_root in "${TEST_ROOTS[@]}"; do
+    rm -rf "$test_root"
+  done
+}
+
+trap cleanup_test_roots EXIT
 
 fail() {
   printf 'FAIL: %s\n' "$1" >&2
@@ -44,7 +55,7 @@ run_setup_case() {
   local real_git
 
   TEST_ROOT="$(mktemp -d)"
-  trap 'rm -rf "${TEST_ROOT:-}"' EXIT
+  TEST_ROOTS+=("$TEST_ROOT")
 
   remote="$TEST_ROOT/remote.git"
   source="$TEST_ROOT/source"
@@ -146,9 +157,11 @@ run_existing_remote_dev_case() {
   local remote_dev_after_sha
   local local_dev_sha
   local upstream
+  local stale_output
+  local untracked_output
 
   TEST_ROOT="$(mktemp -d)"
-  trap 'rm -rf "${TEST_ROOT:-}"' EXIT
+  TEST_ROOTS+=("$TEST_ROOT")
 
   remote="$TEST_ROOT/remote.git"
   source="$TEST_ROOT/source"
@@ -191,6 +204,28 @@ run_existing_remote_dev_case() {
     'local dev must track origin/dev when the remote branch already exists'
   assert_equal "$remote_dev_sha" "$remote_dev_after_sha" \
     'setup must not change the existing remote dev commit'
+
+  git -C "$source" switch dev >/dev/null
+  printf 'Updated existing remote dev branch\n' > "$source/DEV-UPDATE.md"
+  git -C "$source" add DEV-UPDATE.md
+  git -C "$source" commit -m 'test: advance dev branch' >/dev/null
+  git -C "$source" push origin dev >/dev/null
+  git -C "$work" switch main >/dev/null
+
+  if stale_output="$(cd "$work" && ./scripts/setup-ralph-branches.sh 2>&1)"; then
+    fail 'setup must reject a local dev branch that no longer matches origin/dev'
+  fi
+  [[ "$stale_output" == *'local dev does not match origin/dev'* ]] ||
+    fail 'stale local dev failure should explain the branch mismatch'
+
+  git -C "$work" branch -f dev refs/remotes/origin/dev
+  git -C "$work" config --unset branch.dev.remote || true
+  git -C "$work" config --unset branch.dev.merge || true
+  if untracked_output="$(cd "$work" && ./scripts/setup-ralph-branches.sh 2>&1)"; then
+    fail 'setup must reject a local dev branch without origin/dev upstream'
+  fi
+  [[ "$untracked_output" == *'local dev must track origin/dev'* ]] ||
+    fail 'untracked local dev failure should explain the upstream requirement'
 
   printf 'PASS: existing remote dev\n'
 }
