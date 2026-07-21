@@ -2,13 +2,13 @@
   "schemaVersion": 1,
   "feature": "emaus-mvp",
   "status": "ready",
-  "currentTask": "T02",
-  "completedTasks": ["T01"],
+  "currentTask": "T03",
+  "completedTasks": ["T01", "T02"],
   "completedMilestones": [],
-  "lastCommit": "91882bbf6efa557fda93441d94dc093c3cf87c05",
+  "lastCommit": "pending-t02-commit",
   "lastGate": {
     "command": "npm run db:validate && npm run typecheck && npm run lint && npm run build && npm run test",
-    "result": "passed: 1 Vitest test, build/lint/typecheck/db validation exit 0; Playwright smoke separately passed: 1 test"
+    "result": "passed: docker compose up -d healthy on localhost:5433; 1 Vitest test, build/lint/typecheck/db validation exit 0"
   },
   "updatedAt": "2026-07-21",
   "notes": "The Ralph Loop may execute only currentTask. It advances this file after a passing task gate and atomic commit."

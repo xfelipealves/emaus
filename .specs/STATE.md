@@ -61,10 +61,10 @@
 ## Handoff
 
 - **Feature**: `.specs/features/emaus-mvp`
-- **Phase / Task**: M1 Foundation — T01 concluída
-- **Completed**: instalação do `tlc-spec-driven`; Specify aprovado; Design aprovado; milestones M1–M8 e tasks T01–T36 criados; T01 bootstrap local implementado com smoke unitário e E2E; OpenCode Ralph Loop guardado por `.specs/loop-state.json`
-- **In-progress** (file:line): `.specs/features/emaus-mvp/tasks.md:68` — T02 aguardando execução
-- **Next step**: executar T02, adicionando PostgreSQL local e contrato de ambiente conforme o plano.
-- **Blockers**: nenhum para T02. OpenCode é o runner do loop; modelo permanece configurável por `OPENCODE_MODEL`. O loop para se uma task falhar, não fizer commit, deixar árvore suja ou não avançar `.specs/loop-state.json`; deploy, e-mail, backup e monitoramento permanecem postergados para depois da validação local.
-- **Uncommitted files**: nenhum após o commit de T01
+- **Phase / Task**: M1 Foundation — T02 concluída
+- **Completed**: instalação do `tlc-spec-driven`; Specify aprovado; Design aprovado; milestones M1–M8 e tasks T01–T36 criados; T01 bootstrap local implementado com smoke unitário e E2E; T02 PostgreSQL local e contrato de ambiente implementados; OpenCode Ralph Loop guardado por `.specs/loop-state.json`
+- **In-progress** (file:line): `.specs/features/emaus-mvp/tasks.md:82` — T03 aguardando execução
+- **Next step**: executar T03, configurando Prisma client e migration workflow conforme o plano.
+- **Blockers**: nenhum para T03. OpenCode é o runner do loop; modelo permanece configurável por `OPENCODE_MODEL`. O loop para se uma task falhar, não fizer commit, deixar árvore suja ou não avançar `.specs/loop-state.json`; deploy, e-mail, backup e monitoramento permanecem postergados para depois da validação local.
+- **Uncommitted files**: nenhum após o commit de T02
 - **Branch**: main

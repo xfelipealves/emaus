@@ -6,7 +6,15 @@ O Emaús será desenvolvido com **Spec-Driven Development**. Antes de implementa
 
 ## Estado atual
 
-Specify e Design estão aprovados. O projeto está na fase **Tasks**, com o Ralph Loop preparado para iniciar a T01 (fundação local) pelo OpenCode.
+Specify e Design estão aprovados. O projeto está na fase **Tasks**, com T01 e T02 concluídas e T03 como próxima tarefa pelo OpenCode.
+
+## Desenvolvimento local
+
+1. Copie `.env.example` para `.env`.
+2. Inicie o PostgreSQL com `docker compose up -d`.
+3. Pare o banco com `docker compose down`.
+
+O `DATABASE_URL` é lido do ambiente pela aplicação. Os valores do Compose são exclusivos para desenvolvimento local e não devem ser reutilizados em ambientes compartilhados.
 
 ## Documentação de produto
 

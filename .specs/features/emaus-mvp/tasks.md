@@ -72,9 +72,9 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Depends on**: T01
 **Requirement**: AUD-01
 **Done when**:
-- [ ] `docker compose up -d` starts PostgreSQL.
-- [ ] `.env.example` documents no secret values.
-- [ ] Database URL is consumed only through environment configuration.
+- [x] `docker compose up -d` starts PostgreSQL.
+- [x] `.env.example` documents no secret values.
+- [x] Database URL is consumed only through environment configuration.
 **Tests**: none (configuration)
 **Gate**: Build
 **Commit**: `chore: add local PostgreSQL environment`
