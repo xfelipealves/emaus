@@ -61,10 +61,10 @@
 ## Handoff
 
 - **Feature**: `.specs/features/emaus-mvp`
-- **Phase / Task**: M2 Data/bootstrap — T08 concluída
-- **Completed**: instalação do `tlc-spec-driven`; Specify aprovado; Design aprovado; milestones M1–M8 e tasks T01–T36 criados; T01 bootstrap local implementado com smoke unitário e E2E; T02 PostgreSQL local e contrato de ambiente implementados; T03 Prisma client, schema PostgreSQL mínimo e validação configurados; T04 shell responsivo com navegação desktop/mobile e smoke E2E; T05 primitives compartilhadas de UI e estados de feedback implementados com 7 testes unitários; T06 modelos Prisma de Pessoa e Conta, enums de papel/status, unicidades, migration e testes de integração implementados; T07 modelos Prisma de Ministério, vínculos históricos e escopos independentes de líder, migration e testes de integração implementados; T08 modelos Prisma de categorias, séries recorrentes, encontros, públicos e presença, migration e testes de integração implementados; OpenCode Ralph Loop guardado por `.specs/loop-state.json`
-- **In-progress** (file:line): `.specs/features/emaus-mvp/tasks.md:169` — T09 aguardando execução
-- **Next step**: executar T09, adicionando notas, timeline e auditoria.
-- **Blockers**: nenhum para T08. OpenCode é o runner do loop; modelo permanece configurável por `OPENCODE_MODEL`. O loop para se uma task falhar, não fizer commit, deixar árvore suja ou não avançar `.specs/loop-state.json`; deploy, e-mail, backup e monitoramento permanecem postergados para depois da validação local.
+- **Phase / Task**: M2 Data/bootstrap — T09 concluída
+- **Completed**: instalação do `tlc-spec-driven`; Specify aprovado; Design aprovado; milestones M1–M8 e tasks T01–T36 criados; T01 bootstrap local implementado com smoke unitário e E2E; T02 PostgreSQL local e contrato de ambiente implementados; T03 Prisma client, schema PostgreSQL mínimo e validação configurados; T04 shell responsivo com navegação desktop/mobile e smoke E2E; T05 primitives compartilhadas de UI e estados de feedback implementados com 7 testes unitários; T06 modelos Prisma de Pessoa e Conta, enums de papel/status, unicidades, migration e testes de integração implementados; T07 modelos Prisma de Ministério, vínculos históricos e escopos independentes de líder, migration e testes de integração implementados; T08 modelos Prisma de categorias, séries recorrentes, encontros, públicos e presença, migration e testes de integração implementados; T09 modelos Prisma de notas, versões, timeline e auditoria, migration e testes de integração implementados; OpenCode Ralph Loop guardado por `.specs/loop-state.json`
+- **In-progress** (file:line): `.specs/features/emaus-mvp/tasks.md:183` — T10 aguardando execução
+- **Next step**: executar T10, adicionando seed administrativo e utilitários de data/fuso.
+- **Blockers**: nenhum para T09. OpenCode é o runner do loop; modelo permanece configurável por `OPENCODE_MODEL`. O loop para se uma task falhar, não fizer commit, deixar árvore suja ou não avançar `.specs/loop-state.json`; deploy, e-mail, backup e monitoramento permanecem postergados para depois da validação local.
 - **Uncommitted files**: nenhum
 - **Branch**: main

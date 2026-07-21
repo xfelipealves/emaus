@@ -173,9 +173,9 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Depends on**: T08
 **Requirement**: TIM-01, AUD-01
 **Done when**:
-- [ ] NoteVersion preserves author, content and sequence.
-- [ ] Audit can store actor, target, action and before/after values.
-- [ ] Timeline supports category and timestamp sorting.
+- [x] NoteVersion preserves author, content and sequence.
+- [x] Audit can store actor, target, action and before/after values.
+- [x] Timeline supports category and timestamp sorting.
 **Tests**: integration
 **Gate**: Full
 **Commit**: `feat: add history and audit schema`
