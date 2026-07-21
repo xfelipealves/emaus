@@ -5,7 +5,7 @@
   "currentTask": "T05",
   "completedTasks": ["T01", "T02", "T03", "T04"],
   "completedMilestones": [],
-  "lastCommit": "PENDING_COMMIT_SHA",
+  "lastCommit": "9bbf1cc",
   "lastGate": {
     "command": "npm run test:integration && npm run test:e2e",
     "result": "passed: 1 Vitest test passed; 2 Playwright tests passed"
