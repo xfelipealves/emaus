@@ -39,4 +39,4 @@ opencode run "$PROMPT" \
   -f .specs/features/emaus-mvp/spec.md \
   -f .specs/features/emaus-mvp/design.md \
   -f .specs/features/emaus-mvp/tasks.md \
-  "${MODEL_ARGS[@]}"
+  "${MODEL_ARGS[@]+${MODEL_ARGS[@]}}"
