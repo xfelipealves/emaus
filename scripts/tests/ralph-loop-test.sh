@@ -350,6 +350,16 @@ EOF
   mkdir -p "$fake_bin"
   printf '%s\n' '#!/usr/bin/env bash' 'exit 0' > "$fake_bin/opencode"
   chmod +x "$fake_bin/opencode"
+  cat > "$fake_bin/gh" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ "${1:-}" == 'auth' && "${2:-}" == 'status' ]]; then
+  exit 0
+fi
+exit 0
+EOF
+  chmod +x "$fake_bin/gh"
   remote_dev_sha="$(git --git-dir="$remote" rev-parse refs/heads/dev)"
 
   if initial_output="$(cd "$work" && PATH="$fake_bin:$PATH" ./scripts/ralph-loop.sh \
@@ -465,10 +475,14 @@ run_push_case() {
   local source
   local work
   local failure_work
+  local pr_failure_work
   local fake_bin
   local real_git
   local push_log
   local failure_push_log
+  local gh_log
+  local gh_pr_exists
+  local gh_body
   local opencode_calls
   local failure_opencode_calls
   local branch_name='lote/L003-push-order'
@@ -486,6 +500,10 @@ run_push_case() {
   local push_second
   local recovery_push_first
   local recovery_push_second
+  local resume_output
+  local pr_failure_output
+  local pr_failure_status
+  local pr_failure_calls
 
   TEST_ROOT="$(mktemp -d)"
   TEST_ROOTS+=("$TEST_ROOT")
@@ -494,14 +512,23 @@ run_push_case() {
   source="$TEST_ROOT/source"
   work="$TEST_ROOT/work"
   failure_work="$TEST_ROOT/failure-work"
+  pr_failure_work="$TEST_ROOT/pr-failure-work"
   fake_bin="$TEST_ROOT/fake-bin"
   push_log="$TEST_ROOT/push.log"
   failure_push_log="$TEST_ROOT/failure-push.log"
+  gh_log="$TEST_ROOT/gh.log"
+  gh_pr_exists="$TEST_ROOT/gh-pr-exists"
+  gh_body="$TEST_ROOT/gh-body.md"
+  pr_failure_calls="$TEST_ROOT/pr-failure-opencode-calls.log"
   opencode_calls="$TEST_ROOT/opencode-calls.log"
   failure_opencode_calls="$TEST_ROOT/failure-opencode-calls.log"
   mkdir -p "$fake_bin"
   : > "$push_log"
   : > "$failure_push_log"
+  : > "$gh_log"
+  : > "$gh_body"
+  : > "$pr_failure_calls"
+  rm -f "$gh_pr_exists"
   : > "$opencode_calls"
   : > "$failure_opencode_calls"
 
@@ -533,7 +560,8 @@ run_push_case() {
 EOF
   printf '%s\n' '# Ralph push test tasks' \
     '### T12: First push task' \
-    '### T13: Second push task' > "$source/.specs/features/emaus-mvp/tasks.md"
+    '### T13: Second push task' \
+    '### T14: Resume push task' > "$source/.specs/features/emaus-mvp/tasks.md"
   git -C "$source" add README.md scripts .specs
   git -C "$source" commit -m 'test: seed main branch' >/dev/null
   git -C "$source" remote add origin "$remote"
@@ -546,8 +574,9 @@ EOF
   git --git-dir="$remote" symbolic-ref HEAD refs/heads/main
   git clone "$remote" "$work" >/dev/null
   git clone "$remote" "$failure_work" >/dev/null
+  git clone "$remote" "$pr_failure_work" >/dev/null
 
-  for repository in "$work" "$failure_work"; do
+  for repository in "$work" "$failure_work" "$pr_failure_work"; do
     git -C "$repository" config user.name 'Ralph Test'
     git -C "$repository" config user.email 'ralph-test@example.invalid'
   done
@@ -628,8 +657,58 @@ exec "$real_git" "$@"
 EOF
   chmod +x "$fake_bin/git"
 
+  cat > "$fake_bin/gh" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+printf 'gh=%s\n' "$*" >> "${RALPH_TEST_GH_LOG:?}"
+if [[ "${1:-}" == 'auth' && "${2:-}" == 'status' ]]; then
+  exit 0
+fi
+if [[ "${1:-}" != 'pr' ]]; then
+  exit 64
+fi
+body_file=""
+for ((index = 1; index <= $#; index++)); do
+  if [[ "${!index}" == '--body-file' ]]; then
+    next_index=$((index + 1))
+    body_file="${!next_index}"
+  fi
+done
+if [[ -n "$body_file" ]]; then
+  cp "$body_file" "${RALPH_TEST_PR_BODY:?}"
+fi
+case "${2:-}" in
+  list)
+    if [[ -f "${RALPH_TEST_PR_EXISTS:?}" ]]; then
+      printf '[{"number":42,"url":"https://github.com/example/emaus/pull/42","isDraft":true}]\n'
+    else
+      printf '[]\n'
+    fi
+    ;;
+  create)
+    if [[ "${RALPH_TEST_PR_CREATE_FAIL:-false}" == 'true' ]]; then
+      printf 'simulated Draft PR creation failure\n' >&2
+      exit 74
+    fi
+    touch "${RALPH_TEST_PR_EXISTS:?}"
+    printf 'https://github.com/example/emaus/pull/42\n'
+    ;;
+  edit)
+    ;;
+  *)
+    exit 64
+    ;;
+esac
+EOF
+  chmod +x "$fake_bin/gh"
+
   export RALPH_TEST_PUSH_LOG="$push_log"
   export RALPH_TEST_OPENCODE_CALLS="$opencode_calls"
+  export RALPH_TEST_GH_LOG="$gh_log"
+  export RALPH_TEST_PR_EXISTS="$gh_pr_exists"
+  export RALPH_TEST_PR_BODY="$gh_body"
+  export RALPH_TEST_PR_CREATE_FAIL=false
   if ! success_output="$(cd "$work" && PATH="$fake_bin:$PATH" ./scripts/ralph-loop.sh \
     --batch L003 --scope push-order --max-tasks 2 2>&1)"; then
     fail "push-order case should complete successfully: $success_output"
@@ -672,6 +751,65 @@ PY
     'lastPush must record the batch branch'
   assert_equal 'passed' "$(state_value "$work/.specs/loop-state.json" lastPush.status)" \
     'lastPush must record a passed push'
+  assert_equal '1' "$(python3 - "$gh_log" <<'PY'
+import sys
+
+with open(sys.argv[1], encoding='utf-8') as source:
+    print(sum(1 for line in source if line.startswith('gh=pr create ')))
+PY
+)" 'first batch run must create exactly one Draft PR'
+  assert_equal '1' "$(python3 - "$gh_log" <<'PY'
+import sys
+
+with open(sys.argv[1], encoding='utf-8') as source:
+    print(sum(1 for line in source if line.startswith('gh=pr edit ')))
+PY
+)" 'second task must update the existing PR body'
+  assert_equal '42' "$(state_value "$work/.specs/loop-state.json" pullRequest.number)" \
+    'state must persist the PR number'
+  assert_equal 'https://github.com/example/emaus/pull/42' \
+    "$(state_value "$work/.specs/loop-state.json" pullRequest.url)" \
+    'state must persist the PR URL'
+  assert_equal 'dev' "$(state_value "$work/.specs/loop-state.json" pullRequest.base)" \
+    'state must persist the PR base'
+  assert_equal "$branch_name" "$(state_value "$work/.specs/loop-state.json" pullRequest.head)" \
+    'state must persist the PR head'
+  assert_equal 'True' "$(state_value "$work/.specs/loop-state.json" pullRequest.draft)" \
+    'state must persist the Draft PR state'
+  python3 - "$gh_body" <<'PY'
+import sys
+
+with open(sys.argv[1], encoding='utf-8') as source:
+    body = source.read()
+for expected in ('L003', 'push-order', 'T12..T13', 'Known Risks', 'QA Checklist'):
+    if expected not in body:
+        raise SystemExit(f'PR body is missing {expected!r}')
+if 'DATABASE_URL' in body or 'OPENAI_API_KEY' in body:
+    raise SystemExit('PR body must not include environment values or secrets')
+PY
+
+  if ! resume_output="$(cd "$work" && PATH="$fake_bin:$PATH" ./scripts/ralph-loop.sh \
+    --batch L003 --scope push-order --resume --max-tasks 1 2>&1)"; then
+    fail "resume PR case should complete successfully: $resume_output"
+  fi
+  assert_equal '3' "$(wc -l < "$push_log" | tr -d ' ')" \
+    'resume must push the next validated task commit'
+  assert_equal '3' "$(wc -l < "$opencode_calls" | tr -d ' ')" \
+    'resume must execute the next task once'
+  assert_equal '1' "$(python3 - "$gh_log" <<'PY'
+import sys
+
+with open(sys.argv[1], encoding='utf-8') as source:
+    print(sum(1 for line in source if line.startswith('gh=pr create ')))
+PY
+)" 'resume must not create a duplicate PR'
+  assert_equal '2' "$(python3 - "$gh_log" <<'PY'
+import sys
+
+with open(sys.argv[1], encoding='utf-8') as source:
+    print(sum(1 for line in source if line.startswith('gh=pr edit ')))
+PY
+)" 'resume must update the same PR body'
 
   cat > "$fake_bin/git" <<'EOF'
 #!/usr/bin/env bash
@@ -772,6 +910,39 @@ PY
   assert_equal "$remote_head" "$last_push_sha" \
     'recovery must persist the successfully pushed commit'
 
+  rm -f "$gh_pr_exists"
+  export RALPH_TEST_PR_CREATE_FAIL=true
+  export RALPH_TEST_PUSH_LOG="$failure_push_log"
+  export RALPH_TEST_OPENCODE_CALLS="$pr_failure_calls"
+  if pr_failure_output="$(cd "$pr_failure_work" && PATH="$fake_bin:$PATH" ./scripts/ralph-loop.sh \
+    --batch L005 --scope pr-failure --max-tasks 1 2>&1)"; then
+    fail 'Draft PR creation failure must stop the loop'
+  else
+    pr_failure_status="$?"
+  fi
+  assert_equal '74' "$pr_failure_status" \
+    'Draft PR creation failure must preserve the gh status'
+  [[ "$pr_failure_output" == *'Draft PR creation failed'* ]] ||
+    fail 'Draft PR creation failure should explain that the pushed branch is preserved'
+  assert_equal 'passed' "$(state_value "$pr_failure_work/.specs/loop-state.json" lastPush.status)" \
+    'PR creation failure must preserve the successful branch push state'
+  if python3 - "$pr_failure_work/.specs/loop-state.json" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding='utf-8') as source:
+    state = json.load(source)
+if 'pullRequest' in state:
+    raise SystemExit(1)
+PY
+  then
+    :
+  else
+    fail 'PR creation failure must not persist incomplete PR metadata'
+  fi
+  assert_equal '1' "$(wc -l < "$pr_failure_calls" | tr -d ' ')" \
+    'PR creation failure must not start another task'
+
   printf 'PASS: push and recovery\n'
 }
 
@@ -779,6 +950,7 @@ usage() {
   printf 'Usage: %s setup\n' "$0"
   printf '       %s branch-init\n' "$0"
   printf '       %s push\n' "$0"
+  printf '       %s pull-request\n' "$0"
   printf '       %s all\n' "$0"
 }
 
@@ -791,6 +963,9 @@ case "${1:-}" in
     run_branch_init_case
     ;;
   push)
+    run_push_case
+    ;;
+  pull-request)
     run_push_case
     ;;
   all)

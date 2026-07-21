@@ -16,8 +16,12 @@ Antes de cada execução, o agente recebe e deve seguir:
 
 - OpenCode disponível no PATH;
 - OpenCode autenticado com provedor configurado;
+- GitHub CLI (`gh`) disponível no PATH e autenticado com `gh auth status`;
 - repositório limpo antes de começar uma task;
 - modelo opcional configurado em `OPENCODE_MODEL`.
+
+O Ralph não executa `gh auth login`, não lê nem manipula credenciais e para com
+uma instrução explícita de instalação ou login quando o pré-flight falha.
 
 ## Executar uma task ou o loop
 
@@ -48,11 +52,49 @@ Para deixar o Ralph Loop consumir automaticamente a task atual e avançar soment
 ./scripts/ralph-loop.sh --model 'provider/model-confirmado' --max-tasks 3
 ```
 
+Flags operacionais:
+
+- `--model <provider/model>` — modelo usado pelo OpenCode; também pode ser definido em `OPENCODE_MODEL`.
+- `--max-tasks <n>` — máximo de tasks consecutivas; o padrão é `1`.
+- `--batch <Lnnn>` — identificador do lote; obrigatório fora de `--dry-run`.
+- `--scope <scope>` — escopo do lote, usado para formar a branch `lote/<batch>-<scope-slug>`; obrigatório fora de `--dry-run`.
+- `--base-branch <branch>` — branch base do lote e do PR; o padrão é `dev`.
+- `--resume` — retoma a branch e o metadata persistidos, incluindo o mesmo PR.
+- `--dry-run` — mostra a sequência sem chamar OpenCode ou executar `gh`, checkout, push ou operações de PR.
+
 Antes de chamar o modelo, valide a sequência planejada sem efeitos colaterais:
 
 ```bash
 ./scripts/ralph-loop.sh --dry-run --max-tasks 3
 ```
+
+## Ciclo do Draft PR
+
+Em uma execução não simulada, o script valida `gh` e sua autenticação antes de
+criar ou trocar de branch. Depois do primeiro push bem-sucedido de uma task, ele
+consulta:
+
+```bash
+gh pr list --head "$RUN_BRANCH" --base "$BASE_BRANCH" --state open --json number,url,isDraft
+```
+
+Se não houver PR aberto para o par exato de branch, cria exatamente um Draft PR:
+
+```bash
+gh pr create --draft --base dev --head "$RUN_BRANCH" \
+  --title "[$BATCH_ID] $SCOPE_SLUG" --body-file "$PR_BODY_FILE"
+```
+
+O corpo temporário contém lote, escopo, branches base/head, intervalo de tasks
+do lote, resultado do gate, status do push, riscos conhecidos e checklist de QA.
+Ele não inclui valores completos de ambiente ou credenciais. Cada task seguinte
+e cada retomada atualizam o corpo do mesmo PR com `gh pr edit`; o script nunca
+cria um segundo PR para o mesmo lote. `number`, `url`, `base`, `head` e `draft`
+ficam persistidos em `.specs/loop-state.json`.
+
+Se o push passar mas a criação ou atualização do PR falhar, o loop para sem
+criar commit vazio. A branch e o commit permanecem preservados para uma nova
+execução com `--resume`.
 
 ## Contrato do executor
 

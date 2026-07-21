@@ -16,6 +16,15 @@ SCOPE=""
 SCOPE_SLUG=""
 BASE_BRANCH="dev"
 RESUME=false
+PR_BODY_FILE=""
+
+cleanup_pr_body() {
+  if [[ -n "$PR_BODY_FILE" ]]; then
+    rm -f -- "$PR_BODY_FILE"
+  fi
+}
+
+trap cleanup_pr_body EXIT
 
 usage() {
   cat <<'EOF'
@@ -234,6 +243,233 @@ os.replace(temporary_path, path)
 PY
 }
 
+persist_pull_request() {
+  python3 - "$STATE_FILE" "$1" "$2" "$BASE_BRANCH" "$RUN_BRANCH" "$3" <<'PY'
+import datetime
+import json
+import os
+import sys
+import tempfile
+
+path, number, url, base_branch, head_branch, draft = sys.argv[1:]
+with open(path, encoding="utf-8") as source:
+    state = json.load(source)
+
+state["pullRequest"] = {
+    "number": int(number),
+    "url": url,
+    "base": base_branch,
+    "head": head_branch,
+    "draft": draft == "true",
+}
+state["updatedAt"] = datetime.date.today().isoformat()
+
+directory = os.path.dirname(os.path.abspath(path))
+with tempfile.NamedTemporaryFile("w", dir=directory, encoding="utf-8", delete=False) as target:
+    json.dump(state, target, indent=2)
+    target.write("\n")
+    temporary_path = target.name
+os.replace(temporary_path, path)
+PY
+}
+
+stored_pull_request() {
+  python3 - "$STATE_FILE" "$BASE_BRANCH" "$RUN_BRANCH" <<'PY'
+import json
+import sys
+
+path, base_branch, head_branch = sys.argv[1:]
+with open(path, encoding="utf-8") as source:
+    pull_request = json.load(source).get("pullRequest")
+
+if not isinstance(pull_request, dict):
+    raise SystemExit(1)
+if pull_request.get("base") != base_branch or pull_request.get("head") != head_branch:
+    raise SystemExit(1)
+number = pull_request.get("number")
+url = pull_request.get("url")
+draft = pull_request.get("draft")
+if not isinstance(number, int) or number <= 0 or not isinstance(url, str) or not url:
+    raise SystemExit(1)
+if not isinstance(draft, bool):
+    raise SystemExit(1)
+print(f"{number}\t{url}\t{str(draft).lower()}")
+PY
+}
+
+generate_pr_body() {
+  if [[ -n "$PR_BODY_FILE" ]]; then
+    rm -f -- "$PR_BODY_FILE"
+  fi
+  PR_BODY_FILE="$(mktemp "${TMPDIR:-/tmp}/ralph-pr-body.XXXXXX")"
+  python3 - "$STATE_FILE" "$BATCH_ID" "$SCOPE_SLUG" "$BASE_BRANCH" "$RUN_BRANCH" > "$PR_BODY_FILE" <<'PY'
+import json
+import re
+import subprocess
+import sys
+
+state_path, batch, scope, base_branch, head_branch = sys.argv[1:]
+with open(state_path, encoding="utf-8") as source:
+    state = json.load(source)
+
+completed_tasks = [
+    task for task in state.get("completedTasks", [])
+    if isinstance(task, str) and re.fullmatch(r"T\d{2}", task)
+]
+base_tasks = []
+base_sha = state.get("baseSha")
+if isinstance(base_sha, str) and base_sha:
+    try:
+        base_state = json.loads(
+            subprocess.check_output(
+                ["git", "show", f"{base_sha}:{state_path}"], text=True
+            )
+        )
+        base_tasks = [
+            task for task in base_state.get("completedTasks", [])
+            if isinstance(task, str) and re.fullmatch(r"T\d{2}", task)
+        ]
+    except (OSError, subprocess.CalledProcessError, json.JSONDecodeError):
+        base_tasks = []
+if completed_tasks[:len(base_tasks)] == base_tasks:
+    task_ids = completed_tasks[len(base_tasks):]
+else:
+    task_ids = completed_tasks
+if task_ids:
+    task_range = task_ids[0] if len(task_ids) == 1 else f"{task_ids[0]}..{task_ids[-1]}"
+else:
+    task_range = "none"
+
+gate = state.get("lastGate")
+gate_result = gate.get("result") if isinstance(gate, dict) else None
+if gate_result not in {"passed", "failed", "blocked", "not_run"}:
+    gate_result = "not recorded"
+
+push = state.get("lastPush")
+push_result = push.get("status") if isinstance(push, dict) else None
+if push_result not in {"passed", "failed"}:
+    push_result = "not recorded"
+
+print(f"# Ralph batch {batch}")
+print()
+print("## Batch")
+print(f"- Scope: `{scope}`")
+print(f"- Base: `{base_branch}`")
+print(f"- Head: `{head_branch}`")
+print(f"- Completed task range: `{task_range}`")
+print(f"- Latest task gate: `{gate_result}`")
+print(f"- Latest branch push: `{push_result}`")
+print()
+print("## Known Risks")
+print("- Review scope drift and dependency assumptions before marking this PR ready.")
+print("- Keep this PR Draft until independent QA passes against the complete batch range.")
+print()
+print("## QA Checklist")
+print("- [ ] Confirm the complete `base...head` diff and task range.")
+print("- [ ] Run the configured project gates for the completed tasks.")
+print("- [ ] Check desktop and mobile behavior, console errors, and failed requests.")
+print("- [ ] Check keyboard access, generated files, and accidental secrets.")
+print("- [ ] Confirm scope, branch, and loop-state metadata before making ready.")
+PY
+}
+
+parse_pr_list() {
+  python3 - "$1" <<'PY'
+import json
+import sys
+
+items = json.loads(sys.argv[1])
+if not isinstance(items, list):
+    raise SystemExit("gh pr list returned a non-list result")
+for item in items:
+    if not isinstance(item, dict):
+        raise SystemExit("gh pr list returned an invalid PR record")
+    number = item.get("number")
+    url = item.get("url")
+    draft = item.get("isDraft")
+    if not isinstance(number, int) or number <= 0 or not isinstance(url, str) or not isinstance(draft, bool):
+        raise SystemExit("gh pr list returned incomplete PR metadata")
+    print(f"{number}\t{url}\t{str(draft).lower()}")
+PY
+}
+
+ensure_pull_request() {
+  local pr_list_output
+  local parsed_prs
+  local stored_pr
+  local pr_number
+  local pr_url
+  local pr_draft
+  local create_output
+  local create_status
+  local created_metadata
+  local pr_rows=()
+  local created_pr=false
+
+  generate_pr_body
+  if ! pr_list_output="$(gh pr list --head "$RUN_BRANCH" --base "$BASE_BRANCH" \
+    --state open --json number,url,isDraft 2>&1)"; then
+    printf 'Unable to query open PRs for %s -> %s.\n%s\n' \
+      "$RUN_BRANCH" "$BASE_BRANCH" "$pr_list_output" >&2
+    return 69
+  fi
+  if ! parsed_prs="$(parse_pr_list "$pr_list_output" 2>&1)"; then
+    printf 'Unable to parse open PR metadata for %s -> %s.\n%s\n' \
+      "$RUN_BRANCH" "$BASE_BRANCH" "$parsed_prs" >&2
+    return 69
+  fi
+  while IFS= read -r row; do
+    [[ -n "$row" ]] && pr_rows+=("$row")
+  done <<< "$parsed_prs"
+
+  if [[ "${#pr_rows[@]}" -gt 1 ]]; then
+    printf 'Multiple open PRs exist for %s -> %s; refusing to guess.\n' \
+      "$RUN_BRANCH" "$BASE_BRANCH" >&2
+    return 66
+  fi
+
+  if [[ "${#pr_rows[@]}" -eq 1 ]]; then
+    IFS=$'\t' read -r pr_number pr_url pr_draft <<< "${pr_rows[0]}"
+  elif stored_pr="$(stored_pull_request 2>/dev/null)"; then
+    IFS=$'\t' read -r pr_number pr_url pr_draft <<< "$stored_pr"
+  else
+    if create_output="$(gh pr create --draft --base "$BASE_BRANCH" --head "$RUN_BRANCH" \
+      --title "[$BATCH_ID] $SCOPE_SLUG" --body-file "$PR_BODY_FILE" 2>&1)"; then
+      :
+    else
+      create_status="$?"
+      printf 'Draft PR creation failed after the branch was pushed; retry with --resume.\n%s\n' \
+        "$create_output" >&2
+      return "$create_status"
+    fi
+    if ! created_metadata="$(python3 - "$create_output" <<'PY'
+import re
+import sys
+
+match = re.search(r"(https?://[^\s]+/pull/(\d+))", sys.argv[1])
+if not match:
+    raise SystemExit("gh pr create did not return a PR URL")
+print(f"{match.group(2)}\t{match.group(1)}\ttrue")
+PY
+)"; then
+      printf 'Draft PR creation returned no usable PR URL; retry with --resume.\n%s\n' \
+        "$create_output" >&2
+      return 69
+    fi
+    IFS=$'\t' read -r pr_number pr_url pr_draft <<< "$created_metadata"
+    created_pr=true
+  fi
+
+  if [[ "$created_pr" == false ]]; then
+    if ! gh pr edit "$pr_number" --body-file "$PR_BODY_FILE" >/dev/null 2>&1; then
+      printf 'Unable to update Draft PR #%s; retry with --resume.\n' "$pr_number" >&2
+      return 69
+    fi
+  fi
+  persist_pull_request "$pr_number" "$pr_url" "$pr_draft"
+  printf 'Maintaining Draft PR #%s: %s\n' "$pr_number" "$pr_url"
+}
+
 last_pushed_sha() {
   python3 - "$STATE_FILE" <<'PY'
 import json
@@ -282,6 +518,17 @@ require_initial_clean_tree() {
     echo "Refusing to start: working tree is not clean." >&2
     git status --short >&2
     exit 65
+  fi
+}
+
+require_gh() {
+  if ! command -v gh >/dev/null 2>&1; then
+    echo "GitHub CLI is required for non-dry execution. Install it with: brew install gh" >&2
+    exit 69
+  fi
+  if ! gh auth status >/dev/null 2>&1; then
+    echo "GitHub CLI is not authenticated. Run 'gh auth login' and retry." >&2
+    exit 69
   fi
 }
 
@@ -426,6 +673,9 @@ if [[ "$DRY_RUN" == false ]] && ! command -v opencode >/dev/null 2>&1; then
   echo "OpenCode is not installed or is not on PATH." >&2
   exit 69
 fi
+if [[ "$DRY_RUN" == false ]]; then
+  require_gh
+fi
 
 if [[ "$DRY_RUN" == false ]]; then
   initialize_batch
@@ -439,6 +689,10 @@ if [[ "$DRY_RUN" == false && "$RESUME" == true ]]; then
     push_batch_branch "$current_head" || {
       push_status="$?"
       exit "$push_status"
+    }
+    ensure_pull_request || {
+      pr_status="$?"
+      exit "$pr_status"
     }
   fi
 fi
@@ -505,6 +759,10 @@ for ((iteration = 1; iteration <= MAX_TASKS; iteration++)); do
   push_batch_branch "$after_commit" || {
     push_status="$?"
     exit "$push_status"
+  }
+  ensure_pull_request || {
+    pr_status="$?"
+    exit "$pr_status"
   }
 
   echo "=== Ralph Loop: completed $task_id in commit $after_commit ==="
