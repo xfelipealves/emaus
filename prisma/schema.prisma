@@ -34,6 +34,29 @@ enum MinistryMembershipRole {
   MEMBER
 }
 
+enum MeetingRecurrence {
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+}
+
+enum MeetingStatus {
+  DRAFT
+  SCHEDULED
+  CANCELLED
+}
+
+enum MeetingAudienceType {
+  WHOLE_CHURCH
+  MINISTRIES
+}
+
+enum AttendanceStatus {
+  NOT_CONFIRMED
+  PRESENT
+  ABSENT
+}
+
 model Person {
   id        String       @id @default(cuid())
   fullName  String
@@ -46,6 +69,7 @@ model Person {
 
   account     Account?
   memberships MinistryMembership[]
+  attendances Attendance[]
 }
 
 model Account {
@@ -70,8 +94,9 @@ model Ministry {
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
 
-  memberships MinistryMembership[]
-  accesses    AccountMinistryAccess[]
+  memberships      MinistryMembership[]
+  accesses         AccountMinistryAccess[]
+  meetingAudiences MeetingAudience[]
 }
 
 model MinistryMembership {
@@ -105,4 +130,81 @@ model AccountMinistryAccess {
 
   @@index([accountId, revokedAt])
   @@index([ministryId, revokedAt])
+}
+
+model Category {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  series   MeetingSeries[]
+  meetings Meeting[]
+}
+
+model MeetingSeries {
+  id         String            @id @default(cuid())
+  name       String
+  categoryId String
+  recurrence MeetingRecurrence
+  weekdays   Int[]
+  startDate  DateTime
+  endDate    DateTime?
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+
+  category Category  @relation(fields: [categoryId], references: [id])
+  meetings Meeting[]
+
+  @@index([categoryId, startDate])
+}
+
+model Meeting {
+  id         String        @id @default(cuid())
+  title      String
+  categoryId String
+  seriesId   String?
+  startsAt   DateTime
+  endsAt     DateTime?
+  status     MeetingStatus @default(DRAFT)
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  category    Category          @relation(fields: [categoryId], references: [id])
+  series      MeetingSeries?    @relation(fields: [seriesId], references: [id])
+  audiences   MeetingAudience[]
+  attendances Attendance[]
+
+  @@index([startsAt, status])
+  @@index([seriesId, startsAt])
+}
+
+model MeetingAudience {
+  id         String              @id @default(cuid())
+  meetingId  String
+  type       MeetingAudienceType
+  ministryId String?
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
+
+  meeting  Meeting   @relation(fields: [meetingId], references: [id])
+  ministry Ministry? @relation(fields: [ministryId], references: [id])
+
+  @@unique([meetingId, ministryId])
+  @@index([ministryId])
+}
+
+model Attendance {
+  id        String           @id @default(cuid())
+  meetingId String
+  personId  String
+  status    AttendanceStatus @default(NOT_CONFIRMED)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  meeting Meeting @relation(fields: [meetingId], references: [id])
+  person  Person  @relation(fields: [personId], references: [id])
+
+  @@unique([meetingId, personId])
+  @@index([personId, status])
 }

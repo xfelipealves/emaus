@@ -159,9 +159,9 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Depends on**: T07
 **Requirement**: ENC-01
 **Done when**:
-- [ ] Series supports weekly, biweekly and monthly recurrence plus optional end date.
-- [ ] Attendance is unique for meeting/person and supports three states.
-- [ ] Meeting supports draft, scheduled and cancelled states.
+- [x] Series supports weekly, biweekly and monthly recurrence plus optional end date.
+- [x] Attendance is unique for meeting/person and supports three states.
+- [x] Meeting supports draft, scheduled and cancelled states.
 **Tests**: integration
 **Gate**: Full
 **Commit**: `feat: add meetings and attendance schema`
