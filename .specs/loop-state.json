@@ -5,7 +5,7 @@
   "currentTask": "T02",
   "completedTasks": ["T01"],
   "completedMilestones": [],
-  "lastCommit": "20346e9db8938f6f43fb00d50ef0a4bccd93f26c",
+  "lastCommit": "91882bbf6efa557fda93441d94dc093c3cf87c05",
   "lastGate": {
     "command": "npm run db:validate && npm run typecheck && npm run lint && npm run build && npm run test",
     "result": "passed: 1 Vitest test, build/lint/typecheck/db validation exit 0; Playwright smoke separately passed: 1 test"
