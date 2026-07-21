@@ -145,9 +145,9 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Depends on**: T06
 **Requirement**: MIN-01, MIN-02, AUTH-02
 **Done when**:
-- [ ] Membership stores role, start date and optional end date.
-- [ ] Account scope is independent from membership role.
-- [ ] Archived Ministry state is represented.
+- [x] Membership stores role, start date and optional end date.
+- [x] Account scope is independent from membership role.
+- [x] Archived Ministry state is represented.
 **Tests**: integration
 **Gate**: Full
 **Commit**: `feat: add ministry schema`
