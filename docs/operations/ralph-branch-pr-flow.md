@@ -53,6 +53,45 @@ The script never uses `git reset`, `git push --force`, or an automatic rebase.
 If `main` has diverged, the fast-forward-only pull stops and requires human
 inspection.
 
+## Recover A Local `dev`
+
+When local `dev` is stale, diverged, or has no `origin/dev` upstream, stop the
+setup or batch flow. Do not reset, force-update, delete, publish, or silently
+replace the branch. First inspect the clone and remote state:
+
+```bash
+git status --short --branch
+git remote -v
+git branch -vv
+git show-ref --heads --remotes
+git log --graph --decorate --oneline --all --max-count=30
+git fetch --prune origin
+git show-ref --verify refs/heads/dev
+git show-ref --verify refs/remotes/origin/dev
+git ls-remote --heads origin dev
+```
+
+The inspection distinguishes a stale local tracking ref, local commits that
+are not on the remote, a missing remote branch, and a clone whose `origin` is
+wrong or unavailable. Keep any local-only commits and uncommitted work
+preserved while deciding what to do; do not assume that local `dev` is
+disposable.
+
+After a human reviews the refs and chooses a recovery path, use one of these
+deliberate options:
+
+1. Preserve the local work in a named rescue branch or patch, then explicitly
+   reconcile the histories and restore `dev` to the reviewed `origin/dev`.
+2. If the clone is not trustworthy or local work is not needed, clone the
+   reviewed `origin` into a new directory and rerun setup there. Leave the old
+   clone untouched until the recovery is verified.
+3. If the remote truly lacks `dev`, ask the maintainer whether to create it
+   from reviewed `main`, publish a reviewed local history, or keep investigating.
+
+Record the chosen path before applying commands such as branch replacement or
+remote publication. The setup script is intentionally not a recovery tool: it
+must stop on these conditions rather than guessing which history should win.
+
 ## Start A Batch
 
 Once `origin/dev` exists, identify a unique batch ID and a normalized scope:
@@ -187,8 +226,11 @@ for an explicit maintainer decision instead.
 
 - Dirty checkout: inspect changes, commit or discard them deliberately, then
   rerun the setup command.
+- Stale or diverged local `dev`: stop, inspect refs and local-only work, then
+  use a human-approved repair or reclone path; never silently overwrite it.
+- Missing `dev` upstream: stop, confirm whether `origin/dev` exists, and get a
+  maintainer decision before creating or publishing any branch.
 - Diverged `main`: stop; resolve the branch history manually before rerunning.
-- Missing `origin/dev`: run the setup script from clean local `main`.
 - Failed batch push: preserve the local commit and retry the same branch.
 - Failed PR creation: retry with the same head/base pair after authentication
   and repository access are fixed.

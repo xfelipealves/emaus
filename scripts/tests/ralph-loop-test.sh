@@ -5,9 +5,14 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SETUP_SCRIPT="$ROOT_DIR/scripts/setup-ralph-branches.sh"
 TEST_ROOT=""
 TEST_ROOTS=()
+TEST_ENV_ROOT=""
 
 cleanup_test_roots() {
   local test_root
+
+  if [[ -n "$TEST_ENV_ROOT" ]]; then
+    rm -rf "$TEST_ENV_ROOT"
+  fi
 
   for test_root in "${TEST_ROOTS[@]}"; do
     rm -rf "$test_root"
@@ -15,6 +20,20 @@ cleanup_test_roots() {
 }
 
 trap cleanup_test_roots EXIT
+
+TEST_ENV_ROOT="$(mktemp -d)"
+TEST_HOME="$TEST_ENV_ROOT/home"
+TEST_GIT_CONFIG_GLOBAL="$TEST_ENV_ROOT/gitconfig"
+TEST_GIT_HOOKS="$TEST_ENV_ROOT/hooks"
+mkdir -p "$TEST_HOME" "$TEST_GIT_HOOKS"
+: > "$TEST_GIT_CONFIG_GLOBAL"
+
+export HOME="$TEST_HOME"
+export GIT_CONFIG_GLOBAL="$TEST_GIT_CONFIG_GLOBAL"
+export GIT_CONFIG_NOSYSTEM=1
+git config --global core.hooksPath "$TEST_GIT_HOOKS"
+git config --global commit.gpgSign false
+git config --global tag.gpgSign false
 
 fail() {
   printf 'FAIL: %s\n' "$1" >&2

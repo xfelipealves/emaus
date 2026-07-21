@@ -35,6 +35,7 @@ O `DATABASE_URL` é lido do ambiente pela aplicação. Os valores do Compose sã
 - [Design técnico e milestones](.specs/features/emaus-mvp/design.md)
 - [Plano de execução T01–T36](.specs/features/emaus-mvp/tasks.md)
 - [Operação do Ralph Loop com OpenCode](docs/operations/opencode-ralph-loop.md)
+- [Fluxo de branches e PRs do Ralph](docs/operations/ralph-branch-pr-flow.md)
 
 ## Fluxo de desenvolvimento
 
