@@ -77,23 +77,25 @@ Antes de chamar o modelo, valide a sequência planejada sem efeitos colaterais:
 ```
 
 Em uma execução real, `ralph-loop.sh` cria a branch `lote/<batch>-<scope-slug>`
-a partir de `origin/dev`, publica o estado inicial e abre ou reutiliza o Draft PR
-antes de chamar o executor. Não crie essa branch manualmente. Para uma branch de
+a partir de `origin/dev` e publica o estado inicial. Após o primeiro commit/push
+válido de uma task, abre ou reutiliza o Draft PR. Não crie essa branch
+manualmente. Para uma branch de
 lote já existente, use `--resume` com o mesmo batch, escopo e checkout da
 branch registrada.
 
 ## Ciclo do Draft PR
 
 Em uma execução não simulada, o script valida `gh` e sua autenticação antes de
-criar ou trocar de branch. Antes da primeira task e antes de cada task seguinte,
-ele consulta:
+criar ou trocar de branch. Depois do primeiro commit/push válido de uma task e
+antes de cada task seguinte, ele consulta:
 
 ```bash
 gh pr list --head "$RUN_BRANCH" --base "$BASE_BRANCH" --state open --json number,url,isDraft
 ```
 
-No primeiro início, se ainda não houver PR, cria exatamente um Draft PR. Depois
-disso, o par exato deve sempre ter exatamente um PR aberto e Draft. Zero, múltiplos
+Após o primeiro commit/push válido de uma task, se ainda não houver PR, cria
+exatamente um Draft PR. Depois disso, o par exato deve sempre ter exatamente um
+PR aberto e Draft. Zero, múltiplos
 PRs ou um PR já pronto interrompem o fluxo com segurança, sem executar outra task
 nem publicar outro commit de task:
 

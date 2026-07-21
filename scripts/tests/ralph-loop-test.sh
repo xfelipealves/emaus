@@ -78,6 +78,62 @@ else:
 PY
 }
 
+run_qa_metadata_rejection_case() {
+  local case_name="$1"
+  local mutation="$2"
+  local remote="$3"
+  local branch_name="$4"
+  local fake_bin="$5"
+  local test_root="$6"
+  local invalid_work="$test_root/${case_name}-work"
+  local valid_state="$test_root/${case_name}-valid-state.json"
+  local output
+
+  git clone "$remote" "$invalid_work" >/dev/null
+  git -C "$invalid_work" config user.name 'Ralph Test'
+  git -C "$invalid_work" config user.email 'ralph-test@example.invalid'
+  git -C "$invalid_work" switch -c "$branch_name" "origin/$branch_name" >/dev/null
+  cp "$invalid_work/.specs/loop-state.json" "$valid_state"
+  python3 - "$invalid_work/.specs/loop-state.json" "$mutation" <<'PY'
+import json
+import sys
+
+path, mutation = sys.argv[1:]
+with open(path, encoding="utf-8") as source:
+    state = json.load(source)
+
+if mutation == "sequence-gap":
+    state["completedTasks"] = ["T01", "T03"]
+    state["currentTask"] = "T04"
+elif mutation == "ready-wrong-current":
+    state["currentTask"] = "T04"
+elif mutation == "complete-incomplete":
+    state["status"] = "complete"
+    state["currentTask"] = None
+else:
+    state["status"] = mutation
+
+with open(path, "w", encoding="utf-8") as target:
+    json.dump(state, target, indent=2)
+    target.write("\n")
+PY
+  git -C "$invalid_work" add .specs/loop-state.json
+  git -C "$invalid_work" commit -m "test: create invalid QA state $case_name" >/dev/null
+  git -C "$invalid_work" push origin "$branch_name" >/dev/null
+
+  if output="$(cd "$invalid_work" && PATH="$fake_bin:$PATH" ./scripts/ralph-qa.sh \
+    --batch L010 --scope qa-flow 2>&1)"; then
+    fail "QA must reject invalid metadata state $case_name"
+  fi
+  [[ "$output" == *'QA preflight failed'* ]] ||
+    fail "invalid metadata state $case_name should fail during QA preflight: $output"
+
+  cp "$valid_state" "$invalid_work/.specs/loop-state.json"
+  git -C "$invalid_work" add .specs/loop-state.json
+  git -C "$invalid_work" commit -m "test: restore valid QA state $case_name" >/dev/null
+  git -C "$invalid_work" push origin "$branch_name" >/dev/null
+}
+
 run_setup_case() {
   [[ -f "$SETUP_SCRIPT" ]] || fail "missing setup script: $SETUP_SCRIPT"
 
@@ -1244,7 +1300,8 @@ run_qa_case() {
   "updatedAt": "2026-07-21"
 }
 EOF
-  printf '%s\n' '# Ralph QA test tasks' '### T01: Base task' '### T02: Batch task' > \
+  printf '%s\n' '# Ralph QA test tasks' '### T01: Base task' '### T02: Batch task' \
+    '### T03: Skipped task' '### T04: Invalid current task' > \
     "$source/.specs/features/emaus-mvp/tasks.md"
   git -C "$source" add README.md scripts .specs
   git -C "$source" commit -m 'test: seed QA main branch' >/dev/null
@@ -1422,6 +1479,37 @@ EOF
   export RALPH_BROWSER_QA_COMMAND="$fake_bin/browser-qa"
   export RALPH_APP_URL="http://127.0.0.1:$app_port"
   export RALPH_BROWSER_VIEWPORTS='desktop,mobile'
+  export RALPH_TEST_PR_DRAFT=true
+  export RALPH_TEST_WRONG_PR=false
+  export RALPH_TEST_BROWSER_FAILURE=false
+  export RALPH_TEST_MUTATE_REMOTE=false
+
+  python3 - "$ROOT_DIR/docs/operations/opencode-ralph-loop.md" <<'PY'
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as source:
+    documentation = source.read()
+
+if "primeiro commit/push válido de uma task" not in documentation:
+    raise SystemExit("Ralph docs must place Draft PR setup after the first valid task commit/push")
+if "Antes da primeira task e antes de cada task seguinte" in documentation:
+    raise SystemExit("Ralph docs must not describe Draft PR setup before the first task")
+PY
+
+  run_qa_metadata_rejection_case 'sequence-gap' 'sequence-gap' "$remote" \
+    "$branch_name" "$fake_bin" "$TEST_ROOT"
+  for invalid_status in blocked verification_required unknown; do
+    run_qa_metadata_rejection_case "$invalid_status" "$invalid_status" "$remote" \
+      "$branch_name" "$fake_bin" "$TEST_ROOT"
+  done
+  run_qa_metadata_rejection_case 'ready-wrong-current' 'ready-wrong-current' "$remote" \
+    "$branch_name" "$fake_bin" "$TEST_ROOT"
+  run_qa_metadata_rejection_case 'complete-incomplete' 'complete-incomplete' "$remote" \
+    "$branch_name" "$fake_bin" "$TEST_ROOT"
+  git -C "$work" fetch origin "$branch_name" >/dev/null
+  git -C "$work" reset --hard "origin/$branch_name" >/dev/null
+  qa_head="$(git -C "$work" rev-parse HEAD)"
+
   export RALPH_TEST_GATE_FAILURE='typecheck'
   if gate_failure_output="$(cd "$work" && PATH="$fake_bin:$PATH" ./scripts/ralph-qa.sh \
     --batch L010 --scope qa-flow 2>&1)"; then
