@@ -61,10 +61,10 @@
 ## Handoff
 
 - **Feature**: `.specs/features/emaus-mvp`
-- **Phase / Task**: Tasks — plano técnico atômico pronto; próxima execução é M1/T01
-- **Completed**: instalação do `tlc-spec-driven`; Specify aprovado; Design aprovado; milestones M1–M8 e tasks T01–T36 criados; OpenCode Ralph Loop guardado por `.specs/loop-state.json`
-- **In-progress** (file:line): `.specs/features/emaus-mvp/tasks.md` — aguardando início de T01
-- **Next step**: executar `./scripts/ralph-loop.sh --dry-run --max-tasks 1`, definir o modelo final e rodar T01 como piloto em commit atômico.
-- **Blockers**: nenhum para M1. OpenCode é o runner do loop; modelo permanece configurável por `OPENCODE_MODEL`. O loop para se uma task falhar, não fizer commit, deixar árvore suja ou não avançar `.specs/loop-state.json`; deploy, e-mail, backup e monitoramento permanecem postergados para depois da validação local.
-- **Uncommitted files**: nenhum
+- **Phase / Task**: M1 Foundation — T01 concluída
+- **Completed**: instalação do `tlc-spec-driven`; Specify aprovado; Design aprovado; milestones M1–M8 e tasks T01–T36 criados; T01 bootstrap local implementado com smoke unitário e E2E; OpenCode Ralph Loop guardado por `.specs/loop-state.json`
+- **In-progress** (file:line): `.specs/features/emaus-mvp/tasks.md:68` — T02 aguardando execução
+- **Next step**: executar T02, adicionando PostgreSQL local e contrato de ambiente conforme o plano.
+- **Blockers**: nenhum para T02. OpenCode é o runner do loop; modelo permanece configurável por `OPENCODE_MODEL`. O loop para se uma task falhar, não fizer commit, deixar árvore suja ou não avançar `.specs/loop-state.json`; deploy, e-mail, backup e monitoramento permanecem postergados para depois da validação local.
+- **Uncommitted files**: nenhum após o commit de T01
 - **Branch**: main

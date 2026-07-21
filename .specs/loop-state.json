@@ -2,11 +2,14 @@
   "schemaVersion": 1,
   "feature": "emaus-mvp",
   "status": "ready",
-  "currentTask": "T01",
-  "completedTasks": [],
+  "currentTask": "T02",
+  "completedTasks": ["T01"],
   "completedMilestones": [],
-  "lastCommit": null,
-  "lastGate": null,
-  "updatedAt": "2026-07-20",
+  "lastCommit": "20346e9db8938f6f43fb00d50ef0a4bccd93f26c",
+  "lastGate": {
+    "command": "npm run db:validate && npm run typecheck && npm run lint && npm run build && npm run test",
+    "result": "passed: 1 Vitest test, build/lint/typecheck/db validation exit 0; Playwright smoke separately passed: 1 test"
+  },
+  "updatedAt": "2026-07-21",
   "notes": "The Ralph Loop may execute only currentTask. It advances this file after a passing task gate and atomic commit."
 }

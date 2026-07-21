@@ -58,9 +58,9 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Depends on**: None
 **Requirement**: AUD-01
 **Done when**:
-- [ ] `npm run dev`, `npm run lint`, `npm run typecheck`, `npm run test`, `npm run test:integration`, `npm run test:e2e` and `npm run build` are defined.
-- [ ] A minimal Vitest and Playwright smoke test pass.
-- [ ] No visual library is installed.
+- [x] `npm run dev`, `npm run lint`, `npm run typecheck`, `npm run test`, `npm run test:integration`, `npm run test:e2e` and `npm run build` are defined.
+- [x] A minimal Vitest and Playwright smoke test pass.
+- [x] No visual library is installed.
 **Tests**: unit + E2E smoke
 **Gate**: Build
 **Commit**: `chore: bootstrap Emaus application`
