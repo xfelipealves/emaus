@@ -42,7 +42,13 @@ else
     exit 66
   fi
   git branch dev main
-  git push -u origin dev
+  if git push -u origin dev; then
+    :
+  else
+    push_status="$?"
+    git branch -D dev >/dev/null 2>&1 || true
+    exit "$push_status"
+  fi
 fi
 
 printf 'dev branch ready at %s\n' "$(git rev-parse refs/heads/dev)"

@@ -59,7 +59,14 @@ Once `origin/dev` exists, identify a unique batch ID and a normalized scope:
 
 ```bash
 git fetch origin dev
+BASE_SHA="$(git rev-parse origin/dev)"
 git switch -c lote/L001-m3-auth-access origin/dev
+CREATED_SHA="$(git rev-parse HEAD)"
+if [[ "$CREATED_SHA" != "$BASE_SHA" ]]; then
+  printf 'Batch branch was not created at origin/dev (%s != %s).\n' \
+    "$CREATED_SHA" "$BASE_SHA" >&2
+  exit 1
+fi
 ```
 
 The planned runner invocation is:
@@ -71,13 +78,25 @@ The planned runner invocation is:
   --max-tasks 10
 ```
 
-Before execution, confirm the branch is based on the intended integration
-commit and the tree is clean:
+The equality check is required immediately after creating the branch, before any
+task runs or commits. Persist the captured `BASE_SHA` as `baseSha` in
+`.specs/loop-state.json` together with the batch, scope, `baseBranch`, and
+`runBranch` metadata. `baseSha` is the immutable origin used for the batch; do
+not replace it with a later `origin/dev` value.
+
+Before execution, and again on every resume, validate the persisted base and
+the clean tree:
 
 ```bash
-git merge-base --is-ancestor origin/dev HEAD
+BASE_SHA="$(python3 -c 'import json; print(json.load(open(".specs/loop-state.json"))["baseSha"])')"
+test "$(git rev-parse origin/dev)" = "$BASE_SHA"
+git merge-base --is-ancestor "$BASE_SHA" HEAD
 git status --short --branch
 ```
+
+The first check detects a changed `dev`; the ancestry check confirms the batch
+tip still descends from its recorded base. Stop instead of continuing when
+either validation fails.
 
 Do not reuse an existing batch branch for a different batch ID or scope. A
 resume must use the same branch and recorded metadata.
