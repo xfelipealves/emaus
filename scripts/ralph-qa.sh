@@ -15,6 +15,7 @@ SCOPE_SLUG=""
 BASE_BRANCH="dev"
 RUN_BRANCH=""
 BASE_SHA=""
+LAST_PUSH_SHA=""
 TASK_RANGE=""
 PR_NUMBER=""
 PR_URL=""
@@ -235,13 +236,41 @@ if pull_request.get("base") != base_branch or pull_request.get("head") != run_br
 if pull_request.get("draft") is not True:
     raise SystemExit("recorded pullRequest must still be Draft before QA")
 
+last_push = state.get("lastPush")
+last_push_sha = last_push.get("sha") if isinstance(last_push, dict) else None
+if not isinstance(last_push_sha, str) or not re.fullmatch(r"[0-9a-f]{40}", last_push_sha):
+    raise SystemExit("recorded lastPush.sha is missing or invalid")
+if last_push.get("remote") != "origin" or last_push.get("branch") != run_branch:
+    raise SystemExit("recorded lastPush metadata has the wrong remote or branch")
+if last_push.get("status") != "passed":
+    raise SystemExit("recorded lastPush status is not passed")
+
+numbers = [int(task[1:]) for task in completed]
+expected_current = f"T{numbers[-1] + 1:02d}" if numbers[-1] < 36 else None
+if state.get("status") == "ready" and state.get("currentTask") != expected_current:
+    raise SystemExit("currentTask is not the next task after completedTasks")
+if state.get("status") == "verification_required" and state.get("currentTask") is not None:
+    raise SystemExit("verification_required state must not have a currentTask")
+
 task_range = new_tasks[0] if len(new_tasks) == 1 else f"{new_tasks[0]}..{new_tasks[-1]}"
-print("\t".join((base_sha, task_range, str(number), url)))
+print("\t".join((base_sha, last_push_sha, task_range, str(number), url)))
 PY
   )"; then
     fail_preflight "$metadata"
   fi
-  IFS=$'\t' read -r BASE_SHA TASK_RANGE PR_NUMBER PR_URL <<< "$metadata"
+  IFS=$'\t' read -r BASE_SHA LAST_PUSH_SHA TASK_RANGE PR_NUMBER PR_URL <<< "$metadata"
+}
+
+validate_published_head() {
+  local remote_head
+  git fetch origin "$RUN_BRANCH" >/dev/null 2>&1 ||
+    fail_preflight "unable to fetch origin/$RUN_BRANCH"
+  remote_head="$(git rev-parse --verify "refs/remotes/origin/$RUN_BRANCH^{commit}" 2>/dev/null)" ||
+    fail_preflight "origin/$RUN_BRANCH is missing"
+  [[ "$(git rev-parse HEAD)" == "$remote_head" ]] ||
+    fail_preflight "local HEAD is not published to origin/$RUN_BRANCH"
+  [[ "$LAST_PUSH_SHA" == "$remote_head" ]] ||
+    fail_preflight "lastPush.sha is not the published origin/$RUN_BRANCH HEAD"
 }
 
 validate_git_range() {
@@ -447,16 +476,26 @@ update_pr_and_ready() {
 - Base: \`$BASE_BRANCH\`
 - Head: \`$RUN_BRANCH\`
 - Completed task range: \`$TASK_RANGE\`
+- Published HEAD: \`$LAST_PUSH_SHA\`
 - Independent QA: passed
 
-## Automated Gates
-- \`npm run db:validate\`
-- \`npm run typecheck\`
-- \`npm run lint\`
-- \`npm run build\`
-- \`npm run test\`
-- \`npm run test:integration\`
-- \`npm run test:e2e\`
+## Commit SHAs
+$(git log --format='- `%H` %s' "$BASE_BRANCH..HEAD")
+
+## Gate Results
+- \`npm run db:validate\`: passed
+- \`npm run typecheck\`: passed
+- \`npm run lint\`: passed
+- \`npm run build\`: passed
+- \`npm run test\`: passed
+- \`npm run test:integration\`: passed
+- \`npm run test:e2e\`: passed
+
+## Push Status
+- Status: passed
+- Remote: \`origin\`
+- Branch: \`$RUN_BRANCH\`
+- Remote HEAD: \`$LAST_PUSH_SHA\`
 
 ## Known Risks
 - Review scope drift and dependency assumptions before merge.
@@ -511,6 +550,7 @@ require_commands
 [[ "$(git branch --show-current)" == "$RUN_BRANCH" ]] ||
   fail_preflight "checked-out branch is not $RUN_BRANCH"
 read_batch_metadata
+validate_published_head
 validate_git_range
 validate_pr_metadata
 

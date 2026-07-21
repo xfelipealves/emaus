@@ -43,7 +43,11 @@ Se `OPENCODE_MODEL` for omitido, o OpenCode usa o modelo padrão da configuraç�
 Para deixar o Ralph Loop consumir automaticamente a task atual e avançar somente após um commit e gate bem-sucedidos:
 
 ```bash
-./scripts/ralph-loop.sh --model 'provider/model-confirmado' --max-tasks 1
+./scripts/ralph-loop.sh \
+  --model 'provider/model-confirmado' \
+  --batch L001 \
+  --scope m3-auth-access \
+  --max-tasks 1
 ```
 
 `--max-tasks 1` é o padrão seguro. Após validar o piloto, é possível executar um lote limitado:
@@ -68,6 +72,11 @@ Antes de chamar o modelo, valide a sequência planejada sem efeitos colaterais:
 ./scripts/ralph-loop.sh --dry-run --max-tasks 3
 ```
 
+Em uma execução real, `ralph-loop.sh` cria a branch `lote/<batch>-<scope-slug>`
+a partir de `origin/dev`. Não crie essa branch manualmente. Para uma branch de
+lote já existente, use `--resume` com o mesmo batch, escopo e checkout da
+branch registrada.
+
 ## Ciclo do Draft PR
 
 Em uma execução não simulada, o script valida `gh` e sua autenticação antes de
@@ -86,7 +95,8 @@ gh pr create --draft --base dev --head "$RUN_BRANCH" \
 ```
 
 O corpo temporário contém lote, escopo, branches base/head, intervalo de tasks
-do lote, resultado do gate, status do push, riscos conhecidos e checklist de QA.
+do lote, SHAs completos dos commits, resultado individual de cada gate, status
+do push, riscos conhecidos e checklist de QA.
 Ele não inclui valores completos de ambiente ou credenciais. Cada task seguinte
 e cada retomada atualizam o corpo do mesmo PR com `gh pr edit`; o script nunca
 cria um segundo PR para o mesmo lote. `number`, `url`, `base`, `head` e `draft`
@@ -96,8 +106,9 @@ ficam persistidos em `.specs/loop-state.json`.
 
 Depois que o lote terminar, execute a QA independente a partir da própria branch
 do lote. O script exige os metadados persistidos, a branch exata, uma árvore
-limpa, um Draft PR para o par `dev`/head correto e a extensão de tasks registrada
-desde o `baseSha`. A comparação e o log abrangem o intervalo completo
+limpa, `HEAD == origin/<runBranch>`, `lastPush.sha` igual ao head remoto, um
+Draft PR para o par `dev`/head correto e a extensão de tasks registrada desde o
+`baseSha`. A comparação e o log abrangem o intervalo completo
 `dev...HEAD`, não apenas o último commit:
 
 ```bash
@@ -161,6 +172,7 @@ O `scripts/ralph-loop.sh` também verifica, após cada chamada ao OpenCode:
 
 - árvore Git limpa;
 - existência de um commit novo;
+- exatamente um novo commit por task e transição sequencial sem tasks puladas;
 - avanço correto da task atual para a próxima;
 - parada obrigatória em `blocked`, `verification_required` ou `complete`.
 

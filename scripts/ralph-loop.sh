@@ -17,10 +17,14 @@ SCOPE_SLUG=""
 BASE_BRANCH="dev"
 RESUME=false
 PR_BODY_FILE=""
+TASK_STATE_SNAPSHOT=""
 
 cleanup_pr_body() {
   if [[ -n "$PR_BODY_FILE" ]]; then
     rm -f -- "$PR_BODY_FILE"
+  fi
+  if [[ -n "$TASK_STATE_SNAPSHOT" ]]; then
+    rm -f -- "$TASK_STATE_SNAPSHOT"
   fi
 }
 
@@ -212,6 +216,7 @@ with tempfile.NamedTemporaryFile("w", dir=directory, encoding="utf-8", delete=Fa
     temporary_path = target.name
 os.replace(temporary_path, path)
 PY
+  mark_state_metadata_clean
 }
 
 persist_last_push() {
@@ -241,6 +246,45 @@ with tempfile.NamedTemporaryFile("w", dir=directory, encoding="utf-8", delete=Fa
     temporary_path = target.name
 os.replace(temporary_path, path)
 PY
+  mark_state_metadata_clean
+}
+
+persist_task_metadata() {
+  python3 - "$STATE_FILE" "$1" "$2" <<'PY'
+import datetime
+import json
+import os
+import sys
+import tempfile
+
+path, task_id, commit_sha = sys.argv[1:]
+with open(path, encoding="utf-8") as source:
+    state = json.load(source)
+
+state["lastCommit"] = commit_sha
+last_gate = state.get("lastGate")
+if isinstance(last_gate, dict):
+    gate_results = state.get("gateResults")
+    if not isinstance(gate_results, list):
+        gate_results = []
+    if not any(
+        isinstance(result, dict) and result.get("task") == task_id
+        for result in gate_results
+    ):
+        result = dict(last_gate)
+        result["task"] = task_id
+        gate_results.append(result)
+    state["gateResults"] = gate_results
+state["updatedAt"] = datetime.date.today().isoformat()
+
+directory = os.path.dirname(os.path.abspath(path))
+with tempfile.NamedTemporaryFile("w", dir=directory, encoding="utf-8", delete=False) as target:
+    json.dump(state, target, indent=2)
+    target.write("\n")
+    temporary_path = target.name
+os.replace(temporary_path, path)
+PY
+  mark_state_metadata_clean
 }
 
 persist_pull_request() {
@@ -271,6 +315,19 @@ with tempfile.NamedTemporaryFile("w", dir=directory, encoding="utf-8", delete=Fa
     temporary_path = target.name
 os.replace(temporary_path, path)
 PY
+  mark_state_metadata_clean
+}
+
+mark_state_metadata_clean() {
+  # Push and PR metadata is only knowable after the task commit exists. Keep
+  # that control-plane overlay out of the governed task commit while making
+  # the checkout clean for QA and resume. The next task clears this bit and
+  # commits the complete state transition with its own task changes.
+  git update-index --skip-worktree -- "$STATE_FILE"
+}
+
+prepare_task_state() {
+  git update-index --no-skip-worktree -- "$STATE_FILE"
 }
 
 stored_pull_request() {
@@ -341,14 +398,18 @@ else:
     task_range = "none"
 
 gate = state.get("lastGate")
-gate_result = gate.get("result") if isinstance(gate, dict) else None
-if gate_result not in {"passed", "failed", "blocked", "not_run"}:
-    gate_result = "not recorded"
 
 push = state.get("lastPush")
 push_result = push.get("status") if isinstance(push, dict) else None
 if push_result not in {"passed", "failed"}:
     push_result = "not recorded"
+
+commit_shas = subprocess.check_output(
+    ["git", "log", "--format=%H", f"{base_sha}..HEAD"], text=True
+).splitlines()
+gate_results = state.get("gateResults")
+if not isinstance(gate_results, list) or not gate_results:
+    gate_results = [gate] if isinstance(gate, dict) else []
 
 print(f"# Ralph batch {batch}")
 print()
@@ -357,8 +418,25 @@ print(f"- Scope: `{scope}`")
 print(f"- Base: `{base_branch}`")
 print(f"- Head: `{head_branch}`")
 print(f"- Completed task range: `{task_range}`")
-print(f"- Latest task gate: `{gate_result}`")
-print(f"- Latest branch push: `{push_result}`")
+print()
+print("## Commit SHAs")
+for sha in commit_shas:
+    print(f"- `{sha}`")
+print()
+print("## Gate Results")
+if gate_results:
+    for result in gate_results:
+        if isinstance(result, dict):
+            print(f"- `{result.get('command', 'unknown')}`: {result.get('result', 'not recorded')}")
+else:
+    print("- No gate result recorded.")
+print()
+print("## Push Status")
+print(f"- Status: `{push_result}`")
+if isinstance(push, dict):
+    print(f"- Commit: `{push.get('sha', 'not recorded')}`")
+    print(f"- Remote: `{push.get('remote', 'not recorded')}`")
+    print(f"- Branch: `{push.get('branch', 'not recorded')}`")
 print()
 print("## Known Risks")
 print("- Review scope drift and dependency assumptions before marking this PR ready.")
@@ -391,6 +469,44 @@ for item in items:
         raise SystemExit("gh pr list returned incomplete PR metadata")
     print(f"{number}\t{url}\t{str(draft).lower()}")
 PY
+}
+
+require_open_pr_draft() {
+  local pr_list_output
+  local parsed_prs
+  local row
+  local pr_rows=()
+  local pr_number
+  local pr_url
+  local pr_draft
+
+  if ! pr_list_output="$(gh pr list --head "$RUN_BRANCH" --base "$BASE_BRANCH" \
+    --state open --json number,url,isDraft 2>&1)"; then
+    printf 'Unable to query open PRs for %s -> %s.\n%s\n' \
+      "$RUN_BRANCH" "$BASE_BRANCH" "$pr_list_output" >&2
+    return 69
+  fi
+  if ! parsed_prs="$(parse_pr_list "$pr_list_output" 2>&1)"; then
+    printf 'Unable to parse open PR metadata for %s -> %s.\n%s\n' \
+      "$RUN_BRANCH" "$BASE_BRANCH" "$parsed_prs" >&2
+    return 69
+  fi
+  while IFS= read -r row; do
+    [[ -n "$row" ]] && pr_rows+=("$row")
+  done <<< "$parsed_prs"
+  if [[ "${#pr_rows[@]}" -gt 1 ]]; then
+    printf 'Multiple open PRs exist for %s -> %s; refusing to guess.\n' \
+      "$RUN_BRANCH" "$BASE_BRANCH" >&2
+    return 66
+  fi
+  if [[ "${#pr_rows[@]}" -eq 1 ]]; then
+    IFS=$'\t' read -r pr_number pr_url pr_draft <<< "${pr_rows[0]}"
+    if [[ "$pr_draft" != true ]]; then
+      printf 'Existing PR #%s is already ready; refusing to violate Draft-until-QA.\n' \
+        "$pr_number" >&2
+      return 66
+    fi
+  fi
 }
 
 ensure_pull_request() {
@@ -460,6 +576,12 @@ PY
     created_pr=true
   fi
 
+  if [[ "$pr_draft" != true ]]; then
+    printf 'Existing PR #%s is already ready; refusing to violate Draft-until-QA.\n' \
+      "$pr_number" >&2
+    return 66
+  fi
+
   if [[ "$created_pr" == false ]]; then
     if ! gh pr edit "$pr_number" --body-file "$PR_BODY_FILE" >/dev/null 2>&1; then
       printf 'Unable to update Draft PR #%s; retry with --resume.\n' "$pr_number" >&2
@@ -501,7 +623,9 @@ PY
 
 allow_resume_push_state() {
   [[ "$RESUME" == true && -f "$STATE_FILE" ]] || return 1
-  [[ "$(git status --porcelain)" == " M $STATE_FILE" ]] || return 1
+  local status
+  status="$(git status --porcelain)"
+  [[ -z "$status" || "$status" == " M $STATE_FILE" ]] || return 1
   [[ "$(last_pushed_sha)" == "$(git rev-parse HEAD)" ]] || return 1
   [[ "$(python3 - "$STATE_FILE" <<'PY'
 import json
@@ -511,6 +635,52 @@ with open(sys.argv[1], encoding="utf-8") as source:
     print(json.load(source).get("lastPush", {}).get("status", ""))
 PY
 )" == "passed" ]]
+}
+
+validate_task_transition() {
+  local snapshot="$1"
+  local task_id="$2"
+  local expected_next="$3"
+  local before_commit="$4"
+  local after_commit="$5"
+
+  python3 - "$snapshot" "$STATE_FILE" "$task_id" "$expected_next" \
+    "$before_commit" "$after_commit" <<'PY'
+import json
+import re
+import sys
+
+before_path, after_path, task_id, expected_next, before_commit, after_commit = sys.argv[1:]
+with open(before_path, encoding="utf-8") as source:
+    before = json.load(source)
+with open(after_path, encoding="utf-8") as source:
+    after = json.load(source)
+
+before_tasks = before.get("completedTasks")
+after_tasks = after.get("completedTasks")
+if not isinstance(before_tasks, list) or not isinstance(after_tasks, list):
+    raise SystemExit("loop state completedTasks must be lists")
+if after_tasks != before_tasks + [task_id]:
+    raise SystemExit(
+        f"completedTasks must append exactly {task_id}; "
+        f"got {after_tasks!r} from {before_tasks!r}"
+    )
+if not re.fullmatch(r"T\d{2}", task_id):
+    raise SystemExit(f"invalid task ID: {task_id}")
+
+if expected_next:
+    if after.get("status") != "ready" or after.get("currentTask") != expected_next:
+        raise SystemExit(
+            f"task {task_id} must advance to ready/{expected_next}; "
+            f"got {after.get('status')!r}/{after.get('currentTask')!r}"
+        )
+else:
+    if after.get("status") != "verification_required" or after.get("currentTask") is not None:
+        raise SystemExit("T36 must advance to verification_required with no currentTask")
+
+if before_commit == after_commit:
+    raise SystemExit("task iteration did not create a new commit")
+PY
 }
 
 require_initial_clean_tree() {
@@ -690,6 +860,19 @@ if [[ "$DRY_RUN" == false && "$RESUME" == true ]]; then
       push_status="$?"
       exit "$push_status"
     }
+  fi
+  if [[ "$current_head" == "$(last_pushed_sha)" ]] &&
+    [[ "$(python3 - "$STATE_FILE" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as source:
+    state = json.load(source)
+print(state.get("lastPush", {}).get("status", ""))
+PY
+)" == "passed" ]]; then
+    # A pushed task without usable PR metadata, or a previous PR update
+    # failure, must retry PR setup before another task can run.
     ensure_pull_request || {
       pr_status="$?"
       exit "$pr_status"
@@ -719,6 +902,14 @@ for ((iteration = 1; iteration <= MAX_TASKS; iteration++)); do
       ;;
   esac
 
+  if [[ "$DRY_RUN" == false && "$iteration" -gt 1 &&
+    "$(git rev-parse HEAD)" == "$(last_pushed_sha)" ]]; then
+    require_open_pr_draft || {
+      pr_status="$?"
+      exit "$pr_status"
+    }
+  fi
+
   assert_task_exists "$task_id"
   expected_next="$(next_task_id "$task_id")"
 
@@ -730,6 +921,9 @@ for ((iteration = 1; iteration <= MAX_TASKS; iteration++)); do
   fi
 
   before_commit="$(git rev-parse HEAD)"
+  TASK_STATE_SNAPSHOT="$(mktemp "${TMPDIR:-/tmp}/ralph-task-state.XXXXXX")"
+  cp "$STATE_FILE" "$TASK_STATE_SNAPSHOT"
+  prepare_task_state
   echo "=== Ralph Loop: starting $task_id (iteration $iteration/$MAX_TASKS) ==="
 
   if [[ -n "$MODEL" ]]; then
@@ -740,21 +934,21 @@ for ((iteration = 1; iteration <= MAX_TASKS; iteration++)); do
 
   require_clean_tree
   after_commit="$(git rev-parse HEAD)"
-  if [[ "$before_commit" == "$after_commit" ]]; then
-    echo "Task $task_id returned successfully but no commit was created; stopping." >&2
+  commit_count="$(git rev-list --count "$before_commit..$after_commit")"
+  if [[ "$commit_count" != 1 ]]; then
+    printf 'Task %s must create exactly one commit; found %s.\n' \
+      "$task_id" "$commit_count" >&2
     exit 68
   fi
 
-  IFS=$'\t' read -r new_status new_task_id < <(read_state)
-  if [[ -n "$expected_next" ]]; then
-    if [[ "$new_status" != "ready" || "$new_task_id" != "$expected_next" ]]; then
-      echo "Task $task_id did not advance loop state to $expected_next; stopping." >&2
-      exit 68
-    fi
-  elif [[ "$new_status" != "verification_required" ]]; then
-    echo "T36 must change loop state to verification_required; stopping." >&2
+  if ! validate_task_transition "$TASK_STATE_SNAPSHOT" "$task_id" \
+    "$expected_next" "$before_commit" "$after_commit"; then
+    echo "Task $task_id did not produce the required sequential state transition; stopping." >&2
     exit 68
   fi
+  rm -f -- "$TASK_STATE_SNAPSHOT"
+  TASK_STATE_SNAPSHOT=""
+  persist_task_metadata "$task_id" "$after_commit"
 
   push_batch_branch "$after_commit" || {
     push_status="$?"

@@ -6,8 +6,8 @@ automated batch runs on its own scope-named branch.
 
 The approved design is recorded in
 `docs/superpowers/specs/2026-07-21-ralph-loop-branch-pr-design.md`. The setup
-script in this task prepares only `main` and `dev`; batch and PR automation is
-added in later tasks.
+script prepares only the persistent `dev`; `ralph-loop.sh` is the authoritative
+owner of batch branch creation and PR lifecycle.
 
 ## Branch Topology
 
@@ -94,27 +94,28 @@ must stop on these conditions rather than guessing which history should win.
 
 ## Start A Batch
 
-Once `origin/dev` exists, identify a unique batch ID and a normalized scope:
-
-```bash
-git fetch origin dev
-BASE_SHA="$(git rev-parse origin/dev)"
-git switch -c lote/L001-m3-auth-access origin/dev
-CREATED_SHA="$(git rev-parse HEAD)"
-if [[ "$CREATED_SHA" != "$BASE_SHA" ]]; then
-  printf 'Batch branch was not created at origin/dev (%s != %s).\n' \
-    "$CREATED_SHA" "$BASE_SHA" >&2
-  exit 1
-fi
-```
-
-The planned runner invocation is:
+Once `origin/dev` exists, identify a unique batch ID and a normalized scope.
+Do not create the batch branch manually: the runner creates it from the exact
+`origin/dev` tip. Use `--resume` only when that same batch branch already
+exists and its loop metadata must be recovered.
 
 ```bash
 ./scripts/ralph-loop.sh \
   --batch L001 \
   --scope m3-auth-access \
   --max-tasks 10
+```
+
+The runner performs the branch equality check immediately after creation, before
+any task runs or commits. To resume that batch, check out the recorded branch
+and use the same metadata with `--resume`:
+
+```bash
+./scripts/ralph-loop.sh \
+  --batch L001 \
+  --scope m3-auth-access \
+  --max-tasks 10 \
+  --resume
 ```
 
 The equality check is required immediately after creating the branch, before any
@@ -146,8 +147,9 @@ For each approved task, Ralph must preserve the existing task protections:
 
 1. Read only the current task from loop state.
 2. Run the executor and its task gate.
-3. Require exactly one new task commit and a clean tree.
-4. Confirm loop state advanced to the expected next task.
+3. Require the executor to leave a clean tree.
+4. Confirm exactly one new task commit and that `completedTasks` appended only
+   the current task while `currentTask` became the next sequential task.
 5. Push the validated commit to the batch branch before starting the next task.
 
 After the first pushed task commit, open one Draft PR from the batch branch to
@@ -158,8 +160,10 @@ gh pr create --draft --base dev --head lote/L001-m3-auth-access --title "[L001] 
 ```
 
 Later task commits stay in the same PR. Query and reuse an existing PR for the
-same head and base; do not create duplicates. The PR body should retain the
-task range, commit and gate results, known risks, and the independent QA plan.
+same head and base; do not create duplicates. An existing ready PR is a safe
+stop: Ralph never edits around the Draft-until-QA rule. The PR body must retain
+the task range, full commit SHAs, individual gate results, push status, known
+risks, and the independent QA checklist.
 
 If a push fails, stop with the local commit preserved and retry on the same
 batch branch. If PR creation fails, stop after the branch is pushed and retry
@@ -171,11 +175,15 @@ report the divergence and wait for an explicit rebase or restart decision.
 Validate the complete batch range, not only the last task:
 
 ```bash
+git fetch origin lote/L001-m3-auth-access
+test "$(git rev-parse HEAD)" = "$(git rev-parse origin/lote/L001-m3-auth-access)"
 git diff --stat origin/dev...HEAD
 git log --oneline origin/dev..HEAD
 ```
 
-Check branch and PR metadata, loop state, commit ancestry, configured project
+Check branch and PR metadata, loop state, recorded `lastPush.sha`, and the
+published remote head before validating the complete range. Check commit
+ancestry, configured project
 gates, browser behavior on desktop and mobile-sized viewports, console and
 network errors, keyboard access for affected flows, secrets, generated files,
 and scope drift. Keep the PR Draft when any check fails. Mark it ready only
