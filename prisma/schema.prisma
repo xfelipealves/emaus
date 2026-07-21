@@ -24,6 +24,16 @@ enum AccountStatus {
   INACTIVE
 }
 
+enum MinistryStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum MinistryMembershipRole {
+  LEADER
+  MEMBER
+}
+
 model Person {
   id        String       @id @default(cuid())
   fullName  String
@@ -34,7 +44,8 @@ model Person {
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
 
-  account Account?
+  account     Account?
+  memberships MinistryMembership[]
 }
 
 model Account {
@@ -48,5 +59,50 @@ model Account {
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 
-  person Person @relation(fields: [personId], references: [id])
+  person           Person                  @relation(fields: [personId], references: [id])
+  ministryAccesses AccountMinistryAccess[]
+}
+
+model Ministry {
+  id        String         @id @default(cuid())
+  name      String
+  status    MinistryStatus @default(ACTIVE)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  memberships MinistryMembership[]
+  accesses    AccountMinistryAccess[]
+}
+
+model MinistryMembership {
+  id         String                 @id @default(cuid())
+  personId   String
+  ministryId String
+  role       MinistryMembershipRole
+  startDate  DateTime
+  endDate    DateTime?
+  createdAt  DateTime               @default(now())
+  updatedAt  DateTime               @updatedAt
+
+  person   Person   @relation(fields: [personId], references: [id])
+  ministry Ministry @relation(fields: [ministryId], references: [id])
+
+  @@index([personId, startDate])
+  @@index([ministryId, startDate])
+}
+
+model AccountMinistryAccess {
+  id         String    @id @default(cuid())
+  accountId  String
+  ministryId String
+  grantedAt  DateTime  @default(now())
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  account  Account  @relation(fields: [accountId], references: [id])
+  ministry Ministry @relation(fields: [ministryId], references: [id])
+
+  @@index([accountId, revokedAt])
+  @@index([ministryId, revokedAt])
 }
