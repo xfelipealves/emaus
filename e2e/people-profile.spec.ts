@@ -26,11 +26,19 @@ test.describe("person profile", () => {
     await prisma.person.deleteMany({ where: { id: { in: oldPeople.map(({ id }) => id) } } });
     await prisma.ministry.deleteMany({ where: { id: { in: oldMinistries.map(({ id }) => id) } } });
     const ministry = await prisma.ministry.create({ data: { name: ministryName } });
-    await prisma.person.create({ data: { fullName: personName, status: "MEMBER", phone: "(11) 99999-0000", birthDate: new Date("1990-08-11T00:00:00.000Z"), memberships: { create: { ministryId: ministry.id, role: "MEMBER", startDate: new Date("2024-01-01T12:00:00.000Z") } } } });
+    const person = await prisma.person.create({ data: { fullName: personName, status: "MEMBER", phone: "(11) 99999-0000", birthDate: new Date("1990-08-11T00:00:00.000Z"), memberships: { create: { ministryId: ministry.id, role: "MEMBER", startDate: new Date("2024-01-01T12:00:00.000Z") } } } });
+    await prisma.timelineEvent.createMany({
+      data: [
+        { personId: person.id, category: "STATUS", title: "Status alterado T30", occurredAt: new Date("2026-08-08T10:00:00.000Z") },
+        { personId: person.id, category: "NOTE", title: "Nota adicionada T30", occurredAt: new Date("2026-08-08T11:00:00.000Z") },
+        { personId: person.id, category: "CORRECTION", title: "Presença corrigida T30", occurredAt: new Date("2026-08-08T12:00:00.000Z") },
+      ],
+    });
   });
 
   test.afterAll(async () => {
     const people = await prisma.person.findMany({ where: { fullName: { in: [personName, "Administrador Perfil T20", "Líder Perfil T20"] } }, select: { id: true } });
+    await prisma.timelineEvent.deleteMany({ where: { personId: { in: people.map(({ id }) => id) } } });
     await prisma.ministryMembership.deleteMany({ where: { personId: { in: people.map(({ id }) => id) } } });
     await prisma.account.deleteMany({ where: { username: { in: [adminUsername, leaderUsername] } } });
     await prisma.ministry.deleteMany({ where: { name: ministryName } });
@@ -64,5 +72,21 @@ test.describe("person profile", () => {
     const person = await prisma.person.findFirstOrThrow({ where: { fullName: personName } });
     const response = await page.goto(`/pessoas/${person.id}`);
     expect(response?.status()).toBe(404);
+  });
+
+  test("orders timeline newest first and applies category filters", async ({ page }) => {
+    await login(page, adminUsername, "senha-t20-admin");
+    const person = await prisma.person.findFirstOrThrow({ where: { fullName: personName } });
+    await page.goto(`/pessoas/${person.id}/timeline`);
+    await expect(page.getByRole("heading", { name: `Timeline de ${personName}` })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Presença corrigida T30" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Nota adicionada T30" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Status alterado T30" })).toBeVisible();
+
+    await page.getByRole("link", { name: "Notas" }).click();
+    await expect(page).toHaveURL(/filter=notes/);
+    await expect(page.getByRole("heading", { name: "Nota adicionada T30" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Status alterado T30" })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Presença corrigida T30" })).toHaveCount(0);
   });
 });

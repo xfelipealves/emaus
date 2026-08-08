@@ -477,9 +477,9 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Depends on**: T20, T22, T28
 **Requirement**: TIM-01
 **Done when**:
-- [ ] Events sort newest first.
-- [ ] Filters distinguish status, ministries, attendance, notes and corrections.
-- [ ] Filters change query only and never data.
+- [x] Events sort newest first.
+- [x] Filters distinguish status, ministries, attendance, notes and corrections.
+- [x] Filters change query only and never data.
 **Tests**: integration + E2E
 **Gate**: Full
 **Commit**: `feat: add person timeline filters`

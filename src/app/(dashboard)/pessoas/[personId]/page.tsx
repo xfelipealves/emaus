@@ -62,7 +62,7 @@ export default async function PersonProfilePage({
 
       <nav aria-label="Abas do perfil" className="mt-6 flex gap-2 overflow-x-auto border-b border-slate-200">
         <span aria-current="page" className="whitespace-nowrap border-b-2 border-[#26766d] px-3 py-3 text-sm font-semibold text-[#155e58]">Visão geral</span>
-        <span className="whitespace-nowrap px-3 py-3 text-sm font-medium text-slate-400">Timeline</span>
+        <Link href={`/pessoas/${person.id}/timeline`} className="whitespace-nowrap px-3 py-3 text-sm font-medium text-[#26766d] hover:text-[#155e58]">Timeline</Link>
         <span className="whitespace-nowrap px-3 py-3 text-sm font-medium text-slate-400">Ministérios</span>
         <span className="whitespace-nowrap px-3 py-3 text-sm font-medium text-slate-400">Frequência</span>
       </nav>
