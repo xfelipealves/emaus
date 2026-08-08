@@ -2,11 +2,11 @@
   "schemaVersion": 1,
   "feature": "emaus-mvp",
   "status": "ready",
-  "currentTask": "T17",
-  "completedTasks": ["T01", "T02", "T03", "T04", "T05", "T06", "T07", "T08", "T09", "T10", "T11", "T12", "T13", "T14", "T15", "T16"],
+  "currentTask": "T18",
+  "completedTasks": ["T01", "T02", "T03", "T04", "T05", "T06", "T07", "T08", "T09", "T10", "T11", "T12", "T13", "T14", "T15", "T16", "T17"],
   "completedMilestones": [],
-  "lastCommit": "5dd8a3d",
-  "lastGate": "npm run test:integration && npm run test:e2e — passed (40 integration tests, 6 E2E tests, 0 failed)",
+  "lastCommit": "b1daa80",
+  "lastGate": "npm run test:integration && npm run test:e2e — passed (43 integration tests, 8 E2E tests, 0 failed)",
   "updatedAt": "2026-08-08",
-  "notes": "The Ralph Loop may execute only currentTask. It advances this file after a passing task gate and atomic commit. T16 person service gate passed; T17 is next."
+  "notes": "The Ralph Loop may execute only currentTask. It advances this file after a passing task gate and atomic commit. T17 registration gate passed; T18 is next."
 }
