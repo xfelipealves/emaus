@@ -2,11 +2,11 @@
   "schemaVersion": 1,
   "feature": "emaus-mvp",
   "status": "ready",
-  "currentTask": "T02",
-  "completedTasks": ["T01"],
+  "currentTask": "T03",
+  "completedTasks": ["T01", "T02"],
   "completedMilestones": [],
-  "lastCommit": "d3061d2b3834ef0b8f844a5da867b9c9339b08c0",
-  "lastGate": "npm run typecheck && npm run lint && npm run build && npm run test; npm run test:integration; npm run test:e2e",
+  "lastCommit": "cf3250d67b5d139118fb1b0673623e0268ab6719",
+  "lastGate": "docker compose up -d; npm run typecheck && npm run lint && npm run build && npm run test",
   "updatedAt": "2026-08-08",
-  "notes": "The Ralph Loop may execute only currentTask. It advances this file after a passing task gate and atomic commit. T01 foundation gate passed."
+  "notes": "The Ralph Loop may execute only currentTask. It advances this file after a passing task gate and atomic commit. T02 PostgreSQL runtime gate passed."
 }

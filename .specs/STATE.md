@@ -62,9 +62,9 @@
 
 - **Feature**: `.specs/features/emaus-mvp`
 - **Phase / Task**: Execute — M1/T02
-- **Completed**: instalação do `tlc-spec-driven`; Specify aprovado; Design aprovado; milestones M1–M8 e tasks T01–T36 criados; bootstrap T01 validado e commitado em `d3061d2`
-- **In-progress** (file:line): `.specs/features/emaus-mvp/tasks.md` — T02, runtime PostgreSQL local e contrato de ambiente
-- **Next step**: executar `./scripts/ralph-loop.sh --max-tasks 10` a partir de T02, mantendo o lote limitado e parando em qualquer gate ou dependência bloqueada.
-- **Blockers**: nenhum para T02. OpenCode é o runner do loop; modelo permanece configurável por `OPENCODE_MODEL`. O loop para se uma task falhar, não fizer commit, deixar árvore suja ou não avançar `.specs/loop-state.json`; deploy, e-mail, backup e monitoramento permanecem postergados para depois da validação local.
+- **Completed**: instalação do `tlc-spec-driven`; Specify aprovado; Design aprovado; milestones M1–M8 e tasks T01–T36 criados; bootstrap T01 e runtime PostgreSQL T02 validados
+- **In-progress** (file:line): `.specs/features/emaus-mvp/tasks.md` — T03, configuração do cliente Prisma e workflow de migrations
+- **Next step**: executar `./scripts/ralph-loop.sh --max-tasks 10` a partir de T03, mantendo o lote limitado e parando em qualquer gate ou dependência bloqueada.
+- **Blockers**: nenhum para T03. OpenCode é o runner do loop; modelo permanece configurável por `OPENCODE_MODEL`. O loop para se uma task falhar, não fizer commit, deixar árvore suja ou não avançar `.specs/loop-state.json`; deploy, e-mail, backup e monitoramento permanecem postergados para depois da validação local.
 - **Uncommitted files**: nenhum
 - **Branch**: main

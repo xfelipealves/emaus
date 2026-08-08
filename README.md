@@ -6,7 +6,17 @@ O Emaús será desenvolvido com **Spec-Driven Development**. Antes de implementa
 
 ## Estado atual
 
-Specify e Design estão aprovados. O projeto está na fase **Tasks**, com o Ralph Loop preparado para iniciar a T01 (fundação local) pelo OpenCode.
+Specify e Design estão aprovados. O projeto está na fase **Execute**, com a fundação local e o runtime PostgreSQL preparados pelo OpenCode.
+
+## Banco local
+
+Copie `.env.example` para `.env` e substitua os placeholders por valores locais. O arquivo `.env` é ignorado pelo Git.
+
+```bash
+docker compose up -d
+```
+
+O banco fica disponível em `localhost:5432`. A aplicação e o Prisma devem obter a conexão exclusivamente pela variável `DATABASE_URL`.
 
 ## Documentação de produto
 
