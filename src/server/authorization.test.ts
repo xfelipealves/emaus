@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   canAccessPerson,
+  canAccessMinistry,
   canManageAccounts,
   canManageMeeting,
   canManageMinistry,
@@ -49,5 +50,14 @@ describe("role and ministry authorization", () => {
     expect(canManageMeeting(leader, ["authorized"])).toBe(true);
     expect(canManageMeeting(leader, ["authorized", "unrelated"])).toBe(false);
     expect(canManageMeeting(leader, [])).toBe(false);
+  });
+
+  it("does not infer a leader scope from membership or revoked access", () => {
+    const leader = account("LEADER", [
+      { ministryId: "revoked", revokedAt: new Date("2026-01-01") },
+    ]);
+
+    expect(canAccessMinistry(leader, "revoked")).toBe(false);
+    expect(canAccessPerson(leader, ["revoked"])).toBe(false);
   });
 });

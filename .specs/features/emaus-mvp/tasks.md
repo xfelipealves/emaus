@@ -375,9 +375,9 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Depends on**: T22, T15
 **Requirement**: AUTH-02, MIN-02
 **Done when**:
-- [ ] Admin can grant/revoke scope.
-- [ ] Revocation blocks future access but preserves authorship.
-- [ ] Scope is not inferred from membership role.
+- [x] Admin can grant/revoke scope.
+- [x] Revocation blocks future access but preserves authorship.
+- [x] Scope is not inferred from membership role.
 **Tests**: unit + integration
 **Gate**: Full
 **Commit**: `feat: add leader ministry scopes`
