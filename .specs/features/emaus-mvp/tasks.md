@@ -447,9 +447,9 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Depends on**: T27, T05
 **Requirement**: ENC-01, AUD-01
 **Done when**:
-- [ ] Row cycles unknown → present → absent → unknown.
-- [ ] UI uses white/green/red feedback and rolls back display on server failure.
-- [ ] Audit stores before/after, actor, timestamp and optional reason for correction.
+- [x] Row cycles unknown → present → absent → unknown.
+- [x] UI uses white/green/red feedback and rolls back display on server failure.
+- [x] Audit stores before/after, actor, timestamp and optional reason for correction.
 **Tests**: unit + integration + E2E
 **Gate**: Full
 **Commit**: `feat: add one-tap attendance`

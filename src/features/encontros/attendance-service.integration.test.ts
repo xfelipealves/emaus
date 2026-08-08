@@ -1,12 +1,13 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { prisma } from "../../lib/prisma";
-import { openAttendance } from "./attendance-service";
+import { cycleAttendance, openAttendance } from "./attendance-service";
 
 describe("attendance initialization", () => {
   const suffix = Date.now().toString();
   let categoryId: string;
   let meetingId: string;
   let ministryId: string;
+  let accountId: string;
   const personIds: string[] = [];
 
   beforeAll(async () => {
@@ -14,6 +15,8 @@ describe("attendance initialization", () => {
     categoryId = category.id;
     const ministry = await prisma.ministry.create({ data: { name: `Ministério T27 ${suffix}` } });
     ministryId = ministry.id;
+    const account = await prisma.account.create({ data: { username: `t28-${suffix}`, email: `t28-${suffix}@example.test`, passwordHash: "test-hash", role: "ADMINISTRATOR", person: { create: { fullName: `Ator T28 ${suffix}` } } } });
+    accountId = account.id;
     const people = await Promise.all([
       prisma.person.create({ data: { fullName: `Atual T27 ${suffix}` } }),
       prisma.person.create({ data: { fullName: `Fora T27 ${suffix}` } }),
@@ -29,12 +32,41 @@ describe("attendance initialization", () => {
 
   afterAll(async () => {
     await prisma.attendance.deleteMany({ where: { meetingId } });
+    await prisma.auditEvent.deleteMany({ where: { actorId: accountId } });
+    await prisma.timelineEvent.deleteMany({ where: { personId: { in: personIds } } });
     await prisma.ministryMembership.deleteMany({ where: { personId: { in: personIds } } });
     await prisma.meetingAudience.deleteMany({ where: { meetingId } });
     await prisma.meeting.delete({ where: { id: meetingId } });
     await prisma.ministry.delete({ where: { id: ministryId } });
     await prisma.category.delete({ where: { id: categoryId } });
     await prisma.person.deleteMany({ where: { id: { in: personIds } } });
+    await prisma.account.delete({ where: { id: accountId } });
+  });
+
+  beforeEach(async () => {
+    await prisma.attendance.deleteMany({ where: { meetingId } });
+    await prisma.auditEvent.deleteMany({ where: { actorId: accountId } });
+    await prisma.timelineEvent.deleteMany({ where: { personId: { in: personIds } } });
+  });
+
+  it("cycles attendance and records correction audit and timeline", async () => {
+    const [attendance] = await openAttendance(meetingId);
+    const actor = { id: accountId, role: "ADMINISTRATOR" as const, ministryAccess: [] };
+    const present = await cycleAttendance(actor, attendance.id);
+    expect(present.status).toBe("PRESENT");
+    const absent = await cycleAttendance(actor, attendance.id, "Correção após conferência");
+    expect(absent.status).toBe("ABSENT");
+    await expect(prisma.auditEvent.findFirst({ where: { targetId: attendance.id, action: "UPDATE", reason: "Correção após conferência" } })).resolves.toMatchObject({ actorId: accountId, before: { status: "PRESENT" }, after: { status: "ABSENT" }, reason: "Correção após conferência" });
+    await expect(prisma.timelineEvent.findFirst({ where: { personId: personIds[0], category: "ATTENDANCE" } })).resolves.toMatchObject({ title: "Presença atualizada" });
+  });
+
+  it("rejects attendance changes for a cancelled meeting", async () => {
+    const [attendance] = await openAttendance(meetingId);
+    await prisma.meeting.update({ where: { id: meetingId }, data: { status: "CANCELLED" } });
+    const actor = { id: accountId, role: "ADMINISTRATOR" as const, ministryAccess: [] };
+    await expect(cycleAttendance(actor, attendance.id)).rejects.toThrow("Encontro cancelado não aceita lançamentos de presença.");
+    await expect(prisma.attendance.findUnique({ where: { id: attendance.id } })).resolves.toMatchObject({ status: "NOT_CONFIRMED" });
+    await prisma.meeting.update({ where: { id: meetingId }, data: { status: "SCHEDULED" } });
   });
 
   it("initializes selected-ministry eligibility and is idempotent when reopened", async () => {
