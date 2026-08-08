@@ -289,9 +289,9 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Depends on**: T16
 **Requirement**: PES-01
 **Done when**:
-- [ ] Visitor requires only full name.
-- [ ] Member requires phone and birth date.
-- [ ] Successful creation opens new profile.
+- [x] Visitor requires only full name.
+- [x] Member requires phone and birth date.
+- [x] Successful creation opens new profile.
 **Tests**: integration + E2E
 **Gate**: Full
 **Commit**: `feat: add person registration flows`
