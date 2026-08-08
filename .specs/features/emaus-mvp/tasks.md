@@ -433,9 +433,9 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Depends on**: T26
 **Requirement**: ENC-01
 **Done when**:
-- [ ] Current Ministry memberships determine eligibility.
-- [ ] Reopening attendance does not duplicate rows.
-- [ ] Every displayed person has an attendance record.
+- [x] Current Ministry memberships determine eligibility.
+- [x] Reopening attendance does not duplicate rows.
+- [x] Every displayed person has an attendance record.
 **Tests**: unit + integration
 **Gate**: Full
 **Commit**: `feat: initialize meeting attendance`
