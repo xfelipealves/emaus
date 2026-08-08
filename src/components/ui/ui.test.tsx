@@ -33,7 +33,7 @@ describe("shared UI primitives", () => {
       cancelLabel: "Voltar",
       onConfirm,
       onCancel,
-    });
+    })!;
     const section = dialog.props.children;
     const actions = section.props.children[3];
     const [cancel, confirm] = actions.props.children;
