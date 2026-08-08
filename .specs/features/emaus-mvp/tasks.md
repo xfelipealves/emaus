@@ -203,9 +203,9 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Depends on**: T10
 **Requirement**: AUTH-01
 **Done when**:
-- [ ] Plain password is never returned or persisted.
-- [ ] Correct password verifies and wrong password fails.
-- [ ] Login input rejects blank fields.
+- [x] Plain password is never returned or persisted.
+- [x] Correct password verifies and wrong password fails.
+- [x] Login input rejects blank fields.
 **Tests**: unit
 **Gate**: Quick
 **Commit**: `feat: add password authentication primitives`
