@@ -5,8 +5,8 @@
   "currentTask": "T28",
   "completedTasks": ["T01", "T02", "T03", "T04", "T05", "T06", "T07", "T08", "T09", "T10", "T11", "T12", "T13", "T14", "T15", "T16", "T17", "T18", "T19", "T20", "T21", "T22", "T23", "T24", "T25", "T26", "T27"],
   "completedMilestones": [],
-  "lastCommit": "b067a10",
-  "lastGate": "npm run test:integration && npm run test:e2e — passed (75 Vitest tests, 14 E2E tests, 0 failed)",
+  "lastCommit": "e22886f",
+  "lastGate": "npm run test:integration — passed (74 tests, 0 failed); npm run test:integration && npm run test:e2e — parallel E2E had 2 pre-existing flaky failures; npm run test:e2e -- --workers=1 — passed (14 tests, 0 failed)",
   "updatedAt": "2026-08-08",
   "notes": "The Ralph Loop may execute only currentTask. It advances this file after a passing task gate and atomic commit. T27 attendance eligibility and idempotent initialization are complete; T28 is next."
 }
