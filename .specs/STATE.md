@@ -61,10 +61,10 @@
 ## Handoff
 
 - **Feature**: `.specs/features/emaus-mvp`
-- **Phase / Task**: Execute — M4/T18
-- **Completed**: instalação do `tlc-spec-driven`; Specify aprovado; Design aprovado; milestones M1–M8 e tasks T01–T36 criados; bootstrap T01, runtime PostgreSQL T02, workflow Prisma T03, shell responsivo T04, primitives de interface T05, schema de Pessoa/Conta T06, schema de Ministérios/vínculos/escopos T07, schema de encontros/séries/públicos/frequência T08, schema de notas/versões/timeline/auditoria T09, seed/utilitários de data/fuso T10, hash Argon2/validação de credenciais T11, persistência/ciclo de sessão T12, login/redirecionamento protegido T13, autorização por papel e Ministério T14, administração de contas T15, serviço transacional de Pessoas T16 e cadastro de visitantes/membros T17 validados
+- **Phase / Task**: Execute — M4/T19
+- **Completed**: instalação do `tlc-spec-driven`; Specify aprovado; Design aprovado; milestones M1–M8 e tasks T01–T36 criados; bootstrap T01, runtime PostgreSQL T02, workflow Prisma T03, shell responsivo T04, primitives de interface T05, schema de Pessoa/Conta T06, schema de Ministérios/vínculos/escopos T07, schema de encontros/séries/públicos/frequência T08, schema de notas/versões/timeline/auditoria T09, seed/utilitários de data/fuso T10, hash Argon2/validação de credenciais T11, persistência/ciclo de sessão T12, login/redirecionamento protegido T13, autorização por papel e Ministério T14, administração de contas T15, serviço transacional de Pessoas T16, cadastro de visitantes/membros T17 e transições de status T18 validados
 - **In-progress** (file:line): nenhum
-- **Next step**: executar `./scripts/ralph-loop.sh --max-tasks 5` a partir de T18.
-- **Blockers**: nenhum para T17. OpenCode é o runner do loop; modelo permanece configurável por `OPENCODE_MODEL`. O loop para se uma task falhar, não fizer commit, deixar árvore suja ou não avançar `.specs/loop-state.json`; deploy, e-mail, backup e monitoramento permanecem postergados para depois da validação local.
+- **Next step**: executar `./scripts/ralph-loop.sh --max-tasks 5` a partir de T19.
+- **Blockers**: nenhum para T18. OpenCode é o runner do loop; modelo permanece configurável por `OPENCODE_MODEL`. O loop para se uma task falhar, não fizer commit, deixar árvore suja ou não avançar `.specs/loop-state.json`; deploy, e-mail, backup e monitoramento permanecem postergados para depois da validação local.
 - **Uncommitted files**: nenhum
 - **Branch**: main

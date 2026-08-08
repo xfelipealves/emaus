@@ -303,9 +303,9 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Depends on**: T16
 **Requirement**: PES-02
 **Done when**:
-- [ ] Promotion rejects missing phone/birth date.
-- [ ] Effective date is editable.
-- [ ] Inactivation keeps Person and history queryable.
+- [x] Promotion rejects missing phone/birth date.
+- [x] Effective date is editable.
+- [x] Inactivation keeps Person and history queryable.
 **Tests**: unit + integration
 **Gate**: Full
 **Commit**: `feat: add person status transitions`
