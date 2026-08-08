@@ -66,5 +66,5 @@
 - **In-progress** (file:line): nenhum
 - **Next step**: executar `./scripts/ralph-loop.sh --max-tasks 5` a partir de T28.
 - **Blockers**: nenhum para T27. O gate Full passou com 75 testes Vitest e 14 testes Playwright. OpenCode é o runner do loop; modelo permanece configurável por `OPENCODE_MODEL`. O loop para se uma task falhar, não fizer commit, deixar árvore suja ou não avançar `.specs/loop-state.json`; deploy, e-mail, backup e monitoramento permanecem postergados para depois da validação local.
-- **Uncommitted files**: código de T27 e registros de execução, antes do commit
+- **Uncommitted files**: nenhum
 - **Branch**: main
