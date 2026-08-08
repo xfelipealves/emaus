@@ -361,9 +361,9 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Depends on**: T21
 **Requirement**: MIN-02
 **Done when**:
-- [ ] One Person can hold multiple memberships.
-- [ ] Membership stores editable effective dates.
-- [ ] Start/end produces Person timeline event.
+- [x] One Person can hold multiple memberships.
+- [x] Membership stores editable effective dates.
+- [x] Start/end produces Person timeline event.
 **Tests**: integration
 **Gate**: Full
 **Commit**: `feat: add ministry membership history`
