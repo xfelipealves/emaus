@@ -347,9 +347,9 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Depends on**: T16
 **Requirement**: MIN-01
 **Done when**:
-- [ ] Only admin can mutate Ministry.
-- [ ] Archived Ministry rejects new memberships and attendance operations.
-- [ ] Mutations are audited.
+- [x] Only admin can mutate Ministry.
+- [x] Archived Ministry rejects new memberships and attendance operations.
+- [x] Mutations are audited.
 **Tests**: integration + E2E
 **Gate**: Full
 **Commit**: `feat: add ministry administration`
