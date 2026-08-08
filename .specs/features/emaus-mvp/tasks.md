@@ -389,9 +389,9 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Depends on**: T22
 **Requirement**: MIN-01, MIN-02
 **Done when**:
-- [ ] Profile follows approved wireframe information hierarchy.
-- [ ] Current and historic participants are distinguishable.
-- [ ] Leader only sees authorized Ministry.
+- [x] Profile follows approved wireframe information hierarchy.
+- [x] Current and historic participants are distinguishable.
+- [x] Leader only sees authorized Ministry.
 **Tests**: E2E
 **Gate**: Full
 **Commit**: `feat: add ministry profile`

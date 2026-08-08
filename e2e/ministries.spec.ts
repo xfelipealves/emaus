@@ -1,6 +1,8 @@
 import { expect, test } from "@playwright/test";
 import { hashPassword } from "../src/features/auth/password";
 import { prisma } from "../src/lib/prisma";
+import { createSession } from "../src/features/auth/session-service";
+import { createSessionCookie } from "../src/lib/session";
 
 test.describe("ministry administration", () => {
   const username = "t21-ministry-admin";
@@ -62,5 +64,42 @@ test.describe("ministry administration", () => {
     await updatedMinistryCard.getByRole("button", { name: "Arquivar Ministério" }).click();
     await expect(updatedMinistryCard.getByText("Arquivado")).toBeVisible();
     await expect(updatedMinistryCard.getByRole("button", { name: "Arquivar Ministério" })).toHaveCount(0);
+  });
+
+  test("shows current and historic participants and restricts leaders to granted ministries", async ({ page }) => {
+    const suffix = Date.now().toString();
+    const ministry = await prisma.ministry.create({ data: { name: `Ministério E2E T24 ${suffix}`, description: "Perfil T24" } });
+    const otherMinistry = await prisma.ministry.create({ data: { name: `Ministério E2E T24 outro ${suffix}` } });
+    const current = await prisma.person.create({ data: { fullName: `Pessoa atual T24 ${suffix}`, status: "MEMBER" } });
+    const historic = await prisma.person.create({ data: { fullName: `Pessoa histórica T24 ${suffix}`, status: "MEMBER" } });
+    await prisma.ministryMembership.createMany({ data: [
+      { ministryId: ministry.id, personId: current.id, role: "MEMBER", startDate: new Date("2026-01-01") },
+      { ministryId: ministry.id, personId: historic.id, role: "LEADER", startDate: new Date("2025-01-01"), endDate: new Date("2025-12-31") },
+    ] });
+    const leaderUsername = "t24-profile-leader";
+    await prisma.account.deleteMany({ where: { username: leaderUsername } });
+    const leader = await prisma.account.create({
+      data: { username: leaderUsername, email: `${leaderUsername}@example.test`, passwordHash: await hashPassword("senha-t24-valida"), role: "LEADER", person: { create: { fullName: `Líder T24 ${suffix}` } }, ministryAccess: { create: { ministryId: ministry.id } } },
+    });
+
+    try {
+      const session = await createSession(leader.id);
+      const cookie = createSessionCookie(session.token, session.expiresAt);
+      await page.context().addCookies([{ name: cookie.name, value: cookie.value, domain: "127.0.0.1", path: "/", httpOnly: true, sameSite: "Lax", expires: cookie.options.expires.getTime() / 1000 }]);
+      await page.goto(`/ministerios/${ministry.id}`);
+      await expect(page.getByRole("heading", { name: ministry.name })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Participantes atuais" })).toBeVisible();
+      await expect(page.getByText(current.fullName)).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Histórico de participantes" })).toBeVisible();
+      await expect(page.getByText(historic.fullName)).toBeVisible();
+      await page.goto(`/ministerios/${otherMinistry.id}`);
+      await expect(page.getByRole("heading", { name: otherMinistry.name })).toHaveCount(0);
+    } finally {
+      await prisma.accountMinistryAccess.deleteMany({ where: { accountId: leader.id } });
+      await prisma.account.delete({ where: { id: leader.id } });
+      await prisma.ministryMembership.deleteMany({ where: { ministryId: { in: [ministry.id, otherMinistry.id] } } });
+      await prisma.person.deleteMany({ where: { id: { in: [current.id, historic.id, leader.personId] } } });
+      await prisma.ministry.deleteMany({ where: { id: { in: [ministry.id, otherMinistry.id] } } });
+    }
   });
 });

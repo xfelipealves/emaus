@@ -125,3 +125,40 @@ export async function assertMinistryActive(ministryId: string) {
 export function canViewMinistry(actor: MinistryActor, ministryId: string) {
   return canAccessMinistry(actor, ministryId);
 }
+
+export async function getMinistryProfile(actor: Pick<MinistryActor, "id" | "role">, ministryId: string) {
+  const account = await prisma.account.findUnique({
+    where: { id: actor.id },
+    select: {
+      role: true,
+      status: true,
+      ministryAccess: { where: { revokedAt: null }, select: { ministryId: true, revokedAt: true } },
+    },
+  });
+
+  if (!account || account.status !== "ACTIVE" || account.role !== actor.role || !canAccessMinistry(account, ministryId)) return null;
+
+  const ministry = await prisma.ministry.findUnique({
+    where: { id: ministryId },
+    include: {
+      memberships: {
+        orderBy: [{ endDate: "asc" }, { startDate: "desc" }],
+        include: { person: { select: { id: true, fullName: true, status: true } } },
+      },
+    },
+  });
+
+  if (!ministry) return null;
+  const meetings = await prisma.meeting.findMany({
+    where: { scheduledAt: { gte: new Date() }, status: { not: "CANCELLED" }, audiences: { some: { ministryId } } },
+    orderBy: { scheduledAt: "asc" },
+    take: 5,
+    include: { category: { select: { name: true } } },
+  });
+  return {
+    ...ministry,
+    meetings,
+    currentParticipants: ministry.memberships.filter((membership) => membership.endDate === null),
+    historicParticipants: ministry.memberships.filter((membership) => membership.endDate !== null),
+  };
+}
