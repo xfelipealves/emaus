@@ -317,9 +317,9 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Depends on**: T17
 **Requirement**: PES-01
 **Done when**:
-- [ ] List filters all, visitors, members and inactive.
-- [ ] Search locates by name.
-- [ ] Age displays only when birth date exists.
+- [x] List filters all, visitors, members and inactive.
+- [x] Search locates by name.
+- [x] Age displays only when birth date exists.
 **Tests**: integration + E2E
 **Gate**: Full
 **Commit**: `feat: add people list and search`
