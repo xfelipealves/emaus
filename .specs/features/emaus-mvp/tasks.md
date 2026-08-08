@@ -461,9 +461,9 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Depends on**: T28, T17
 **Requirement**: ENC-01
 **Done when**:
-- [ ] Existing Person search works without leaving attendance.
-- [ ] Quick visitor requires only name and is immediately eligible.
-- [ ] Summary reflects each state.
+- [x] Existing Person search works without leaving attendance.
+- [x] Quick visitor requires only name and is immediately eligible.
+- [x] Summary reflects each state.
 **Tests**: integration + E2E
 **Gate**: Full
 **Commit**: `feat: complete attendance operation`
