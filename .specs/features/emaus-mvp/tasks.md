@@ -275,9 +275,9 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Depends on**: T10, T14
 **Requirement**: PES-01, AUD-01
 **Done when**:
-- [ ] Service requires authorized actor.
-- [ ] Person mutation, timeline and audit share one transaction.
-- [ ] Failed transaction leaves no partial event.
+- [x] Service requires authorized actor.
+- [x] Person mutation, timeline and audit share one transaction.
+- [x] Failed transaction leaves no partial event.
 **Tests**: integration
 **Gate**: Full
 **Commit**: `feat: add transactional person service`
