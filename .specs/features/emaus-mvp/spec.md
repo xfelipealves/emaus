@@ -158,8 +158,8 @@ A igreja hoje depende de planilhas, listas e anotações dispersas para saber qu
 | MIN-02 | Ministérios e vínculos históricos | Tasks | Implemented in T07 |
 | ENC-01 | Encontros e frequência | Tasks | Implemented in T08 |
 | ENC-02 | Encontros e frequência | Tasks | Pending |
-| TIM-01 | Perfil, timeline e notas | Tasks | Pending |
-| AUD-01 | Auditoria e operação segura | Tasks | Pending |
+| TIM-01 | Perfil, timeline e notas | Tasks | Implemented in T09 |
+| AUD-01 | Auditoria e operação segura | Tasks | Implemented in T09 |
 
 **Coverage:** 10 total, 10 mapped to tasks, 0 unmapped.
 

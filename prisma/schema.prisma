@@ -52,6 +52,15 @@ enum AttendanceStatus {
   ABSENT
 }
 
+enum TimelineEventCategory {
+  REGISTRATION
+  STATUS
+  MINISTRY
+  ATTENDANCE
+  NOTE
+  CORRECTION
+}
+
 model Person {
   id              String       @id @default(cuid())
   fullName        String
@@ -66,6 +75,8 @@ model Person {
   account     Account?
   memberships MinistryMembership[]
   attendances Attendance[]
+  notes       Note[]
+  timeline    TimelineEvent[]
 }
 
 model Account {
@@ -82,6 +93,9 @@ model Account {
 
   person         Person                  @relation(fields: [personId], references: [id])
   ministryAccess AccountMinistryAccess[]
+  notes          Note[]                  @relation("NoteAuthor")
+  noteVersions   NoteVersion[]           @relation("NoteVersionAuthor")
+  auditEvents    AuditEvent[]            @relation("AuditActor")
 }
 
 model Ministry {
@@ -200,4 +214,67 @@ model Attendance {
 
   @@unique([meetingId, personId])
   @@index([personId])
+}
+
+model Note {
+  id        String   @id @default(cuid())
+  personId  String
+  authorId  String
+  content   String
+  archived  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  person   Person        @relation(fields: [personId], references: [id])
+  author   Account       @relation("NoteAuthor", fields: [authorId], references: [id])
+  versions NoteVersion[]
+
+  @@index([personId, createdAt])
+}
+
+model NoteVersion {
+  id        String   @id @default(cuid())
+  noteId    String
+  authorId  String
+  content   String
+  sequence  Int
+  createdAt DateTime @default(now())
+
+  note   Note    @relation(fields: [noteId], references: [id])
+  author Account @relation("NoteVersionAuthor", fields: [authorId], references: [id])
+
+  @@unique([noteId, sequence])
+  @@index([noteId, createdAt])
+}
+
+model TimelineEvent {
+  id          String                 @id @default(cuid())
+  personId    String
+  category    TimelineEventCategory
+  title       String
+  description String?
+  occurredAt  DateTime
+  createdAt   DateTime               @default(now())
+
+  person Person @relation(fields: [personId], references: [id])
+
+  @@index([personId, occurredAt])
+  @@index([personId, category, occurredAt])
+}
+
+model AuditEvent {
+  id         String   @id @default(cuid())
+  actorId    String?
+  targetType String
+  targetId   String
+  action     String
+  before     Json?
+  after      Json?
+  reason     String?
+  createdAt  DateTime @default(now())
+
+  actor Account? @relation("AuditActor", fields: [actorId], references: [id])
+
+  @@index([targetType, targetId, createdAt])
+  @@index([actorId, createdAt])
 }

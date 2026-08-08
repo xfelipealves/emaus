@@ -61,10 +61,10 @@
 ## Handoff
 
 - **Feature**: `.specs/features/emaus-mvp`
-- **Phase / Task**: Execute — M2/T09
-- **Completed**: instalação do `tlc-spec-driven`; Specify aprovado; Design aprovado; milestones M1–M8 e tasks T01–T36 criados; bootstrap T01, runtime PostgreSQL T02, workflow Prisma T03, shell responsivo T04, primitives de interface T05, schema de Pessoa/Conta T06, schema de Ministérios/vínculos/escopos T07 e schema de encontros/séries/públicos/frequência T08 validados
-- **In-progress** (file:line): `.specs/features/emaus-mvp/tasks.md` — T09, notas, timeline e auditoria
-- **Next step**: executar `./scripts/ralph-loop.sh --max-tasks 5` a partir de T09, completando o lote original até T11.
-- **Blockers**: nenhum para T09. OpenCode é o runner do loop; modelo permanece configurável por `OPENCODE_MODEL`. O loop para se uma task falhar, não fizer commit, deixar árvore suja ou não avançar `.specs/loop-state.json`; deploy, e-mail, backup e monitoramento permanecem postergados para depois da validação local.
-- **Uncommitted files**: arquivos de T08 aguardando o commit atômico
+- **Phase / Task**: Execute — M2/T10
+- **Completed**: instalação do `tlc-spec-driven`; Specify aprovado; Design aprovado; milestones M1–M8 e tasks T01–T36 criados; bootstrap T01, runtime PostgreSQL T02, workflow Prisma T03, shell responsivo T04, primitives de interface T05, schema de Pessoa/Conta T06, schema de Ministérios/vínculos/escopos T07, schema de encontros/séries/públicos/frequência T08 e schema de notas/versões/timeline/auditoria T09 validados
+- **In-progress** (file:line): `.specs/features/emaus-mvp/tasks.md` — T10, seed e utilitários de data/fuso
+- **Next step**: executar `./scripts/ralph-loop.sh --max-tasks 5` a partir de T10, completando o lote original até T11.
+- **Blockers**: nenhum para T10. OpenCode é o runner do loop; modelo permanece configurável por `OPENCODE_MODEL`. O loop para se uma task falhar, não fizer commit, deixar árvore suja ou não avançar `.specs/loop-state.json`; deploy, e-mail, backup e monitoramento permanecem postergados para depois da validação local.
+- **Uncommitted files**: alterações de T09 aguardando o commit atômico
 - **Branch**: main
