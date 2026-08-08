@@ -331,9 +331,9 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Depends on**: T18, T19
 **Requirement**: PES-01, TIM-01
 **Done when**:
-- [ ] Profile displays status, contact, birthday/age and actions allowed by role.
-- [ ] Missing photo uses initials.
-- [ ] Unauthorised leader is blocked.
+- [x] Profile displays status, contact, birthday/age and actions allowed by role.
+- [x] Missing photo uses initials.
+- [x] Unauthorised leader is blocked.
 **Tests**: E2E
 **Gate**: Full
 **Commit**: `feat: add person profile`

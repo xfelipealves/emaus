@@ -19,6 +19,20 @@ export type PersonListItem = {
   age: number | null;
 };
 
+export type PersonProfile = PersonListItem & {
+  profilePhotoUrl: string | null;
+  statusChangedAt: Date;
+  createdAt: Date;
+  ministries: Array<{
+    id: string;
+    name: string;
+    role: "MEMBER" | "LEADER";
+    startDate: Date;
+    endDate: Date | null;
+    active: boolean;
+  }>;
+};
+
 type PersonQueryActor = {
   id: string;
   role: AccountRole;
@@ -78,4 +92,68 @@ export async function searchPeople(
     ...person,
     age: calculateAge(person.birthDate, options.now),
   }));
+}
+
+export async function getPersonProfile(
+  actor: PersonQueryActor,
+  personId: string,
+  options: { now?: Date } = {},
+): Promise<PersonProfile | null> {
+  const account = await prisma.account.findUnique({
+    where: { id: actor.id },
+    select: {
+      role: true,
+      status: true,
+      ministryAccess: {
+        where: { revokedAt: null },
+        select: { ministryId: true },
+      },
+    },
+  });
+
+  if (!account || account.status !== "ACTIVE" || account.role !== actor.role) {
+    throw new Error("Você não tem permissão para consultar Pessoas.");
+  }
+
+  const person = await prisma.person.findUnique({
+    where: { id: personId },
+    include: {
+      memberships: {
+        orderBy: [{ endDate: "asc" }, { startDate: "desc" }],
+        include: { ministry: { select: { id: true, name: true } } },
+      },
+    },
+  });
+
+  if (!person) return null;
+
+  if (
+    account.role === "LEADER" &&
+    !person.memberships.some((membership) =>
+      account.ministryAccess.some((access) => access.ministryId === membership.ministryId),
+    )
+  ) {
+    return null;
+  }
+
+  const now = options.now ?? new Date();
+  return {
+    id: person.id,
+    fullName: person.fullName,
+    status: person.status,
+    phone: person.phone,
+    birthDate: person.birthDate,
+    age: calculateAge(person.birthDate, now),
+    profilePhotoUrl: person.profilePhotoUrl,
+    statusChangedAt: person.statusChangedAt,
+    createdAt: person.createdAt,
+    ministries: person.memberships.map((membership) => ({
+      id: membership.ministry.id,
+      name: membership.ministry.name,
+      role: membership.role,
+      startDate: membership.startDate,
+      endDate: membership.endDate,
+      active: membership.endDate === null,
+    })),
+  };
 }

@@ -152,7 +152,7 @@ A igreja hoje depende de planilhas, listas e anotações dispersas para saber qu
 | --- | --- | --- | --- |
 | AUTH-01 | Acesso interno e autorização | Tasks | Implemented in T12 |
 | AUTH-02 | Acesso interno e autorização | Tasks | Implemented in T14 |
-| PES-01 | Cadastro e acompanhamento de Pessoas | Tasks | Implemented in T17; list/search in T19 |
+| PES-01 | Cadastro e acompanhamento de Pessoas | Tasks | Implemented in T17; list/search in T19; profile in T20 |
 | PES-02 | Cadastro e acompanhamento de Pessoas | Tasks | Implemented in T18 |
 | MIN-01 | Ministérios e vínculos históricos | Tasks | Implemented in T07 |
 | MIN-02 | Ministérios e vínculos históricos | Tasks | Implemented in T07 |
