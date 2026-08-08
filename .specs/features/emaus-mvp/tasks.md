@@ -26,6 +26,7 @@ Implement these tasks with the `tlc-spec-driven` skill: **activate it by name an
 | --- | --- | --- |
 | Quick | Domain/UI task with unit tests | `npm run test` |
 | Full | Action, database or E2E task | `npm run test:integration && npm run test:e2e` |
+| Build (foundation) | T01–T02, before Prisma exists | `npm run typecheck && npm run lint && npm run build && npm run test` |
 | Build | At end of every milestone | `npm run db:validate && npm run typecheck && npm run lint && npm run build && npm run test` |
 
 ---
@@ -62,7 +63,7 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 - [ ] A minimal Vitest and Playwright smoke test pass.
 - [ ] No visual library is installed.
 **Tests**: unit + E2E smoke
-**Gate**: Build
+**Gate**: Build (foundation)
 **Commit**: `chore: bootstrap Emaus application`
 
 ### T02: Add local PostgreSQL runtime and environment contract
@@ -76,7 +77,7 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 - [ ] `.env.example` documents no secret values.
 - [ ] Database URL is consumed only through environment configuration.
 **Tests**: none (configuration)
-**Gate**: Build
+**Gate**: Build (foundation)
 **Commit**: `chore: add local PostgreSQL environment`
 
 ### T03: Configure Prisma client and migration workflow
