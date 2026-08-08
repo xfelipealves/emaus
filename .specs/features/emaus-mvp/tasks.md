@@ -231,9 +231,9 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Depends on**: T12, T04
 **Requirement**: AUTH-01
 **Done when**:
-- [ ] Unauthenticated dashboard request redirects to login.
-- [ ] Valid credentials reach home.
-- [ ] Invalid credentials show generic feedback.
+- [x] Unauthenticated dashboard request redirects to login.
+- [x] Valid credentials reach home.
+- [x] Invalid credentials show generic feedback.
 **Tests**: E2E
 **Gate**: Full
 **Commit**: `feat: add login flow`

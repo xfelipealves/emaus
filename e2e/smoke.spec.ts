@@ -1,8 +1,8 @@
 import { expect, test } from "@playwright/test";
 
-test("home page renders the Emaús identity", async ({ page }) => {
+test("dashboard redirects unauthenticated visitors to login", async ({ page }) => {
   await page.goto("/");
 
-  await expect(page).toHaveTitle("Emaús");
-  await expect(page.getByRole("heading", { name: "A comunidade em um só lugar." })).toBeVisible();
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(page.getByRole("heading", { name: "Bem-vindo de volta." })).toBeVisible();
 });
