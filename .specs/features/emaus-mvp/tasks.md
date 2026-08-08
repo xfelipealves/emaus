@@ -419,9 +419,9 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Depends on**: T25
 **Requirement**: ENC-01
 **Done when**:
-- [ ] Audience accepts whole church or selected Ministries.
-- [ ] Leader can create only within granted scope.
-- [ ] Cancelled meeting remains queryable and rejects new attendance writes.
+- [x] Audience accepts whole church or selected Ministries.
+- [x] Leader can create only within granted scope.
+- [x] Cancelled meeting remains queryable and rejects new attendance writes.
 **Tests**: integration + E2E
 **Gate**: Full
 **Commit**: `feat: add meeting creation and audiences`
