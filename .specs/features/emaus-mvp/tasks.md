@@ -217,9 +217,9 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Depends on**: T11
 **Requirement**: AUTH-01
 **Done when**:
-- [ ] Active account receives secure session cookie.
-- [ ] Logout invalidates session.
-- [ ] Inactive account cannot create session.
+- [x] Active account receives secure session cookie.
+- [x] Logout invalidates session.
+- [x] Inactive account cannot create session.
 **Tests**: integration
 **Gate**: Full
 **Commit**: `feat: add secure account sessions`

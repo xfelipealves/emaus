@@ -96,6 +96,20 @@ model Account {
   notes          Note[]                  @relation("NoteAuthor")
   noteVersions   NoteVersion[]           @relation("NoteVersionAuthor")
   auditEvents    AuditEvent[]            @relation("AuditActor")
+  sessions       Session[]
+}
+
+model Session {
+  id        String    @id @default(cuid())
+  accountId String
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId, expiresAt])
 }
 
 model Ministry {
