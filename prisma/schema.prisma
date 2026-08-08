@@ -6,3 +6,49 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+enum PersonStatus {
+  VISITOR
+  MEMBER
+  INACTIVE
+}
+
+enum AccountRole {
+  ADMINISTRATOR
+  SECRETARY
+  LEADER
+}
+
+enum AccountStatus {
+  ACTIVE
+  INACTIVE
+}
+
+model Person {
+  id              String       @id @default(cuid())
+  fullName        String
+  status          PersonStatus @default(VISITOR)
+  phone           String?
+  birthDate       DateTime?    @db.Date
+  profilePhotoUrl String?
+  statusChangedAt DateTime     @default(now())
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  account Account?
+}
+
+model Account {
+  id           String        @id @default(cuid())
+  personId     String        @unique
+  username     String        @unique
+  email        String        @unique
+  passwordHash String
+  role         AccountRole   @default(SECRETARY)
+  status       AccountStatus @default(ACTIVE)
+  lastLoginAt  DateTime?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  person Person @relation(fields: [personId], references: [id])
+}

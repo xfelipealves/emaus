@@ -131,9 +131,9 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Depends on**: T03
 **Requirement**: AUTH-01, PES-01
 **Done when**:
-- [ ] Account has unique username, unique e-mail and unique `personId`.
-- [ ] Person status supports visitor, member and inactive.
-- [ ] No age column exists.
+- [x] Account has unique username, unique e-mail and unique `personId`.
+- [x] Person status supports visitor, member and inactive.
+- [x] No age column exists.
 **Tests**: integration
 **Gate**: Full
 **Commit**: `feat: add people and account schema`
