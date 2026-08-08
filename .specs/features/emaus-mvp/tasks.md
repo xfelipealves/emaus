@@ -491,9 +491,9 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Depends on**: T30
 **Requirement**: TIM-01
 **Done when**:
-- [ ] Note stores author, creation and update timestamps.
-- [ ] Every edit creates ordered NoteVersion.
-- [ ] Creation/edit emits timeline and audit events.
+- [x] Note stores author, creation and update timestamps.
+- [x] Every edit creates ordered NoteVersion.
+- [x] Creation/edit emits timeline and audit events.
 **Tests**: unit + integration + E2E
 **Gate**: Full
 **Commit**: `feat: add versioned person notes`

@@ -3,8 +3,10 @@ import { notFound } from "next/navigation";
 import { cookies } from "next/headers";
 import { getSession } from "@/features/auth/session-service";
 import { getPersonProfile } from "@/features/pessoas/person-query";
+import { listPersonNotes } from "@/features/timeline/note-service";
 import { formatDateInBrazil } from "@/lib/dates";
 import { SESSION_COOKIE_NAME } from "@/lib/session";
+import { Notes } from "./notes";
 
 const statusLabels = { VISITOR: "Visitante", MEMBER: "Membro", INACTIVE: "Inativa" } as const;
 
@@ -29,6 +31,7 @@ export default async function PersonProfilePage({
   const { personId } = await params;
   const person = await getPersonProfile({ id: account.id, role: account.role }, personId);
   if (!person) notFound();
+  const notes = await listPersonNotes({ id: account.id, role: account.role }, personId);
 
   const canManage = account.role === "ADMINISTRATOR" || account.role === "SECRETARY";
 
@@ -76,6 +79,9 @@ export default async function PersonProfilePage({
           <h2 className="text-lg font-semibold text-slate-950">Frequência</h2>
           <p className="mt-2 text-sm leading-6 text-slate-500">O histórico de encontros desta pessoa aparecerá aqui.</p>
         </section>
+      </div>
+      <div className="mt-6">
+        <Notes personId={person.id} notes={notes} />
       </div>
     </div>
   );

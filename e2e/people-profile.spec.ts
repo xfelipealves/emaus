@@ -23,6 +23,8 @@ test.describe("person profile", () => {
     const oldPeople = await prisma.person.findMany({ where: { fullName: personName }, select: { id: true } });
     const oldMinistries = await prisma.ministry.findMany({ where: { name: ministryName }, select: { id: true } });
     await prisma.ministryMembership.deleteMany({ where: { OR: [{ personId: { in: oldPeople.map(({ id }) => id) } }, { ministryId: { in: oldMinistries.map(({ id }) => id) } }] } });
+    await prisma.noteVersion.deleteMany({ where: { note: { personId: { in: oldPeople.map(({ id }) => id) } } } });
+    await prisma.note.deleteMany({ where: { personId: { in: oldPeople.map(({ id }) => id) } } });
     await prisma.person.deleteMany({ where: { id: { in: oldPeople.map(({ id }) => id) } } });
     await prisma.ministry.deleteMany({ where: { id: { in: oldMinistries.map(({ id }) => id) } } });
     const ministry = await prisma.ministry.create({ data: { name: ministryName } });
@@ -38,6 +40,8 @@ test.describe("person profile", () => {
 
   test.afterAll(async () => {
     const people = await prisma.person.findMany({ where: { fullName: { in: [personName, "Administrador Perfil T20", "Líder Perfil T20"] } }, select: { id: true } });
+    await prisma.noteVersion.deleteMany({ where: { note: { personId: { in: people.map(({ id }) => id) } } } });
+    await prisma.note.deleteMany({ where: { personId: { in: people.map(({ id }) => id) } } });
     await prisma.timelineEvent.deleteMany({ where: { personId: { in: people.map(({ id }) => id) } } });
     await prisma.ministryMembership.deleteMany({ where: { personId: { in: people.map(({ id }) => id) } } });
     await prisma.account.deleteMany({ where: { username: { in: [adminUsername, leaderUsername] } } });
@@ -88,5 +92,22 @@ test.describe("person profile", () => {
     await expect(page.getByRole("heading", { name: "Nota adicionada T30" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Status alterado T30" })).toHaveCount(0);
     await expect(page.getByRole("heading", { name: "Presença corrigida T30" })).toHaveCount(0);
+  });
+
+  test("creates and edits a versioned note from the profile", async ({ page }) => {
+    await login(page, adminUsername, "senha-t20-admin");
+    const person = await prisma.person.findFirstOrThrow({ where: { fullName: personName } });
+    await page.goto(`/pessoas/${person.id}`);
+
+    await page.getByLabel("Nova nota").fill("Primeiro registro T31");
+    await page.getByRole("button", { name: "Adicionar nota" }).click();
+    await expect(page.getByText("Nota adicionada.")).toBeVisible();
+    await expect(page.getByRole("textbox", { name: "Nota", exact: true })).toHaveValue("Primeiro registro T31");
+
+    await page.getByRole("textbox", { name: "Nota", exact: true }).fill("Registro atualizado T31");
+    await page.getByRole("button", { name: "Salvar edição" }).click();
+    await expect(page.getByText("Nota atualizada.")).toBeVisible();
+    await expect(page.getByRole("textbox", { name: "Nota", exact: true })).toHaveValue("Registro atualizado T31");
+    await expect(prisma.noteVersion.count({ where: { note: { personId: person.id } } })).resolves.toBe(2);
   });
 });
