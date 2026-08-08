@@ -519,9 +519,9 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Depends on**: T32
 **Requirement**: AUD-01
 **Done when**:
-- [ ] Admin sees sensitive actions specified by the spec.
-- [ ] Non-admin cannot access audit query.
-- [ ] Correction audit shows optional reason when present.
+- [x] Admin sees sensitive actions specified by the spec.
+- [x] Non-admin cannot access audit query.
+- [x] Correction audit shows optional reason when present.
 **Tests**: integration + E2E
 **Gate**: Full
 **Commit**: `feat: add audit history view`
