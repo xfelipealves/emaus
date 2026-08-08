@@ -259,9 +259,9 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Depends on**: T14, T05
 **Requirement**: AUTH-01, AUTH-02
 **Done when**:
-- [ ] Admin creates account only for existing Person.
-- [ ] Admin can deactivate account without deleting history.
-- [ ] Non-admin action is denied server-side.
+- [x] Admin creates account only for existing Person.
+- [x] Admin can deactivate account without deleting history.
+- [x] Non-admin action is denied server-side.
 **Tests**: integration + E2E
 **Gate**: Full
 **Commit**: `feat: add account administration`
