@@ -405,9 +405,9 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Depends on**: T21
 **Requirement**: ENC-01
 **Done when**:
-- [ ] Admin manages categories.
-- [ ] Series supports weekly, biweekly and monthly patterns, weekday selection and optional end.
-- [ ] Each generated occurrence remains independently editable.
+- [x] Admin manages categories.
+- [x] Series supports weekly, biweekly and monthly patterns, weekday selection and optional end.
+- [x] Each generated occurrence remains independently editable.
 **Tests**: unit + integration
 **Gate**: Full
 **Commit**: `feat: add meeting categories and recurrence`
