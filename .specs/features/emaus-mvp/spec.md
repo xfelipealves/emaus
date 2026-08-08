@@ -156,7 +156,7 @@ A igreja hoje depende de planilhas, listas e anotações dispersas para saber qu
 | PES-02 | Cadastro e acompanhamento de Pessoas | Tasks | Pending |
 | MIN-01 | Ministérios e vínculos históricos | Tasks | Implemented in T07 |
 | MIN-02 | Ministérios e vínculos históricos | Tasks | Implemented in T07 |
-| ENC-01 | Encontros e frequência | Tasks | Pending |
+| ENC-01 | Encontros e frequência | Tasks | Implemented in T08 |
 | ENC-02 | Encontros e frequência | Tasks | Pending |
 | TIM-01 | Perfil, timeline e notas | Tasks | Pending |
 | AUD-01 | Auditoria e operação segura | Tasks | Pending |
