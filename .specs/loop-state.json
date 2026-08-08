@@ -2,11 +2,11 @@
   "schemaVersion": 1,
   "feature": "emaus-mvp",
   "status": "ready",
-  "currentTask": "T05",
-  "completedTasks": ["T01", "T02", "T03", "T04"],
+  "currentTask": "T06",
+  "completedTasks": ["T01", "T02", "T03", "T04", "T05"],
   "completedMilestones": [],
-  "lastCommit": "532b794",
-  "lastGate": "npm run test:integration && npm run test:e2e — passed (4 tests)",
+  "lastCommit": "a838171",
+  "lastGate": "npm run test — passed (7 tests)",
   "updatedAt": "2026-08-08",
-  "notes": "The Ralph Loop may execute only currentTask. It advances this file after a passing task gate and atomic commit. T04 responsive shell gate passed; T05 is next."
+  "notes": "The Ralph Loop may execute only currentTask. It advances this file after a passing task gate and atomic commit. T05 shared UI primitives gate passed; T06 is next."
 }

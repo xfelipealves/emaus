@@ -61,10 +61,10 @@
 ## Handoff
 
 - **Feature**: `.specs/features/emaus-mvp`
-- **Phase / Task**: Execute — M1/T04
-- **Completed**: instalação do `tlc-spec-driven`; Specify aprovado; Design aprovado; milestones M1–M8 e tasks T01–T36 criados; bootstrap T01, runtime PostgreSQL T02, workflow Prisma T03 e shell responsivo T04 validados
-- **In-progress** (file:line): `.specs/features/emaus-mvp/tasks.md` — T05, primitives de interface e estados de feedback
-- **Next step**: executar `./scripts/ralph-loop.sh --max-tasks 10` a partir de T05, mantendo o lote limitado e parando em qualquer gate ou dependência bloqueada.
-- **Blockers**: nenhum para T05. OpenCode é o runner do loop; modelo permanece configurável por `OPENCODE_MODEL`. O loop para se uma task falhar, não fizer commit, deixar árvore suja ou não avançar `.specs/loop-state.json`; deploy, e-mail, backup e monitoramento permanecem postergados para depois da validação local.
-- **Uncommitted files**: nenhum
+- **Phase / Task**: Execute — M2/T06
+- **Completed**: instalação do `tlc-spec-driven`; Specify aprovado; Design aprovado; milestones M1–M8 e tasks T01–T36 criados; bootstrap T01, runtime PostgreSQL T02, workflow Prisma T03, shell responsivo T04 e primitives de interface T05 validados
+- **In-progress** (file:line): `.specs/features/emaus-mvp/tasks.md` — T06, modelo de Pessoa, Conta e enums de papel/status
+- **Next step**: executar `./scripts/ralph-loop.sh --max-tasks 10` a partir de T06, mantendo o lote limitado e parando em qualquer gate ou dependência bloqueada.
+- **Blockers**: nenhum para T06. OpenCode é o runner do loop; modelo permanece configurável por `OPENCODE_MODEL`. O loop para se uma task falhar, não fizer commit, deixar árvore suja ou não avançar `.specs/loop-state.json`; deploy, e-mail, backup e monitoramento permanecem postergados para depois da validação local.
+- **Uncommitted files**: nenhum após o commit T05
 - **Branch**: main
