@@ -73,7 +73,7 @@ describe("people query", () => {
   });
 
   it("searches names case-insensitively and partially", async () => {
-    await expect(searchPeople({ id: accountId, role: "ADMINISTRATOR" }, { search: "visitante" }))
+    await expect(searchPeople({ id: accountId, role: "ADMINISTRATOR" }, { search: "ANA visitante t19" }))
       .resolves.toMatchObject([{ fullName: "Ana Visitante T19" }]);
   });
 });
