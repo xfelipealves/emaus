@@ -151,7 +151,7 @@ A igreja hoje depende de planilhas, listas e anotações dispersas para saber qu
 | Requirement ID | Story | Phase | Status |
 | --- | --- | --- | --- |
 | AUTH-01 | Acesso interno e autorização | Tasks | Implemented in T12 |
-| AUTH-02 | Acesso interno e autorização | Tasks | Pending |
+| AUTH-02 | Acesso interno e autorização | Tasks | Implemented in T14 |
 | PES-01 | Cadastro e acompanhamento de Pessoas | Tasks | Pending |
 | PES-02 | Cadastro e acompanhamento de Pessoas | Tasks | Pending |
 | MIN-01 | Ministérios e vínculos históricos | Tasks | Implemented in T07 |

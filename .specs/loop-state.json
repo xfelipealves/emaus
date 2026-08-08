@@ -2,11 +2,11 @@
   "schemaVersion": 1,
   "feature": "emaus-mvp",
   "status": "ready",
-  "currentTask": "T14",
-  "completedTasks": ["T01", "T02", "T03", "T04", "T05", "T06", "T07", "T08", "T09", "T10", "T11", "T12", "T13"],
+  "currentTask": "T15",
+  "completedTasks": ["T01", "T02", "T03", "T04", "T05", "T06", "T07", "T08", "T09", "T10", "T11", "T12", "T13", "T14"],
   "completedMilestones": [],
-  "lastCommit": "501dcb8",
-  "lastGate": "npm run typecheck && npm run lint && npm run test:integration && npm run test:e2e — passed (30 integration tests, 5 E2E tests, 0 failed)",
+  "lastCommit": "PENDING",
+  "lastGate": "npm run test — passed (33 tests, 0 failed)",
   "updatedAt": "2026-08-08",
-  "notes": "The Ralph Loop may execute only currentTask. It advances this file after a passing task gate and atomic commit. T13 login, protected dashboard redirect and generic invalid-credential feedback gate passed; T14 is next."
+  "notes": "The Ralph Loop may execute only currentTask. It advances this file after a passing task gate and atomic commit. T14 role and ministry authorization gate passed; T15 is next."
 }

@@ -245,9 +245,9 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Depends on**: T12
 **Requirement**: AUTH-02
 **Done when**:
-- [ ] Secretary cannot manage ministries/accounts.
-- [ ] Leader is restricted to explicit scopes.
-- [ ] Administrator has full MVP access.
+- [x] Secretary cannot manage ministries/accounts.
+- [x] Leader is restricted to explicit scopes.
+- [x] Administrator has full MVP access.
 **Tests**: unit
 **Gate**: Quick
 **Commit**: `feat: add role and ministry authorization`
