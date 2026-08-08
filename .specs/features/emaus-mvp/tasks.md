@@ -187,9 +187,9 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Depends on**: T09
 **Requirement**: PES-02, AUD-01
 **Done when**:
-- [ ] Seed creates a Person plus linked administrator Account.
-- [ ] Age changes correctly on birthday boundary.
-- [ ] Application utilities use America/Sao_Paulo.
+- [x] Seed creates a Person plus linked administrator Account.
+- [x] Age changes correctly on birthday boundary.
+- [x] Application utilities use America/Sao_Paulo.
 **Tests**: unit + integration
 **Gate**: Full
 **Commit**: `feat: add development seed and date utilities`

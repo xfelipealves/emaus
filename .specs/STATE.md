@@ -61,10 +61,10 @@
 ## Handoff
 
 - **Feature**: `.specs/features/emaus-mvp`
-- **Phase / Task**: Execute — M2/T10
-- **Completed**: instalação do `tlc-spec-driven`; Specify aprovado; Design aprovado; milestones M1–M8 e tasks T01–T36 criados; bootstrap T01, runtime PostgreSQL T02, workflow Prisma T03, shell responsivo T04, primitives de interface T05, schema de Pessoa/Conta T06, schema de Ministérios/vínculos/escopos T07, schema de encontros/séries/públicos/frequência T08 e schema de notas/versões/timeline/auditoria T09 validados
-- **In-progress** (file:line): `.specs/features/emaus-mvp/tasks.md` — T10, seed e utilitários de data/fuso
-- **Next step**: executar `./scripts/ralph-loop.sh --max-tasks 5` a partir de T10, completando o lote original até T11.
-- **Blockers**: nenhum para T10. OpenCode é o runner do loop; modelo permanece configurável por `OPENCODE_MODEL`. O loop para se uma task falhar, não fizer commit, deixar árvore suja ou não avançar `.specs/loop-state.json`; deploy, e-mail, backup e monitoramento permanecem postergados para depois da validação local.
-- **Uncommitted files**: alterações de T09 aguardando o commit atômico
+- **Phase / Task**: Execute — M3/T11
+- **Completed**: instalação do `tlc-spec-driven`; Specify aprovado; Design aprovado; milestones M1–M8 e tasks T01–T36 criados; bootstrap T01, runtime PostgreSQL T02, workflow Prisma T03, shell responsivo T04, primitives de interface T05, schema de Pessoa/Conta T06, schema de Ministérios/vínculos/escopos T07, schema de encontros/séries/públicos/frequência T08, schema de notas/versões/timeline/auditoria T09 e seed/utilitários de data/fuso T10 validados
+- **In-progress** (file:line): `.specs/features/emaus-mvp/tasks.md` — T11, hash Argon2 e validação de credenciais
+- **Next step**: executar `./scripts/ralph-loop.sh --max-tasks 5` a partir de T11, completando o lote original até T15.
+- **Blockers**: nenhum para T11. OpenCode é o runner do loop; modelo permanece configurável por `OPENCODE_MODEL`. O loop para se uma task falhar, não fizer commit, deixar árvore suja ou não avançar `.specs/loop-state.json`; deploy, e-mail, backup e monitoramento permanecem postergados para depois da validação local.
+- **Uncommitted files**: nenhum
 - **Branch**: main
