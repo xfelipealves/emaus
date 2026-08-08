@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { cookies } from "next/headers";
 import { getSession } from "@/features/auth/session-service";
 import { getPersonProfile } from "@/features/pessoas/person-query";
-import { listPersonNotes } from "@/features/timeline/note-service";
+import { listPersonNotes, type NoteFilter } from "@/features/timeline/note-service";
 import { formatDateInBrazil } from "@/lib/dates";
 import { SESSION_COOKIE_NAME } from "@/lib/session";
 import { Notes } from "./notes";
@@ -21,17 +21,20 @@ function initials(fullName: string) {
 
 export default async function PersonProfilePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ personId: string }>;
+  searchParams: Promise<{ notes?: string }>;
 }) {
   const token = (await cookies()).get(SESSION_COOKIE_NAME)?.value;
   const account = token ? await getSession(token) : null;
   if (!account) notFound();
 
   const { personId } = await params;
+  const filter: NoteFilter = (await searchParams).notes === "archived" ? "archived" : "active";
   const person = await getPersonProfile({ id: account.id, role: account.role }, personId);
   if (!person) notFound();
-  const notes = await listPersonNotes({ id: account.id, role: account.role }, personId);
+  const notes = await listPersonNotes({ id: account.id, role: account.role }, personId, filter);
 
   const canManage = account.role === "ADMINISTRATOR" || account.role === "SECRETARY";
 
@@ -81,7 +84,7 @@ export default async function PersonProfilePage({
         </section>
       </div>
       <div className="mt-6">
-        <Notes personId={person.id} notes={notes} />
+         <Notes personId={person.id} notes={notes} filter={filter} />
       </div>
     </div>
   );

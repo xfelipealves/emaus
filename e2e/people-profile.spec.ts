@@ -110,4 +110,23 @@ test.describe("person profile", () => {
     await expect(page.getByRole("textbox", { name: "Nota", exact: true })).toHaveValue("Registro atualizado T31");
     await expect(prisma.noteVersion.count({ where: { note: { personId: person.id } } })).resolves.toBe(2);
   });
+
+  test("archives a note and reveals it only through the archived filter", async ({ page }) => {
+    await login(page, adminUsername, "senha-t20-admin");
+    const person = await prisma.person.findFirstOrThrow({ where: { fullName: personName } });
+    await page.goto(`/pessoas/${person.id}`);
+    await page.getByLabel("Nova nota").fill("Registro arquivado T32");
+    await page.getByRole("button", { name: "Adicionar nota" }).click();
+    await expect(page.getByText("Nota adicionada.")).toBeVisible();
+    page.on("dialog", (dialog) => dialog.accept());
+    await page.locator("textarea").first().locator("xpath=../..").getByRole("button", { name: "Arquivar" }).click();
+    await expect.poll(async () => prisma.note.findFirst({ where: { personId: person.id, content: "Registro arquivado T32" }, select: { archived: true } })).toEqual({ archived: true });
+    await page.reload();
+    await expect(page.getByText("Registro arquivado T32")).toHaveCount(0);
+
+    await page.getByRole("link", { name: "Arquivadas" }).click();
+    await expect(page).toHaveURL(/notes=archived/);
+    await expect(page.getByRole("textbox", { name: "Nota", exact: true })).toHaveValue("Registro arquivado T32");
+    await expect(prisma.note.count({ where: { personId: person.id, content: "Registro arquivado T32", archived: true } })).resolves.toBe(1);
+  });
 });

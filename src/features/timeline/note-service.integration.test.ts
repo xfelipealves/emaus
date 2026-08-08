@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "../../lib/prisma";
-import { createNote, listPersonNotes, updateNote } from "./note-service";
+import { archiveNote, createNote, listPersonNotes, updateNote } from "./note-service";
 
 describe("note service", () => {
   const suffix = Date.now().toString();
@@ -62,5 +62,23 @@ describe("note service", () => {
       { title: "Nota editada", description: "Segundo acompanhamento" },
     ]);
     expect(audit).toMatchObject({ actorId: accountId, before: { content: "Primeiro acompanhamento" }, after: { content: "Segundo acompanhamento" } });
+  });
+
+  it("archives a note without deleting versions and hides it from the default list", async () => {
+    const note = (await listPersonNotes({ id: accountId, role: "SECRETARY" }, personId))[0];
+    const archived = await archiveNote({ id: accountId, role: "SECRETARY" }, note.id);
+    const activeNotes = await listPersonNotes({ id: accountId, role: "SECRETARY" }, personId);
+    const archivedNotes = await listPersonNotes({ id: accountId, role: "SECRETARY" }, personId, "archived");
+    const versions = await prisma.noteVersion.findMany({ where: { noteId: note.id }, orderBy: { sequence: "asc" } });
+    const timeline = await prisma.timelineEvent.findFirstOrThrow({ where: { personId, title: "Nota arquivada" } });
+    const audit = await prisma.auditEvent.findFirstOrThrow({ where: { targetType: "Note", targetId: note.id, action: "ARCHIVE" } });
+
+    expect(archived.archived).toBe(true);
+    expect(activeNotes.some(({ id }) => id === note.id)).toBe(false);
+    expect(archivedNotes).toHaveLength(1);
+    expect(archivedNotes[0]).toMatchObject({ id: note.id, content: "Segundo acompanhamento", archived: true });
+    expect(versions).toHaveLength(2);
+    expect(timeline).toMatchObject({ personId, title: "Nota arquivada", description: "Segundo acompanhamento" });
+    expect(audit).toMatchObject({ actorId: accountId, before: { archived: false }, after: { archived: true } });
   });
 });

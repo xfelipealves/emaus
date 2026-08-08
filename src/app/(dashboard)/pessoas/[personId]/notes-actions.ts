@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { getSession } from "@/features/auth/session-service";
-import { createNote, updateNote } from "@/features/timeline/note-service";
+import { archiveNote, createNote, updateNote } from "@/features/timeline/note-service";
 import { SESSION_COOKIE_NAME } from "@/lib/session";
 
 export type NoteActionState = { error?: string; success?: string };
@@ -33,5 +33,20 @@ export async function saveNoteAction(
     return { success: noteId ? "Nota atualizada." : "Nota adicionada." };
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Não foi possível salvar a nota." };
+  }
+}
+
+export async function archiveNoteAction(
+  _previousState: NoteActionState,
+  formData: FormData,
+): Promise<NoteActionState> {
+  const personId = String(formData.get("personId") ?? "");
+  try {
+    const actor = await requireSession();
+    await archiveNote({ id: actor.id, role: actor.role }, String(formData.get("noteId") ?? ""));
+    revalidatePath(`/pessoas/${personId}`);
+    return { success: "Nota arquivada." };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Não foi possível arquivar a nota." };
   }
 }

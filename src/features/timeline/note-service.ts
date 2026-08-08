@@ -16,6 +16,8 @@ export type PersonNote = {
   updatedAt: Date;
 };
 
+export type NoteFilter = "active" | "archived";
+
 export function validateNoteContent(content: string): string {
   const normalized = content.trim();
   if (!normalized) {
@@ -46,10 +48,10 @@ async function assertCanAccessPerson(actor: NoteActor, personId: string) {
   }
 }
 
-export async function listPersonNotes(actor: NoteActor, personId: string): Promise<PersonNote[]> {
+export async function listPersonNotes(actor: NoteActor, personId: string, filter: NoteFilter = "active"): Promise<PersonNote[]> {
   await assertCanAccessPerson(actor, personId);
   return prisma.note.findMany({
-    where: { personId },
+    where: { personId, archived: filter === "archived" },
     orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
     select: { id: true, personId: true, authorId: true, content: true, archived: true, createdAt: true, updatedAt: true },
   });
@@ -128,5 +130,40 @@ export async function updateNote(actor: NoteActor, noteId: string, content: stri
     });
 
     return updatedNote;
+  });
+}
+
+export async function archiveNote(actor: NoteActor, noteId: string) {
+  const existing = await prisma.note.findUnique({ where: { id: noteId } });
+  if (!existing) throw new Error("Nota não encontrada.");
+  await assertCanAccessPerson(actor, existing.personId);
+
+  return withTransaction(async (transaction) => {
+    const note = await transaction.note.findUnique({ where: { id: noteId } });
+    if (!note) throw new Error("Nota não encontrada.");
+    if (note.archived) return note;
+
+    const archivedNote = await transaction.note.update({
+      where: { id: noteId },
+      data: { archived: true },
+    });
+
+    await recordTimelineEvent(transaction, {
+      personId: note.personId,
+      category: "NOTE",
+      title: "Nota arquivada",
+      description: note.content,
+      occurredAt: archivedNote.updatedAt,
+    });
+    await recordAuditEvent(transaction, {
+      actorId: actor.id,
+      targetType: "Note",
+      targetId: note.id,
+      action: "ARCHIVE",
+      before: { id: note.id, personId: note.personId, content: note.content, archived: false },
+      after: { id: archivedNote.id, personId: archivedNote.personId, content: archivedNote.content, archived: true },
+    });
+
+    return archivedNote;
   });
 }

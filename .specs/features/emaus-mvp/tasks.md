@@ -505,9 +505,9 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Depends on**: T31
 **Requirement**: TIM-01
 **Done when**:
-- [ ] Archive never deletes note/version history.
-- [ ] Default timeline hides archived notes.
-- [ ] Filter reveals archived notes only to authorized profile viewer.
+- [x] Archive never deletes note/version history.
+- [x] Default timeline hides archived notes.
+- [x] Filter reveals archived notes only to authorized profile viewer.
 **Tests**: integration + E2E
 **Gate**: Full
 **Commit**: `feat: add note archiving`
