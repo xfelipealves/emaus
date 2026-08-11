@@ -725,20 +725,21 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 
 ### T46: Stabilize calendar-relative age evidence
 
-**What**: Remove the calendar-date flake in the profile E2E assertion while preserving exact birth-date and calculated-age evidence.
+**What**: Remove the calendar-date flake in the profile E2E assertion and tolerate the documented dev cold start while preserving exact birth-date, calculated-age and destination evidence.
 **Where**: `e2e/people-profile.spec.ts`
 **Depends on**: T36 validation gap
 **Requirement**: PES-01
 **Assumptions**: The age is derived at assertion time from the fixture birth date using the approved Brazil-calendar rule; the visible birth date remains exact.
 **Done when**:
-- [ ] The profile E2E expects the current calendar-relative age instead of a stale hard-coded value.
-- [ ] The exact birth date and the rendered age remain asserted together.
-- [ ] Full gate passes without weakening or deleting existing profile assertions.
+- [x] The profile E2E expects the current calendar-relative age instead of a stale hard-coded value.
+- [x] The exact birth date and the rendered age remain asserted together.
+- [x] The profile login wait has a bounded cold-start tolerance while preserving the exact protected destination assertion.
+- [x] Full gate passes without weakening or deleting existing profile assertions.
 **Tests**: E2E
 **Gate**: Full
 **Commit**: `test: stabilize calendar-relative age evidence`
 
-**Verification**: pending Full gate and adequacy review.
+**Verification**: Full gate `npm run test:integration && npm run test:e2e` passed with 31 files/102 integration tests and 27/27 E2E tests. Adequacy review PASS: `e2e/people-profile.spec.ts:68-82` retains exact protected-navigation, birth-date and calculated-age assertions; the bounded timeout only covers the documented dev cold start. Build gate also passed with schema validation, typecheck, lint, production build and 31/102 Vitest tests. No test was deleted or weakened.
 
 ---
 
