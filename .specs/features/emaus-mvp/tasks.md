@@ -691,6 +691,21 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 
 **Verification**: Full gate `npm run test:integration && npm run test:e2e` passed with 31 files/102 integration tests and 26/26 E2E tests. Adequacy review PASS: `src/app/(dashboard)/pessoas/nova/actions.ts:51` redirects with `status=created`, `src/app/(dashboard)/pessoas/[personId]/page.tsx:29-37` renders the exact contextual message, and `e2e/people-registration.spec.ts:49-52,66-69` plus `e2e/people.spec.ts:27-30` assert visitor/member confirmation without dropping persistence or status checks. No existing test was deleted or weakened.
 
+### T44: Confirm meeting cancellation before creation
+
+**What**: Require explicit confirmation when a user submits a new meeting with the `CANCELLED` state, preventing creation on dismissal and preserving creation on acceptance.
+**Where**: `src/app/(dashboard)/encontros/meeting-forms.tsx`, `e2e/meetings.spec.ts`
+**Depends on**: T43
+**Requirement**: AUD-01
+**Done when**:
+- [ ] Submitting a cancelled meeting opens an explicit confirmation dialog.
+- [ ] Dismissing the dialog prevents creation and does not show a success result.
+- [ ] Accepting the dialog creates the cancelled meeting and preserves its status.
+- [ ] Browser evidence covers both dismissal and acceptance.
+**Tests**: E2E
+**Gate**: Full
+**Commit**: `fix: confirm meeting cancellation`
+
 ---
 
 ## Phase Execution Map
