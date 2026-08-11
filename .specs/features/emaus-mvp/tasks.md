@@ -41,7 +41,7 @@ M4 People:           T16 → T17 → T18 → T19 → T20
 M5 Ministries:       T21 → T22 → T23 → T24
 M6 Meetings:         T25 → T26 → T27 → T28 → T29
 M7 History/audit:    T30 → T31 → T32 → T33
-M8 Validation:       T34 → T35 → T36 → T37 (correction)
+M8 Validation:       T34 → T35 → T36 → T37 → T38 (correction)
 ```
 
 Phases are sequential. Within each milestone, tasks are sequential unless their `Depends on` field says otherwise.
@@ -589,6 +589,23 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Commit**: `fix: restore clean navigation lint gate`
 
 **Verification**: `npm run db:validate && npm run typecheck && npm run lint && npm run build && npm run test` passed: schema valid, typecheck/lint clean of errors, production build succeeded, 31 files/100 tests passed. `npm run test:e2e -- --workers=1 e2e/shell.spec.ts` passed 3/3. Adequacy review PASS: `e2e/shell.spec.ts:53-55` asserts `/pessoas` and both `/encontros` shortcut hrefs; `e2e/shell.spec.ts:58-59` asserts Cancelar navigates to `/pessoas`; lint is the precise static evidence for the `next/link` and unused-import criteria. No tests were deleted or weakened.
+
+### T38: Expose Person status lifecycle in the profile
+
+**What**: Add authorized profile actions to promote a visitor to member and inactivate a Person, including effective dates, validation feedback and explicit inactivation confirmation.
+**Where**: `src/app/(dashboard)/pessoas/[personId]/actions.ts`, `src/app/(dashboard)/pessoas/[personId]/page.tsx`, `src/app/(dashboard)/pessoas/[personId]/status-actions.tsx`, `e2e/people.spec.ts`
+**Depends on**: T36 validation gap
+**Requirement**: PES-02, AUD-01
+**Done when**:
+- [x] Authorized users can promote a visitor from the profile with phone, birth date and effective date.
+- [x] Authorized users can inactivate a Person from the profile without deleting history.
+- [x] Promotion/inactivation errors remain contextual and inactivation asks for explicit confirmation.
+- [x] Browser evidence covers the complete visitor → member → inactive journey through the profile UI.
+**Tests**: E2E
+**Gate**: Full
+**Commit**: `feat: expose person status lifecycle`
+
+**Verification**: `npm run test:integration && npm run test:e2e` passed: 31 files/100 integration tests and 25/25 E2E tests. Adequacy review PASS: `e2e/people.spec.ts:36-48` submits promotion through labeled profile controls and asserts the redirect, confirmation, persisted member status, phone and exact effective timestamp; `e2e/people.spec.ts:67-87` accepts the explicit inactivation dialog and asserts confirmation, preserved memberships/attendance/timeline and exact `INACTIVE` audit action. `src/app/(dashboard)/pessoas/[personId]/actions.ts:13-25,44-46,64-66` provides server-side role/date validation and contextual error results; no tests were deleted or weakened.
 
 ---
 

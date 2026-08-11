@@ -7,6 +7,7 @@ import { listPersonNotes, type NoteFilter } from "@/features/timeline/note-servi
 import { formatDateInBrazil } from "@/lib/dates";
 import { SESSION_COOKIE_NAME } from "@/lib/session";
 import { Notes } from "./notes";
+import { PersonStatusActions } from "./status-actions";
 
 const statusLabels = { VISITOR: "Visitante", MEMBER: "Membro", INACTIVE: "Inativa" } as const;
 
@@ -24,14 +25,20 @@ export default async function PersonProfilePage({
   searchParams,
 }: {
   params: Promise<{ personId: string }>;
-  searchParams: Promise<{ notes?: string }>;
+  searchParams: Promise<{ notes?: string; status?: string }>;
 }) {
   const token = (await cookies()).get(SESSION_COOKIE_NAME)?.value;
   const account = token ? await getSession(token) : null;
   if (!account) notFound();
 
   const { personId } = await params;
-  const filter: NoteFilter = (await searchParams).notes === "archived" ? "archived" : "active";
+  const query = await searchParams;
+  const filter: NoteFilter = query.notes === "archived" ? "archived" : "active";
+  const statusMessage = query.status === "promoted"
+    ? "Pessoa promovida a membro."
+    : query.status === "inactivated"
+      ? "Pessoa inativada. O histórico foi preservado."
+      : null;
   const person = await getPersonProfile({ id: account.id, role: account.role }, personId);
   if (!person) notFound();
   const notes = await listPersonNotes({ id: account.id, role: account.role }, personId, filter);
@@ -65,6 +72,9 @@ export default async function PersonProfilePage({
           <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">Na comunidade desde</dt><dd className="mt-1 text-sm text-slate-700">{formatDateInBrazil(person.createdAt)}</dd></div>
         </dl>
       </section>
+
+      {statusMessage ? <p role="status" className="mt-4 rounded-xl border border-[#b9ded5] bg-[#effaf7] px-4 py-3 text-sm text-[#155e58]">{statusMessage}</p> : null}
+      {canManage ? <PersonStatusActions personId={person.id} fullName={person.fullName} status={person.status} /> : null}
 
       <nav aria-label="Abas do perfil" className="mt-6 flex gap-2 overflow-x-auto border-b border-slate-200">
         <span aria-current="page" className="whitespace-nowrap border-b-2 border-[#26766d] px-3 py-3 text-sm font-semibold text-[#155e58]">Visão geral</span>

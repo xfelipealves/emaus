@@ -1,6 +1,5 @@
 import { expect, test } from "@playwright/test";
 import { DEMO_PASSWORD } from "./demo-fixtures";
-import { inactivatePerson, promoteToMember } from "../src/features/pessoas/status-service";
 import { prisma } from "../src/lib/prisma";
 
 test.describe("P1 Person lifecycle", () => {
@@ -34,14 +33,14 @@ test.describe("P1 Person lifecycle", () => {
       await expect.poll(() => prisma.person.findUnique({ where: { id: createdPersonId } })).toMatchObject({ fullName, status: "VISITOR" });
       await expect.poll(() => prisma.timelineEvent.findFirst({ where: { personId: createdPersonId, category: "REGISTRATION" } })).toMatchObject({ title: "Pessoa cadastrada" });
 
-      const actor = await prisma.account.findUniqueOrThrow({ where: { username: "demo-admin" }, select: { id: true, role: true } });
-      const effectiveDate = new Date("2026-07-15T12:00:00.000Z");
-      await promoteToMember({ id: actor.id, role: actor.role }, createdPersonId, {
-        phone: "(00) 00000-3510",
-        birthDate: new Date("1995-04-12T00:00:00.000Z"),
-        effectiveDate,
-      });
+      await page.getByLabel("Telefone para promoção").fill("(00) 00000-3510");
+      await page.getByLabel("Data de nascimento para promoção").fill("1995-04-12");
+      await page.getByLabel("Data efetiva da promoção").fill("2026-07-15");
+      await page.getByRole("button", { name: "Promover a membro" }).click();
+      await expect(page).toHaveURL(/status=promoted/);
+      await expect(page.getByRole("status")).toHaveText("Pessoa promovida a membro.");
       await expect(prisma.person.findUnique({ where: { id: createdPersonId } })).resolves.toMatchObject({ status: "MEMBER", phone: "(00) 00000-3510" });
+      await expect.poll(() => prisma.person.findUnique({ where: { id: createdPersonId }, select: { statusChangedAt: true } })).toEqual({ statusChangedAt: new Date("2026-07-15T12:00:00.000Z") });
 
       await page.reload();
       await expect(page.getByText("Membro", { exact: true })).toBeVisible();
@@ -65,8 +64,11 @@ test.describe("P1 Person lifecycle", () => {
       });
       meetingId = meeting.id;
 
-      await inactivatePerson({ id: actor.id, role: actor.role }, createdPersonId, { effectiveDate: new Date("2026-07-20T12:00:00.000Z") });
-      await page.reload();
+      page.once("dialog", (dialog) => dialog.accept());
+      await page.getByLabel("Data efetiva da inativação").fill("2026-07-20");
+      await page.getByRole("button", { name: "Inativar Pessoa" }).click();
+      await expect(page).toHaveURL(/status=inactivated/);
+      await expect(page.getByRole("status")).toHaveText("Pessoa inativada. O histórico foi preservado.");
       await expect(page.getByText("Inativa", { exact: true })).toBeVisible();
       await expect(page.getByText(`Ministério ciclo T35 ${suffix}`, { exact: true })).toBeVisible();
 
@@ -77,6 +79,7 @@ test.describe("P1 Person lifecycle", () => {
         attendances: [{ meetingId, status: "PRESENT" }],
       });
       await expect(prisma.timelineEvent.count({ where: { personId: createdPersonId } })).resolves.toBe(3);
+      await expect.poll(() => prisma.person.findUnique({ where: { id: createdPersonId }, select: { statusChangedAt: true } })).toEqual({ statusChangedAt: new Date("2026-07-20T12:00:00.000Z") });
       await expect(prisma.auditEvent.findMany({ where: { targetId: createdPersonId }, orderBy: { createdAt: "asc" }, select: { action: true } })).resolves.toEqual([
         { action: "CREATE" },
         { action: "PROMOTE_TO_MEMBER" },
