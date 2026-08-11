@@ -41,7 +41,7 @@ M4 People:           T16 → T17 → T18 → T19 → T20
 M5 Ministries:       T21 → T22 → T23 → T24
 M6 Meetings:         T25 → T26 → T27 → T28 → T29
 M7 History/audit:    T30 → T31 → T32 → T33
-M8 Validation:       T34 → T35 → T36 → T37 → T38 → T39 → T40 (correction)
+M8 Validation:       T34 → T35 → T36 → T37 → T38 → T39 → T40 → T41 (correction)
 ```
 
 Phases are sequential. Within each milestone, tasks are sequential unless their `Depends on` field says otherwise.
@@ -623,6 +623,21 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Commit**: `feat: show person attendance history`
 
 **Verification**: `npm run test:integration && npm run test:e2e` passed: 31 files/101 integration tests and 25/25 E2E tests. Adequacy review PASS: `src/features/pessoas/person-query.integration.test.ts:97-102` asserts the profile query returns meeting, scheduled timestamp and `PRESENT`; `e2e/people-profile.spec.ts:80-84` asserts the named frequency region renders meeting, Brazil date and status; `src/app/(dashboard)/pessoas/[personId]/page.tsx:92-106` preserves an explicit empty state. No existing test was deleted or weakened.
+
+### T41: Normalize business date and time inputs to São Paulo
+
+**What**: Parse date-only and `datetime-local` inputs as `America/Sao_Paulo`, and format persisted calendar dates without host-timezone drift.
+**Where**: `src/lib/dates.ts`, `src/lib/dates.test.ts`, `src/app/(dashboard)/pessoas/nova/actions.ts`, `src/app/(dashboard)/encontros/actions.ts`, `src/app/(dashboard)/pessoas/page.tsx`, `src/app/(dashboard)/pessoas/[personId]/page.tsx`, `src/app/(dashboard)/ministerios/[ministryId]/page.tsx`, `e2e/people-registration.spec.ts`, `e2e/meetings.spec.ts`, `e2e/people-profile.spec.ts`
+**Depends on**: T36 validation gap
+**Requirement**: AUD-01, PES-01, ENC-01
+**Done when**:
+- [ ] Date-only fields preserve the entered Brazil calendar date after persistence.
+- [ ] Meeting local date/time persists as the equivalent São Paulo instant independent of host timezone.
+- [ ] Date-only and instant display paths use the correct formatter for their data type.
+- [ ] Unit/integration/browser evidence asserts exact dates and timestamps.
+**Tests**: unit + integration + E2E
+**Gate**: Full
+**Commit**: `fix: preserve Sao Paulo calendar inputs`
 
 ### T40: Stabilize critical-path E2E cold-start waits
 
