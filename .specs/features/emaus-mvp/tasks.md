@@ -41,7 +41,7 @@ M4 People:           T16 → T17 → T18 → T19 → T20
 M5 Ministries:       T21 → T22 → T23 → T24
 M6 Meetings:         T25 → T26 → T27 → T28 → T29
 M7 History/audit:    T30 → T31 → T32 → T33
-M8 Validation:       T34 → T35 → T36 → T37 → T38 → T39 → T40 → T41 → T42 → T43 → T44 → T45 → T46 (corrections)
+M8 Validation:       T34 → T35 → T36 → T37 → T38 → T39 → T40 → T41 → T42 → T43 → T44 → T45 → T46 → T47 (corrections)
 ```
 
 Phases are sequential. Within each milestone, tasks are sequential unless their `Depends on` field says otherwise.
@@ -740,6 +740,23 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Commit**: `test: stabilize calendar-relative age evidence`
 
 **Verification**: Full gate `npm run test:integration && npm run test:e2e` passed with 31 files/102 integration tests and 27/27 E2E tests. Adequacy review PASS: `e2e/people-profile.spec.ts:68-82` retains exact protected-navigation, birth-date and calculated-age assertions; the bounded timeout only covers the documented dev cold start. Build gate also passed with schema validation, typecheck, lint, production build and 31/102 Vitest tests. No test was deleted or weakened.
+
+### T47: Prove account identifier uniqueness
+
+**What**: Add integration evidence that account creation rejects both a duplicate username and a duplicate e-mail, closing AUTH-01.3 evidence-or-zero coverage.
+**Where**: `src/features/auth/account-service.integration.test.ts`
+**Depends on**: T36 validation gap
+**Requirement**: AUTH-01
+**Assumptions**: Prisma uniqueness is the implementation invariant; the test must exercise the service boundary and prove each identifier conflict explicitly.
+**Done when**:
+- [ ] Reusing an existing username is rejected and no second account is persisted.
+- [ ] Reusing an existing e-mail is rejected and no second account is persisted.
+- [ ] Full gate passes without weakening any account test.
+**Tests**: integration
+**Gate**: Full
+**Commit**: `test: cover account identifier uniqueness`
+
+**Verification**: pending Full gate and adequacy review.
 
 ---
 
