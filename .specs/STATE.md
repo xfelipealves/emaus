@@ -66,5 +66,5 @@
 - **In-progress** (file:line): T36 — evidence-or-zero, sensor de discriminação e UAT após correção T37
 - **Next step**: retomar T36 com a validação independente, começando pelo estado limpo após o commit de T37.
 - **Blockers**: nenhum. T37 corrigiu os dois erros de navegação interna e o import não usado; Build gate passou e E2E smoke passou 3/3. A execução permanece inline pelo Codex; OpenCode e Ralph Loop não foram usados.
-- **Uncommitted files**: definição/bookkeeping de T37 pendentes de commit
+- **Uncommitted files**: nenhum após o commit de T37 e a sincronização do loop-state
 - **Branch**: main
