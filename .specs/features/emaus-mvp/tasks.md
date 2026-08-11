@@ -665,13 +665,15 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Depends on**: T41
 **Requirement**: AUD-01
 **Done when**:
-- [ ] A failed attendance cycle restores the previous status and preserves the exact server feedback.
-- [ ] The board exposes an explicit retry action for the failed row.
-- [ ] A retry after the meeting is reopened persists the new attendance status and feedback.
-- [ ] Browser evidence covers the failure, rollback, retry and persistence sequence.
+- [x] A failed attendance cycle restores the previous status and preserves the exact server feedback.
+- [x] The board exposes an explicit retry action for the failed row.
+- [x] A retry after the meeting is reopened persists the new attendance status and feedback.
+- [x] Browser evidence covers the failure, rollback, retry and persistence sequence.
 **Tests**: E2E
 **Gate**: Full
 **Commit**: `fix: add attendance retry feedback`
+
+**Verification**: Full gate `npm run test:integration && npm run test:e2e` passed with 31 files/102 integration tests and 26/26 E2E tests. Adequacy review PASS: `src/app/(dashboard)/encontros/[meetingId]/attendance-board.tsx:33-57,88` restores the prior optimistic value, retains the exact server error and renders an explicit retry; `e2e/attendance.spec.ts:59-100` forces cancellation, asserts rollback/error/retry, reopens the meeting and asserts `PRESENT` in both UI and database. No existing test was deleted or weakened.
 
 ---
 
