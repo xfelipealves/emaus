@@ -698,13 +698,15 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Depends on**: T43
 **Requirement**: AUD-01
 **Done when**:
-- [ ] Submitting a cancelled meeting opens an explicit confirmation dialog.
-- [ ] Dismissing the dialog prevents creation and does not show a success result.
-- [ ] Accepting the dialog creates the cancelled meeting and preserves its status.
-- [ ] Browser evidence covers both dismissal and acceptance.
+- [x] Submitting a cancelled meeting opens an explicit confirmation dialog.
+- [x] Dismissing the dialog prevents creation and does not show a success result.
+- [x] Accepting the dialog creates the cancelled meeting and preserves its status.
+- [x] Browser evidence covers both dismissal and acceptance.
 **Tests**: E2E
 **Gate**: Full
 **Commit**: `fix: confirm meeting cancellation`
+
+**Verification**: Full gate `npm run test:integration && npm run test:e2e` passed with 31 files/102 integration tests and 27/27 E2E tests. Adequacy review PASS: `src/app/(dashboard)/encontros/meeting-forms.tsx:10-18` confirms only the `CANCELLED` path and prevents default on dismissal; `e2e/meetings.spec.ts:60-85` asserts the exact dialog text, no database row/success after dismissal, and persisted `CANCELLED` after acceptance. The 30-second success wait preserves the exact result while tolerating the documented dev-server cold start. No existing test was deleted or weakened.
 
 ---
 

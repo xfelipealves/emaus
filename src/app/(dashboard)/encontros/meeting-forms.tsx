@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, type FormEvent } from "react";
 import { Button, Input } from "@/components/ui";
 import { createMeetingAction, type MeetingActionState } from "./actions";
 
@@ -8,8 +8,16 @@ type Option = { id: string; name: string };
 
 export function CreateMeetingForm({ categories, ministries }: { categories: Option[]; ministries: Option[] }) {
   const [state, formAction, isPending] = useActionState<MeetingActionState, FormData>(createMeetingAction, {});
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    const status = new FormData(event.currentTarget).get("status");
+    if (status === "CANCELLED" && !window.confirm("Cancelar este encontro? Ele ficará preservado para consulta e não aceitará presença.")) {
+      event.preventDefault();
+    }
+  }
+
   return (
-    <form action={formAction} className="grid gap-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <form action={formAction} onSubmit={handleSubmit} className="grid gap-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <div><h2 className="text-lg font-semibold">Novo encontro</h2><p className="mt-1 text-sm text-slate-500">Defina quando será e quem deve aparecer na frequência.</p></div>
       <Input id="title" name="title" label="Título" required />
       <label className="grid gap-2 text-sm font-medium text-slate-700" htmlFor="categoryId">Categoria<select id="categoryId" name="categoryId" required className="rounded-xl border border-slate-200 bg-white px-3 py-2 font-normal outline-none focus:border-[#26766d]">{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
