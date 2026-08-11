@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   calculateAge,
+  formatDateOnly,
   formatDateInBrazil,
+  parseDateTimeInput,
   parseDateInput,
 } from "./dates";
 
@@ -21,5 +23,10 @@ describe("Brazil date utilities", () => {
     const date = parseDateInput("2026-08-08");
 
     expect(formatDateInBrazil(date)).toBe("08/08/2026");
+    expect(formatDateOnly(new Date("1990-08-11T00:00:00.000Z"))).toBe("11/08/1990");
+  });
+
+  it("converts local Sao Paulo date-times to exact instants", () => {
+    expect(parseDateTimeInput("2026-09-10T19:00")).toEqual(new Date("2026-09-10T22:00:00.000Z"));
   });
 });

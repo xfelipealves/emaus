@@ -5,7 +5,7 @@ import { searchPeople, type PersonListFilter } from "@/features/pessoas/person-q
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { SESSION_COOKIE_NAME } from "@/lib/session";
-import { formatDateInBrazil } from "@/lib/dates";
+import { formatDateOnly } from "@/lib/dates";
 
 const filters: Array<{ value: PersonListFilter; label: string }> = [
   { value: "all", label: "Todas" },
@@ -71,7 +71,7 @@ export default async function PeoplePage({
                   <Link href={`/pessoas/${person.id}`} className="flex items-center gap-4 p-4 hover:bg-slate-50 sm:px-5">
                     <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#e3f1ed] text-sm font-semibold text-[#26766d]">{person.fullName.split(/\s+/).slice(0, 2).map((name) => name[0]).join("").toUpperCase()}</span>
                     <span className="min-w-0 flex-1"><span className="block truncate font-semibold text-slate-900">{person.fullName}</span><span className="mt-1 block text-sm text-slate-500">{person.phone ?? "Sem telefone"}{person.age !== null ? ` · ${person.age} anos` : ""}</span></span>
-                    <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">{statusLabels[person.status]}{person.birthDate && person.age === null ? ` · ${formatDateInBrazil(person.birthDate)}` : ""}</span>
+                    <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">{statusLabels[person.status]}{person.birthDate && person.age === null ? ` · ${formatDateOnly(person.birthDate)}` : ""}</span>
                   </Link>
                 </li>
               ))}

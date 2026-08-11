@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { getSession } from "@/features/auth/session-service";
 import { createMeeting, getMeetingActor } from "@/features/encontros/meeting-service";
+import { parseDateTimeInput } from "@/lib/dates";
 import { SESSION_COOKIE_NAME } from "@/lib/session";
 
 async function requireMeetingActor() {
@@ -22,7 +23,7 @@ export async function createMeetingAction(_previousState: MeetingActionState, fo
     await createMeeting(await requireMeetingActor(), {
       categoryId: String(formData.get("categoryId") ?? ""),
       title: String(formData.get("title") ?? ""),
-      scheduledAt: new Date(String(formData.get("scheduledAt") ?? "")),
+      scheduledAt: parseDateTimeInput(String(formData.get("scheduledAt") ?? "")),
       status: String(formData.get("status") ?? "DRAFT") as "DRAFT" | "SCHEDULED" | "CANCELLED",
       wholeChurch,
       ministryIds: formData.getAll("ministryIds").map(String),

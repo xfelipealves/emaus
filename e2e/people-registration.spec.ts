@@ -70,6 +70,8 @@ test.describe("person registration", () => {
       fullName: "Membro E2E T17",
       status: "MEMBER",
       phone: "(11) 98888-7777",
+      birthDate: new Date("1992-03-10T00:00:00.000Z"),
     });
+    await expect(page.locator("dd").nth(1)).toContainText("10/03/1992");
   });
 });

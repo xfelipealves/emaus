@@ -53,5 +53,7 @@ test.describe("meeting creation", () => {
     await page.goto("/encontros");
     await expect(page.getByRole("heading", { name: "Encontro E2E T26" })).toBeVisible();
     await expect(page.getByText("Ministério E2E T26")).toBeVisible();
+    await expect.poll(() => prisma.meeting.findFirst({ where: { title: "Encontro E2E T26" }, select: { scheduledAt: true } })).toEqual({ scheduledAt: new Date("2026-09-10T22:00:00.000Z") });
+    await expect(page.getByText(/10\/09\/2026/)).toBeVisible();
   });
 });

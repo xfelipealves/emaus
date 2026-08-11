@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getSession } from "@/features/auth/session-service";
 import { registerPerson } from "@/features/pessoas/person-actions";
+import { parseDateInput } from "@/lib/dates";
 import { SESSION_COOKIE_NAME } from "@/lib/session";
 
 export type PersonActionState = { error?: string };
@@ -36,7 +37,7 @@ export async function createPersonAction(
         type,
         fullName: String(formData.get("fullName") ?? ""),
         phone: String(formData.get("phone") ?? ""),
-        birthDate: birthDateValue ? new Date(`${birthDateValue}T00:00:00.000Z`) : undefined,
+        birthDate: birthDateValue ? parseDateInput(birthDateValue) : undefined,
       },
     );
 

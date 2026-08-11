@@ -75,7 +75,7 @@ test.describe("person profile", () => {
     await expect(page.getByRole("heading", { name: personName })).toBeVisible();
     await expect(page.getByText("Membro", { exact: true })).toBeVisible();
     await expect(page.getByText("(11) 99999-0000")).toBeVisible();
-    await expect(page.getByText("10/08/1990 · 35 anos")).toBeVisible();
+    await expect(page.getByText("11/08/1990 · 35 anos")).toBeVisible();
     await expect(page.getByLabel(`Iniciais de ${personName}`)).toHaveText("PP");
     await expect(page.getByText(ministryName)).toBeVisible();
     const frequency = page.getByRole("region", { name: "Histórico de frequência" });

@@ -21,7 +21,7 @@ function assertAdministrator(actor: SeriesActor) {
 }
 
 function dateOnly(date: Date) {
-  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 12));
 }
 
 function normalizeInput(input: SeriesInput) {
