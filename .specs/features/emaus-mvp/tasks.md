@@ -658,6 +658,21 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 
 **Verification**: `npm run test:integration && npm run test:e2e` passed: 31 files/100 integration tests and 25/25 E2E tests; `npm run test:e2e -- --workers=1 e2e/audit.spec.ts e2e/people-registration.spec.ts` passed 4/4. Adequacy review PASS: `e2e/audit.spec.ts:41` preserves the exact `/` destination while allowing only 30 seconds for cold start; `e2e/people-registration.spec.ts:49-50,66-67` preserves exact profile URL assertions with the same bounded wait. No behavior assertion was weakened and no test was deleted.
 
+### T42: Provide an explicit attendance retry path after cancellation failure
+
+**What**: Keep the optimistic attendance rollback visible when the server rejects a cancelled meeting, and expose a retry action that succeeds after the meeting becomes writable again.
+**Where**: `src/app/(dashboard)/encontros/[meetingId]/attendance-board.tsx`, `e2e/attendance.spec.ts`
+**Depends on**: T41
+**Requirement**: AUD-01
+**Done when**:
+- [ ] A failed attendance cycle restores the previous status and preserves the exact server feedback.
+- [ ] The board exposes an explicit retry action for the failed row.
+- [ ] A retry after the meeting is reopened persists the new attendance status and feedback.
+- [ ] Browser evidence covers the failure, rollback, retry and persistence sequence.
+**Tests**: E2E
+**Gate**: Full
+**Commit**: `fix: add attendance retry feedback`
+
 ---
 
 ## Phase Execution Map
