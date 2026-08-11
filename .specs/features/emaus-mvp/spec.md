@@ -150,16 +150,16 @@ A igreja hoje depende de planilhas, listas e anotações dispersas para saber qu
 
 | Requirement ID | Story | Phase | Status |
 | --- | --- | --- | --- |
-| AUTH-01 | Acesso interno e autorização | Tasks | Implemented in T12; critical E2E in T35 |
+| AUTH-01 | Acesso interno e autorização | Tasks | Implemented in T12 and T15; critical E2E in T35 |
 | AUTH-02 | Acesso interno e autorização | Tasks | Implemented in T14 and T23; critical E2E in T35 |
-| PES-01 | Cadastro e acompanhamento de Pessoas | Tasks | Implemented in T17; list/search in T19; profile in T20; lifecycle E2E in T35 |
+| PES-01 | Cadastro e acompanhamento de Pessoas | Tasks | Implemented in T17, T19 and T20; lifecycle/confirmation E2E in T35, T38, T43 and T46 |
 | PES-02 | Cadastro e acompanhamento de Pessoas | Tasks | Implemented in T18; lifecycle E2E in T35 |
-| MIN-01 | Ministérios e vínculos históricos | Tasks | Implemented in T07 and T21 |
+| MIN-01 | Ministérios e vínculos históricos | Tasks | Implemented in T07 and T21; critical E2E in T35 |
 | MIN-02 | Ministérios e vínculos históricos | Tasks | Implemented in T07, T22 and T23; critical E2E in T35 |
-| ENC-01 | Encontros e frequência | Tasks | Implemented in T08; critical E2E in T35 |
-| ENC-02 | Encontros e frequência | Tasks | Pending |
-| TIM-01 | Perfil, timeline e notas | Tasks | Implemented in T09, T30; critical E2E in T35 |
-| AUD-01 | Auditoria e operação segura | Tasks | Implemented in T09, T33 and T34; critical E2E in T35 |
+| ENC-01 | Encontros e frequência | Tasks | Implemented in T08 and T25–T29; critical E2E in T35 and timezone evidence in T41 |
+| ENC-02 | Encontros e frequência | Tasks | Implemented in T25; recurrence unit/integration evidence in T35 |
+| TIM-01 | Perfil, timeline e notas | Tasks | Implemented in T09 and T30–T32; profile frequency in T39 and critical E2E in T35/T46 |
+| AUD-01 | Auditoria e operação segura | Tasks | Implemented in T09, T33 and T34; validation corrections T37, T40–T42 and T44–T45; critical E2E in T35 |
 
 **Coverage:** 10 total, 10 mapped to tasks, 0 unmapped.
 
