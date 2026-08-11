@@ -74,7 +74,8 @@ test.describe("meeting creation", () => {
     });
     await page.getByRole("button", { name: "Criar encontro" }).click();
     expect(dialogMessage).toBe("Cancelar este encontro? Ele ficará preservado para consulta e não aceitará presença.");
-    await expect(prisma.meeting.findFirst({ where: { title: "Encontro E2E T26 cancelado" } })).resolves.toBeNull();
+    await expect(page.getByRole("button", { name: "Criar encontro" })).toBeEnabled();
+    await expect.poll(() => prisma.meeting.findFirst({ where: { title: "Encontro E2E T26 cancelado" } })).toBeNull();
     await expect(page.getByRole("status")).toHaveCount(0);
 
     page.once("dialog", (dialog) => dialog.accept());

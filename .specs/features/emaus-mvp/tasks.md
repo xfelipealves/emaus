@@ -715,11 +715,13 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Depends on**: T44
 **Requirement**: AUD-01
 **Done when**:
-- [ ] Dismissal evidence waits for the form to settle and polls persistence, rather than checking only the immediate state.
-- [ ] The test kills a mutation that bypasses the dismissal guard while preserving the exact acceptance assertions.
+- [x] Dismissal evidence waits for the form to settle and polls persistence, rather than checking only the immediate state.
+- [x] The test kills a mutation that bypasses the dismissal guard while preserving the exact acceptance assertions.
 **Tests**: E2E
 **Gate**: Full
 **Commit**: `test: harden cancellation dismissal evidence`
+
+**Verification**: Full gate `npm run test:integration && npm run test:e2e` passed with 31 files/102 integration tests and 27/27 E2E tests. Adequacy review PASS: `e2e/meetings.spec.ts:72-82` waits for the submit button to settle and polls the database for absence after dismissal, then preserves exact accepted-dialog/status assertions. The sensor mutation that inverted the confirmation guard failed this strengthened test; no existing behavior assertion was weakened or deleted.
 
 ---
 
