@@ -41,7 +41,7 @@ M4 People:           T16 → T17 → T18 → T19 → T20
 M5 Ministries:       T21 → T22 → T23 → T24
 M6 Meetings:         T25 → T26 → T27 → T28 → T29
 M7 History/audit:    T30 → T31 → T32 → T33
-M8 Validation:       T34 → T35 → T36 → T37 → T38 → T39 (correction)
+M8 Validation:       T34 → T35 → T36 → T37 → T38 → T39 → T40 (correction)
 ```
 
 Phases are sequential. Within each milestone, tasks are sequential unless their `Depends on` field says otherwise.
@@ -621,6 +621,20 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Tests**: integration + E2E
 **Gate**: Full
 **Commit**: `feat: show person attendance history`
+
+### T40: Stabilize audit login in the full E2E gate
+
+**What**: Give the audit E2E login helper the same cold-start tolerance as the other critical flows so the full gate does not fail on a valid account during application compilation.
+**Where**: `e2e/audit.spec.ts`
+**Depends on**: T39 Full gate failure
+**Requirement**: AUTH-01, AUD-01
+**Done when**:
+- [ ] Audit administrator and secretary login assertions tolerate the documented dev-server cold start.
+- [ ] The audit spec remains exact and passes in isolation.
+- [ ] The Full gate can be rerun without the observed login timeout.
+**Tests**: E2E
+**Gate**: Full
+**Commit**: `test: stabilize audit e2e login`
 
 ---
 
