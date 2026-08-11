@@ -1,4 +1,4 @@
-import type { AccountRole, PersonStatus } from "@prisma/client";
+import type { AccountRole, AttendanceStatus, PersonStatus } from "@prisma/client";
 import { calculateAge } from "../../lib/dates";
 import { prisma } from "../../lib/prisma";
 
@@ -30,6 +30,13 @@ export type PersonProfile = PersonListItem & {
     startDate: Date;
     endDate: Date | null;
     active: boolean;
+  }>;
+  attendances: Array<{
+    id: string;
+    meetingId: string;
+    meetingTitle: string;
+    scheduledAt: Date;
+    status: AttendanceStatus;
   }>;
 };
 
@@ -122,6 +129,10 @@ export async function getPersonProfile(
         orderBy: [{ endDate: "asc" }, { startDate: "desc" }],
         include: { ministry: { select: { id: true, name: true } } },
       },
+      attendances: {
+        orderBy: { meeting: { scheduledAt: "desc" } },
+        include: { meeting: { select: { title: true, scheduledAt: true } } },
+      },
     },
   });
 
@@ -154,6 +165,13 @@ export async function getPersonProfile(
       startDate: membership.startDate,
       endDate: membership.endDate,
       active: membership.endDate === null,
+    })),
+    attendances: person.attendances.map((attendance) => ({
+      id: attendance.id,
+      meetingId: attendance.meetingId,
+      meetingTitle: attendance.meeting.title,
+      scheduledAt: attendance.meeting.scheduledAt,
+      status: attendance.status,
     })),
   };
 }

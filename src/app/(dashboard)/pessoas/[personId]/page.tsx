@@ -10,6 +10,7 @@ import { Notes } from "./notes";
 import { PersonStatusActions } from "./status-actions";
 
 const statusLabels = { VISITOR: "Visitante", MEMBER: "Membro", INACTIVE: "Inativa" } as const;
+const attendanceLabels = { NOT_CONFIRMED: "Não confirmado", PRESENT: "Presente", ABSENT: "Ausente" } as const;
 
 function initials(fullName: string) {
   return fullName
@@ -88,9 +89,20 @@ export default async function PersonProfilePage({
           <h2 className="text-lg font-semibold text-slate-950">Ministérios</h2>
           {person.ministries.length === 0 ? <p className="mt-4 text-sm text-slate-500">Nenhum vínculo ministerial registrado.</p> : <ul className="mt-4 divide-y divide-slate-100">{person.ministries.map((ministry) => <li key={`${ministry.id}-${ministry.startDate.toISOString()}`} className="flex items-center justify-between gap-4 py-3 first:pt-0"><span className="font-medium text-slate-700">{ministry.name}</span><span className="text-right text-xs text-slate-500">{ministry.role === "LEADER" ? "Líder" : "Membro"}<br />{ministry.active ? "Vínculo atual" : `Até ${formatDateInBrazil(ministry.endDate!)}`}</span></li>)}</ul>}
         </section>
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-          <h2 className="text-lg font-semibold text-slate-950">Frequência</h2>
-          <p className="mt-2 text-sm leading-6 text-slate-500">O histórico de encontros desta pessoa aparecerá aqui.</p>
+        <section aria-label="Histórico de frequência" className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+          <h2 className="text-lg font-semibold text-slate-950">Histórico de frequência</h2>
+          {person.attendances.length === 0 ? (
+            <p className="mt-4 text-sm leading-6 text-slate-500">Nenhuma presença registrada.</p>
+          ) : (
+            <ul aria-label="Registros de frequência" className="mt-4 divide-y divide-slate-100">
+              {person.attendances.map((attendance) => (
+                <li key={attendance.id} className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0">
+                  <span className="min-w-0 truncate font-medium text-slate-700">{attendance.meetingTitle}</span>
+                  <span className="shrink-0 text-right text-xs text-slate-500">{formatDateInBrazil(attendance.scheduledAt)}<br />{attendanceLabels[attendance.status]}</span>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
       </div>
       <div className="mt-6">

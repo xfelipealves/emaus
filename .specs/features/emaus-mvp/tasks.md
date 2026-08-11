@@ -614,13 +614,15 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Depends on**: T36 validation gap
 **Requirement**: TIM-01
 **Done when**:
-- [ ] Profile frequency section lists persisted meetings for the Person.
-- [ ] Each entry shows meeting, scheduled date and exact attendance status.
-- [ ] Empty history remains an intentional, readable state.
-- [ ] Browser evidence confirms a persisted attendance is visible in the profile.
+- [x] Profile frequency section lists persisted meetings for the Person.
+- [x] Each entry shows meeting, scheduled date and exact attendance status.
+- [x] Empty history remains an intentional, readable state.
+- [x] Browser evidence confirms a persisted attendance is visible in the profile.
 **Tests**: integration + E2E
 **Gate**: Full
 **Commit**: `feat: show person attendance history`
+
+**Verification**: `npm run test:integration && npm run test:e2e` passed: 31 files/101 integration tests and 25/25 E2E tests. Adequacy review PASS: `src/features/pessoas/person-query.integration.test.ts:97-102` asserts the profile query returns meeting, scheduled timestamp and `PRESENT`; `e2e/people-profile.spec.ts:80-84` asserts the named frequency region renders meeting, Brazil date and status; `src/app/(dashboard)/pessoas/[personId]/page.tsx:92-106` preserves an explicit empty state. No existing test was deleted or weakened.
 
 ### T40: Stabilize critical-path E2E cold-start waits
 

@@ -8,6 +8,9 @@ test.describe("person profile", () => {
   const leaderUsername = "t20-profile-leader";
   const personName = "Pessoa Perfil T20";
   const ministryName = "Ministério Perfil T20";
+  const meetingName = "Encontro Perfil T20";
+  let categoryId: string;
+  let meetingId: string;
 
   test.beforeAll(async () => {
     await prisma.account.upsert({
@@ -29,6 +32,10 @@ test.describe("person profile", () => {
     await prisma.ministry.deleteMany({ where: { id: { in: oldMinistries.map(({ id }) => id) } } });
     const ministry = await prisma.ministry.create({ data: { name: ministryName } });
     const person = await prisma.person.create({ data: { fullName: personName, status: "MEMBER", phone: "(11) 99999-0000", birthDate: new Date("1990-08-11T00:00:00.000Z"), memberships: { create: { ministryId: ministry.id, role: "MEMBER", startDate: new Date("2024-01-01T12:00:00.000Z") } } } });
+    const category = await prisma.category.create({ data: { name: "Categoria Perfil T20" } });
+    categoryId = category.id;
+    const meeting = await prisma.meeting.create({ data: { categoryId, title: meetingName, scheduledAt: new Date("2026-08-10T22:00:00.000Z"), status: "SCHEDULED", attendances: { create: { personId: person.id, status: "PRESENT" } } } });
+    meetingId = meeting.id;
     await prisma.timelineEvent.createMany({
       data: [
         { personId: person.id, category: "STATUS", title: "Status alterado T30", occurredAt: new Date("2026-08-08T10:00:00.000Z") },
@@ -42,6 +49,9 @@ test.describe("person profile", () => {
     const people = await prisma.person.findMany({ where: { fullName: { in: [personName, "Administrador Perfil T20", "Líder Perfil T20"] } }, select: { id: true } });
     await prisma.noteVersion.deleteMany({ where: { note: { personId: { in: people.map(({ id }) => id) } } } });
     await prisma.note.deleteMany({ where: { personId: { in: people.map(({ id }) => id) } } });
+    await prisma.attendance.deleteMany({ where: { meetingId } });
+    await prisma.meeting.delete({ where: { id: meetingId } });
+    await prisma.category.delete({ where: { id: categoryId } });
     await prisma.timelineEvent.deleteMany({ where: { personId: { in: people.map(({ id }) => id) } } });
     await prisma.ministryMembership.deleteMany({ where: { personId: { in: people.map(({ id }) => id) } } });
     await prisma.account.deleteMany({ where: { username: { in: [adminUsername, leaderUsername] } } });
@@ -68,6 +78,10 @@ test.describe("person profile", () => {
     await expect(page.getByText("10/08/1990 · 35 anos")).toBeVisible();
     await expect(page.getByLabel(`Iniciais de ${personName}`)).toHaveText("PP");
     await expect(page.getByText(ministryName)).toBeVisible();
+    const frequency = page.getByRole("region", { name: "Histórico de frequência" });
+    await expect(frequency).toContainText(meetingName);
+    await expect(frequency).toContainText("10/08/2026");
+    await expect(frequency).toContainText("Presente");
     await expect(page.getByRole("navigation", { name: "Abas do perfil" })).toContainText("Timeline");
   });
 

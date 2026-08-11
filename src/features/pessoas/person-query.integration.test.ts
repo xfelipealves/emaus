@@ -1,12 +1,14 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { hashPassword } from "../auth/password";
 import { prisma } from "../../lib/prisma";
-import { searchPeople } from "./person-query";
+import { getPersonProfile, searchPeople } from "./person-query";
 
 describe("people query", () => {
   const username = "t19-people-query";
   const personIds: string[] = [];
   let accountId: string;
+  let categoryId: string;
+  let meetingId: string;
 
   beforeAll(async () => {
     const accountPerson = await prisma.person.create({ data: { fullName: "Administrador T19" } });
@@ -34,9 +36,24 @@ describe("people query", () => {
       }),
     ]);
     personIds.push(...people.map((person) => person.id));
+    const category = await prisma.category.create({ data: { name: `Categoria T19 ${Date.now()}` } });
+    categoryId = category.id;
+    const meeting = await prisma.meeting.create({
+      data: {
+        categoryId,
+        title: `Encontro T19 ${Date.now()}`,
+        scheduledAt: new Date("2026-08-10T22:00:00.000Z"),
+        status: "SCHEDULED",
+        attendances: { create: { personId: people[1].id, status: "PRESENT" } },
+      },
+    });
+    meetingId = meeting.id;
   });
 
   afterAll(async () => {
+    await prisma.attendance.deleteMany({ where: { meetingId } });
+    await prisma.meeting.delete({ where: { id: meetingId } });
+    await prisma.category.delete({ where: { id: categoryId } });
     await prisma.auditEvent.deleteMany({ where: { targetId: { in: personIds } } });
     await prisma.timelineEvent.deleteMany({ where: { personId: { in: personIds } } });
     await prisma.account.deleteMany({ where: { id: accountId } });
@@ -75,5 +92,13 @@ describe("people query", () => {
   it("searches names case-insensitively and partially", async () => {
     await expect(searchPeople({ id: accountId, role: "ADMINISTRATOR" }, { search: "ANA visitante t19" }))
       .resolves.toMatchObject([{ fullName: "Ana Visitante T19" }]);
+  });
+
+  it("returns a person's attendance history with meeting and exact status", async () => {
+    const profile = await getPersonProfile({ id: accountId, role: "ADMINISTRATOR" }, personIds[2]);
+
+    expect(profile?.attendances).toMatchObject([
+      { meetingId, meetingTitle: expect.stringContaining("Encontro T19"), scheduledAt: new Date("2026-08-10T22:00:00.000Z"), status: "PRESENT" },
+    ]);
   });
 });
