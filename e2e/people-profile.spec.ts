@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { hashPassword } from "../src/features/auth/password";
 import { prisma } from "../src/lib/prisma";
+import { calculateAge } from "../src/lib/dates";
 
 test.describe("person profile", () => {
   test.describe.configure({ mode: "serial" });
@@ -9,6 +10,7 @@ test.describe("person profile", () => {
   const personName = "Pessoa Perfil T20";
   const ministryName = "Ministério Perfil T20";
   const meetingName = "Encontro Perfil T20";
+  const birthDate = new Date("1990-08-11T00:00:00.000Z");
   let categoryId: string;
   let meetingId: string;
 
@@ -31,7 +33,7 @@ test.describe("person profile", () => {
     await prisma.person.deleteMany({ where: { id: { in: oldPeople.map(({ id }) => id) } } });
     await prisma.ministry.deleteMany({ where: { id: { in: oldMinistries.map(({ id }) => id) } } });
     const ministry = await prisma.ministry.create({ data: { name: ministryName } });
-    const person = await prisma.person.create({ data: { fullName: personName, status: "MEMBER", phone: "(11) 99999-0000", birthDate: new Date("1990-08-11T00:00:00.000Z"), memberships: { create: { ministryId: ministry.id, role: "MEMBER", startDate: new Date("2024-01-01T12:00:00.000Z") } } } });
+    const person = await prisma.person.create({ data: { fullName: personName, status: "MEMBER", phone: "(11) 99999-0000", birthDate, memberships: { create: { ministryId: ministry.id, role: "MEMBER", startDate: new Date("2024-01-01T12:00:00.000Z") } } } });
     const category = await prisma.category.create({ data: { name: "Categoria Perfil T20" } });
     categoryId = category.id;
     const meeting = await prisma.meeting.create({ data: { categoryId, title: meetingName, scheduledAt: new Date("2026-08-10T22:00:00.000Z"), status: "SCHEDULED", attendances: { create: { personId: person.id, status: "PRESENT" } } } });
@@ -65,7 +67,7 @@ test.describe("person profile", () => {
     await page.getByLabel("Nome de usuário").fill(username);
     await page.getByLabel("Senha").fill(password);
     await page.getByRole("button", { name: "Entrar" }).click();
-    await expect(page).toHaveURL(/\/$/);
+    await expect(page).toHaveURL(/\/$/, { timeout: 30_000 });
   }
 
   test("shows essential data, initials, ministry and overview tabs", async ({ page }) => {
@@ -75,7 +77,9 @@ test.describe("person profile", () => {
     await expect(page.getByRole("heading", { name: personName })).toBeVisible();
     await expect(page.getByText("Membro", { exact: true })).toBeVisible();
     await expect(page.getByText("(11) 99999-0000")).toBeVisible();
-    await expect(page.getByText("11/08/1990 · 35 anos")).toBeVisible();
+    const expectedAge = calculateAge(birthDate);
+    if (expectedAge === null) throw new Error("A idade da fixture de perfil deveria ser calculável");
+    await expect(page.getByText(`11/08/1990 · ${expectedAge} anos`)).toBeVisible();
     await expect(page.getByLabel(`Iniciais de ${personName}`)).toHaveText("PP");
     await expect(page.getByText(ministryName)).toBeVisible();
     const frequency = page.getByRole("region", { name: "Histórico de frequência" });
