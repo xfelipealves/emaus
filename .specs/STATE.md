@@ -61,10 +61,10 @@
 ## Handoff
 
 - **Feature**: `.specs/features/emaus-mvp`
-- **Phase / Task**: Execute — M8/T36
+- **Phase / Task**: Execute — M8/T39
 - **Completed**: instalação do `tlc-spec-driven`; Specify aprovado; Design aprovado; milestones M1–M8 e tasks T01–T36 criados; bootstrap T01, runtime PostgreSQL T02, workflow Prisma T03, shell responsivo T04, primitives de interface T05, schema de Pessoa/Conta T06, schema de Ministérios/vínculos/escopos T07, schema de encontros/séries/públicos/frequência T08, schema de notas/versões/timeline/auditoria T09, seed/utilitários de data/fuso T10, hash Argon2/validação de credenciais T11, persistência/ciclo de sessão T12, login/redirecionamento protegido T13, autorização por papel e Ministério T14, administração de contas T15, serviço transacional de Pessoas T16, cadastro de visitantes/membros T17, transições de status T18, lista/busca/filtros de Pessoas T19, perfil geral de Pessoa T20, administração de Ministérios T21, histórico de vínculos ministeriais T22, grants/revogação de escopos ministeriais T23, perfil/histórico de Ministérios T24, categorias/séries/recorrência T25, criação de encontros/públicos T26, inicialização idempotente de frequência T27, ciclo/auditoria de presença T28, busca/visitante rápido/resumos de frequência T29, timeline/filtros do perfil T30, criação/edição versionada de notas T31, arquivamento/filtro de notas T32, consulta/tela administrativa de auditoria T33, cenário demo local idempotente T34, suíte Playwright crítica isolada T35 e correção de lint/build gate T37 validados
-- **In-progress** (file:line): T36 — evidence-or-zero, sensor de discriminação e UAT após correção T37
-- **Next step**: retomar T36 com a validação independente, começando pelo estado limpo após o commit de T37.
-- **Blockers**: nenhum. T37 corrigiu os dois erros de navegação interna e o import não usado; Build gate passou e E2E smoke passou 3/3. A execução permanece inline pelo Codex; OpenCode e Ralph Loop não foram usados.
+- **In-progress** (file:line): T39 — corrigir o placeholder de frequência do perfil encontrado na validação independente; T36 permanece aberto até todas as correções e a revalidação PASS
+- **Next step**: executar T39 em isolamento, com gate Full e commit atômico, depois retomar a próxima correção evidence-or-zero.
+- **Blockers**: nenhum. T38 foi implementada e seu gate Full passou; o UAT automatizado anterior passou 25/25 e o sensor matou 2/2 mutações. Restam gaps de frequência no perfil, fuso de entradas e retry de presença. A execução permanece inline pelo Codex; OpenCode e Ralph Loop não foram usados.
 - **Uncommitted files**: nenhum após o commit de T37 e a sincronização do loop-state
 - **Branch**: main
