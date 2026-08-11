@@ -41,7 +41,7 @@ M4 People:           T16 → T17 → T18 → T19 → T20
 M5 Ministries:       T21 → T22 → T23 → T24
 M6 Meetings:         T25 → T26 → T27 → T28 → T29
 M7 History/audit:    T30 → T31 → T32 → T33
-M8 Validation:       T34 → T35 → T36 → T37 → T38 → T39 → T40 → T41 → T42 → T43 → T44 → T45 (corrections)
+M8 Validation:       T34 → T35 → T36 → T37 → T38 → T39 → T40 → T41 → T42 → T43 → T44 → T45 → T46 (corrections)
 ```
 
 Phases are sequential. Within each milestone, tasks are sequential unless their `Depends on` field says otherwise.
@@ -722,6 +722,23 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Commit**: `test: harden cancellation dismissal evidence`
 
 **Verification**: Full gate `npm run test:integration && npm run test:e2e` passed with 31 files/102 integration tests and 27/27 E2E tests. Adequacy review PASS: `e2e/meetings.spec.ts:72-82` waits for the submit button to settle and polls the database for absence after dismissal, then preserves exact accepted-dialog/status assertions. The sensor mutation that inverted the confirmation guard failed this strengthened test; no existing behavior assertion was weakened or deleted.
+
+### T46: Stabilize calendar-relative age evidence
+
+**What**: Remove the calendar-date flake in the profile E2E assertion while preserving exact birth-date and calculated-age evidence.
+**Where**: `e2e/people-profile.spec.ts`
+**Depends on**: T36 validation gap
+**Requirement**: PES-01
+**Assumptions**: The age is derived at assertion time from the fixture birth date using the approved Brazil-calendar rule; the visible birth date remains exact.
+**Done when**:
+- [ ] The profile E2E expects the current calendar-relative age instead of a stale hard-coded value.
+- [ ] The exact birth date and the rendered age remain asserted together.
+- [ ] Full gate passes without weakening or deleting existing profile assertions.
+**Tests**: E2E
+**Gate**: Full
+**Commit**: `test: stabilize calendar-relative age evidence`
+
+**Verification**: pending Full gate and adequacy review.
 
 ---
 
