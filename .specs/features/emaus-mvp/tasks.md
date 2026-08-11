@@ -41,7 +41,7 @@ M4 People:           T16 → T17 → T18 → T19 → T20
 M5 Ministries:       T21 → T22 → T23 → T24
 M6 Meetings:         T25 → T26 → T27 → T28 → T29
 M7 History/audit:    T30 → T31 → T32 → T33
-M8 Validation:       T34 → T35 → T36 → T37 → T38 → T39 → T40 → T41 (correction)
+M8 Validation:       T34 → T35 → T36 → T37 → T38 → T39 → T40 → T41 → T42 → T43 → T44 → T45 (corrections)
 ```
 
 Phases are sequential. Within each milestone, tasks are sequential unless their `Depends on` field says otherwise.
