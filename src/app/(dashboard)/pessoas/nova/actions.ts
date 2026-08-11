@@ -46,5 +46,5 @@ export async function createPersonAction(
     return { error: error instanceof Error ? error.message : "Não foi possível cadastrar a Pessoa." };
   }
 
-  redirect(`/pessoas/${personId}`);
+  redirect(`/pessoas/${personId}?status=created`);
 }

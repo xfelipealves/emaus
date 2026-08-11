@@ -682,12 +682,14 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Depends on**: T42
 **Requirement**: PES-01
 **Done when**:
-- [ ] Initial visitor and member registrations redirect to the profile with a success status message.
-- [ ] The confirmation is exact, contextual and does not replace the persisted profile/status assertions.
-- [ ] Browser evidence covers both registration variants.
+- [x] Initial visitor and member registrations redirect to the profile with a success status message.
+- [x] The confirmation is exact, contextual and does not replace the persisted profile/status assertions.
+- [x] Browser evidence covers both registration variants.
 **Tests**: E2E
 **Gate**: Full
 **Commit**: `fix: confirm person registration`
+
+**Verification**: Full gate `npm run test:integration && npm run test:e2e` passed with 31 files/102 integration tests and 26/26 E2E tests. Adequacy review PASS: `src/app/(dashboard)/pessoas/nova/actions.ts:51` redirects with `status=created`, `src/app/(dashboard)/pessoas/[personId]/page.tsx:29-37` renders the exact contextual message, and `e2e/people-registration.spec.ts:49-52,66-69` plus `e2e/people.spec.ts:27-30` assert visitor/member confirmation without dropping persistence or status checks. No existing test was deleted or weakened.
 
 ---
 

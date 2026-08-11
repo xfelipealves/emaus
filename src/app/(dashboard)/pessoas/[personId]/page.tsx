@@ -35,11 +35,13 @@ export default async function PersonProfilePage({
   const { personId } = await params;
   const query = await searchParams;
   const filter: NoteFilter = query.notes === "archived" ? "archived" : "active";
-  const statusMessage = query.status === "promoted"
-    ? "Pessoa promovida a membro."
-    : query.status === "inactivated"
-      ? "Pessoa inativada. O histórico foi preservado."
-      : null;
+  const statusMessage = query.status === "created"
+    ? "Pessoa cadastrada com sucesso."
+    : query.status === "promoted"
+      ? "Pessoa promovida a membro."
+      : query.status === "inactivated"
+        ? "Pessoa inativada. O histórico foi preservado."
+        : null;
   const person = await getPersonProfile({ id: account.id, role: account.role }, personId);
   if (!person) notFound();
   const notes = await listPersonNotes({ id: account.id, role: account.role }, personId, filter);

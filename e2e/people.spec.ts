@@ -24,7 +24,8 @@ test.describe("P1 Person lifecycle", () => {
       await page.getByLabel("Nome completo").fill(fullName);
       await page.getByRole("button", { name: "Cadastrar Pessoa" }).click();
       await expect(page).not.toHaveURL(/\/pessoas\/nova$/, { timeout: 30_000 });
-      await expect(page).toHaveURL(/\/pessoas\/[^/]+$/);
+      await expect(page).toHaveURL(/\/pessoas\/[^/]+(?:\?.*)?$/);
+      await expect(page.getByRole("status")).toHaveText("Pessoa cadastrada com sucesso.");
       const createdPersonId = new URL(page.url()).pathname.split("/").pop();
       if (!createdPersonId) throw new Error("Person registration did not return an id");
       personId = createdPersonId;
