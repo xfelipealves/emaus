@@ -66,5 +66,5 @@
 - **In-progress** (file:line): nenhum
 - **Next step**: executar T36 pelo Codex como verificador independente: build gate, evidence-or-zero, sensor de discriminação em scratch e UAT local.
 - **Blockers**: nenhum de T35. O gate Full exato passou com integração serializada (31 arquivos/100 testes) e E2E isolado (24 testes); typecheck passou. `vitest.config.ts` agora evita a corrida de fixtures PostgreSQL por `fileParallelism: false`; Playwright usa reset/seed global e um worker. A execução permanece inline pelo Codex; OpenCode e Ralph Loop não foram usados. Deploy, e-mail, backup e monitoramento permanecem postergados para depois da validação local.
-- **Uncommitted files**: nenhum após o commit de T34 e a sincronização do loop-state
+- **Uncommitted files**: nenhum após o commit de T35 e a sincronização do loop-state
 - **Branch**: main
