@@ -5,6 +5,7 @@ export default defineConfig({
   plugins: [react()],
   test: {
     environment: "node",
+    fileParallelism: false,
     include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
   },
 });

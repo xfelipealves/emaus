@@ -547,16 +547,18 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 ### T35: Complete critical-path Playwright suite
 
 **What**: Add end-to-end coverage for P1 journeys.
-**Where**: `e2e/auth.spec.ts`, `e2e/people.spec.ts`, `e2e/attendance.spec.ts`, `e2e/permissions.spec.ts`
+**Where**: `e2e/auth.spec.ts`, `e2e/audit.spec.ts`, `e2e/people.spec.ts`, `e2e/attendance.spec.ts`, `e2e/permissions.spec.ts`, `e2e/demo-fixtures.ts`, `e2e/global-setup.ts`, `playwright.config.ts`, `vitest.config.ts`
 **Depends on**: T34
 **Requirement**: AUTH-01, PES-01, MIN-02, ENC-01, TIM-01, AUD-01
 **Done when**:
-- [ ] Suite covers login/deactivation, Person lifecycle, leader restriction and attendance correction.
-- [ ] E2E uses isolated seeded/reset state.
-- [ ] All P1 acceptance criteria map to test evidence.
+- [x] Suite covers login/deactivation, Person lifecycle, leader restriction and attendance correction.
+- [x] E2E uses isolated seeded/reset state.
+- [x] All P1 acceptance criteria map to test evidence.
 **Tests**: E2E
 **Gate**: Full
 **Commit**: `test: cover Emaus critical MVP journeys`
+
+**Verification**: `npm run test:integration && npm run test:e2e` — integration 31 files/100 tests passed; E2E 24 tests passed. `workers: 1`, Vitest `fileParallelism: false` and Prisma reset/seed global setup isolate the shared local PostgreSQL fixtures. `npm run typecheck` and `git diff --check` passed. Adequacy review PASS: `e2e/auth.spec.ts:33-62` asserts account creation, deactivation, preserved Person and denied login; `e2e/people.spec.ts:24-84` asserts visitor→member→inactive UI plus persisted status, ministry, attendance, timeline and audit; `e2e/permissions.spec.ts:16-39` asserts leader scope and secretary/admin boundary; `e2e/attendance.spec.ts:21-43` asserts all three states, before/after/reason audit and timeline; existing full E2E tests remain green and audit locators are scoped to their own record.
 
 ### T36: Run TLC verifier and local UAT
 

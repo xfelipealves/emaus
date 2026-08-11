@@ -23,17 +23,36 @@ test("cycles an eligible person's attendance", async ({ page }) => {
     await expect(row).toContainText("Presente");
     await expect(page.getByRole("status")).toHaveText("Presença salva.");
     await expect(prisma.attendance.findUnique({ where: { meetingId_personId: { meetingId: meeting.id, personId: person.id } } })).resolves.toMatchObject({ status: "PRESENT" });
+
+    await page.getByLabel("Motivo opcional da correção").fill("Conferência da lista demo");
+    await row.click();
+    await expect(row).toContainText("Ausente");
+    await expect(page.getByRole("status")).toHaveText("Presença salva.");
+    const attendance = await prisma.attendance.findUniqueOrThrow({ where: { meetingId_personId: { meetingId: meeting.id, personId: person.id } } });
+    await expect.poll(() => prisma.auditEvent.findFirst({ where: { targetId: attendance.id, action: "UPDATE", reason: "Conferência da lista demo" } })).toMatchObject({
+      actorId: account.id,
+      before: { status: "PRESENT" },
+      after: { status: "ABSENT" },
+      reason: "Conferência da lista demo",
+    });
+    await expect.poll(() => prisma.timelineEvent.findFirst({ where: { personId: person.id, category: "ATTENDANCE" } })).toMatchObject({ title: "Presença atualizada" });
+
+    await row.click();
+    await expect(row).toContainText("Não confirmado");
+    await expect.poll(() => prisma.attendance.findUnique({ where: { id: attendance.id } })).toMatchObject({ status: "NOT_CONFIRMED" });
+    await expect.poll(() => prisma.timelineEvent.count({ where: { personId: person.id } })).toBeGreaterThanOrEqual(3);
   } finally {
+    const personIds = [account.personId, person.id];
     await prisma.auditEvent.deleteMany({ where: { actorId: account.id } });
-    await prisma.timelineEvent.deleteMany({ where: { personId: person.id } });
     await prisma.attendance.deleteMany({ where: { meetingId: meeting.id } });
+    await prisma.timelineEvent.deleteMany({ where: { personId: { in: personIds } } });
     await prisma.ministryMembership.deleteMany({ where: { personId: person.id } });
     await prisma.meetingAudience.deleteMany({ where: { meetingId: meeting.id } });
     await prisma.meeting.delete({ where: { id: meeting.id } });
     await prisma.category.delete({ where: { id: category.id } });
     await prisma.ministry.delete({ where: { id: ministry.id } });
     await prisma.account.delete({ where: { id: account.id } });
-    await prisma.person.deleteMany({ where: { id: { in: [account.personId, person.id] } } });
+    await prisma.person.deleteMany({ where: { id: { in: personIds } } });
   }
 });
 

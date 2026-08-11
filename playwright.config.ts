@@ -6,7 +6,9 @@ const baseURL = `http://127.0.0.1:${port}`;
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: true,
+  workers: 1,
   reporter: "list",
+  globalSetup: "./e2e/global-setup.ts",
   use: {
     baseURL,
     trace: "on-first-retry",

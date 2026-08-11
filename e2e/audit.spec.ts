@@ -45,12 +45,13 @@ test.describe("audit history", () => {
     await login(page, adminUsername, "senha-t33-admin");
     await page.goto("/configuracoes/auditoria");
     await expect(page.getByRole("heading", { name: "Auditoria" })).toBeVisible();
-    await expect(page.getByText("Attendance ·")).toBeVisible();
-    await expect(page.getByText("Administrador E2E T33")).toBeVisible();
-    await expect(page.getByText("CORRECTION", { exact: true })).toBeVisible();
-    await expect(page.getByText('"status": "PRESENT"')).toBeVisible();
-    await expect(page.getByText('"status": "ABSENT"')).toBeVisible();
-    await expect(page.getByText("Correção solicitada")).toBeVisible();
+    const auditRecord = page.getByRole("article").filter({ hasText: `Attendance · ${targetId}` });
+    await expect(auditRecord.getByRole("heading", { name: `Attendance · ${targetId}` })).toBeVisible();
+    await expect(auditRecord.getByText("Administrador E2E T33")).toBeVisible();
+    await expect(auditRecord.getByText("CORRECTION", { exact: true })).toBeVisible();
+    await expect(auditRecord.getByText('"status": "PRESENT"')).toBeVisible();
+    await expect(auditRecord.getByText('"status": "ABSENT"')).toBeVisible();
+    await expect(auditRecord.getByText("Correção solicitada")).toBeVisible();
   });
 
   test("non-administrator cannot access audit history", async ({ page }) => {

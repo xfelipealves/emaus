@@ -150,16 +150,16 @@ A igreja hoje depende de planilhas, listas e anotações dispersas para saber qu
 
 | Requirement ID | Story | Phase | Status |
 | --- | --- | --- | --- |
-| AUTH-01 | Acesso interno e autorização | Tasks | Implemented in T12 |
-| AUTH-02 | Acesso interno e autorização | Tasks | Implemented in T14 and T23 |
-| PES-01 | Cadastro e acompanhamento de Pessoas | Tasks | Implemented in T17; list/search in T19; profile in T20 |
-| PES-02 | Cadastro e acompanhamento de Pessoas | Tasks | Implemented in T18 |
+| AUTH-01 | Acesso interno e autorização | Tasks | Implemented in T12; critical E2E in T35 |
+| AUTH-02 | Acesso interno e autorização | Tasks | Implemented in T14 and T23; critical E2E in T35 |
+| PES-01 | Cadastro e acompanhamento de Pessoas | Tasks | Implemented in T17; list/search in T19; profile in T20; lifecycle E2E in T35 |
+| PES-02 | Cadastro e acompanhamento de Pessoas | Tasks | Implemented in T18; lifecycle E2E in T35 |
 | MIN-01 | Ministérios e vínculos históricos | Tasks | Implemented in T07 and T21 |
-| MIN-02 | Ministérios e vínculos históricos | Tasks | Implemented in T07, T22 and T23 |
-| ENC-01 | Encontros e frequência | Tasks | Implemented in T08 |
+| MIN-02 | Ministérios e vínculos históricos | Tasks | Implemented in T07, T22 and T23; critical E2E in T35 |
+| ENC-01 | Encontros e frequência | Tasks | Implemented in T08; critical E2E in T35 |
 | ENC-02 | Encontros e frequência | Tasks | Pending |
-| TIM-01 | Perfil, timeline e notas | Tasks | Implemented in T09, T30 |
-| AUD-01 | Auditoria e operação segura | Tasks | Implemented in T09, T33 and T34 |
+| TIM-01 | Perfil, timeline e notas | Tasks | Implemented in T09, T30; critical E2E in T35 |
+| AUD-01 | Auditoria e operação segura | Tasks | Implemented in T09, T33 and T34; critical E2E in T35 |
 
 **Coverage:** 10 total, 10 mapped to tasks, 0 unmapped.
 
