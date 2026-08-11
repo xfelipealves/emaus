@@ -46,8 +46,8 @@ test.describe("person registration", () => {
     await page.getByLabel("Nome completo").fill("Visitante E2E T17");
     await page.getByRole("button", { name: "Cadastrar Pessoa" }).click();
 
-    await expect(page).not.toHaveURL(/\/pessoas\/nova$/);
-    await expect(page).toHaveURL(/\/pessoas\/[^/]+$/);
+    await expect(page).not.toHaveURL(/\/pessoas\/nova$/, { timeout: 30_000 });
+    await expect(page).toHaveURL(/\/pessoas\/[^/]+$/, { timeout: 30_000 });
     const visitorId = new URL(page.url()).pathname.split("/").pop();
     await expect(prisma.person.findUnique({ where: { id: visitorId } })).resolves.toMatchObject({
       fullName: "Visitante E2E T17",
@@ -63,8 +63,8 @@ test.describe("person registration", () => {
     await page.getByLabel("Data de nascimento").fill("1992-03-10");
     await page.getByRole("button", { name: "Cadastrar Pessoa" }).click();
 
-    await expect(page).not.toHaveURL(/\/pessoas\/nova$/);
-    await expect(page).toHaveURL(/\/pessoas\/[^/]+$/);
+    await expect(page).not.toHaveURL(/\/pessoas\/nova$/, { timeout: 30_000 });
+    await expect(page).toHaveURL(/\/pessoas\/[^/]+$/, { timeout: 30_000 });
     const memberId = new URL(page.url()).pathname.split("/").pop();
     await expect(prisma.person.findUnique({ where: { id: memberId } })).resolves.toMatchObject({
       fullName: "Membro E2E T17",

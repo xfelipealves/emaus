@@ -38,7 +38,7 @@ test.describe("audit history", () => {
     await page.getByLabel("Nome de usuário").fill(username);
     await page.getByLabel("Senha").fill(password);
     await page.getByRole("button", { name: "Entrar" }).click();
-    await expect(page).toHaveURL(/\/$/);
+    await expect(page).toHaveURL(/\/$/, { timeout: 30_000 });
   }
 
   test("administrator sees sensitive audit details and correction reason", async ({ page }) => {

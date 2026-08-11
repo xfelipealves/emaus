@@ -622,19 +622,22 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Gate**: Full
 **Commit**: `feat: show person attendance history`
 
-### T40: Stabilize audit login in the full E2E gate
+### T40: Stabilize critical-path E2E cold-start waits
 
-**What**: Give the audit E2E login helper the same cold-start tolerance as the other critical flows so the full gate does not fail on a valid account during application compilation.
-**Where**: `e2e/audit.spec.ts`
+**What**: Give the audit login helper and Person registration navigation assertions the same cold-start tolerance as the other critical flows so the full gate does not fail on valid behavior during application compilation.
+**Where**: `e2e/audit.spec.ts`, `e2e/people-registration.spec.ts`
 **Depends on**: T39 Full gate failure
 **Requirement**: AUTH-01, AUD-01
 **Done when**:
-- [ ] Audit administrator and secretary login assertions tolerate the documented dev-server cold start.
-- [ ] The audit spec remains exact and passes in isolation.
-- [ ] The Full gate can be rerun without the observed login timeout.
+- [x] Audit administrator and secretary login assertions tolerate the documented dev-server cold start.
+- [x] Person registration navigation assertions tolerate the documented dev-server cold start.
+- [x] The audit spec remains exact and passes in isolation.
+- [x] The Full gate can be rerun without the observed login timeout.
 **Tests**: E2E
 **Gate**: Full
 **Commit**: `test: stabilize audit e2e login`
+
+**Verification**: `npm run test:integration && npm run test:e2e` passed: 31 files/100 integration tests and 25/25 E2E tests; `npm run test:e2e -- --workers=1 e2e/audit.spec.ts e2e/people-registration.spec.ts` passed 4/4. Adequacy review PASS: `e2e/audit.spec.ts:41` preserves the exact `/` destination while allowing only 30 seconds for cold start; `e2e/people-registration.spec.ts:49-50,66-67` preserves exact profile URL assertions with the same bounded wait. No behavior assertion was weakened and no test was deleted.
 
 ---
 
