@@ -46,6 +46,42 @@ describe("account administration", () => {
     ).rejects.toThrow("Pessoa não encontrada.");
   });
 
+  it("rejects duplicate usernames and emails without persisting another account", async () => {
+    const [existingPerson, usernameDuplicatePerson, emailDuplicatePerson] = await Promise.all([
+      prisma.person.create({ data: { fullName: `Conta única T15 ${suffix}` } }),
+      prisma.person.create({ data: { fullName: `Username duplicado T15 ${suffix}` } }),
+      prisma.person.create({ data: { fullName: `E-mail duplicado T15 ${suffix}` } }),
+    ]);
+    personIds.push(existingPerson.id, usernameDuplicatePerson.id, emailDuplicatePerson.id);
+    const username = `conta-unica-t15-${suffix}`;
+    const email = `conta-unica-t15-${suffix}@example.test`;
+    const account = await createAccount(actor, {
+      personId: existingPerson.id,
+      username,
+      email,
+      password: "senha-segura-t15",
+      role: "SECRETARY",
+    });
+    accountIds.push(account.id);
+
+    await expect(createAccount(actor, {
+      personId: usernameDuplicatePerson.id,
+      username,
+      email: `outro-${suffix}@example.test`,
+      password: "senha-segura-t15",
+      role: "SECRETARY",
+    })).rejects.toThrow("Nome de usuário, e-mail ou Pessoa já está em uso.");
+    await expect(createAccount(actor, {
+      personId: emailDuplicatePerson.id,
+      username: `outro-username-${suffix}`,
+      email: email.toUpperCase(),
+      password: "senha-segura-t15",
+      role: "SECRETARY",
+    })).rejects.toThrow("Nome de usuário, e-mail ou Pessoa já está em uso.");
+
+    await expect(prisma.account.count({ where: { personId: { in: [usernameDuplicatePerson.id, emailDuplicatePerson.id] } } })).resolves.toBe(0);
+  });
+
   it("denies account administration to non-administrators", async () => {
     await expect(
       createAccount(secretary, {
