@@ -535,12 +535,14 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Depends on**: T33
 **Requirement**: AUD-01
 **Done when**:
-- [ ] Seed demonstrates each role and core feature.
-- [ ] README documents local reset/seed command.
-- [ ] No real personal data exists in seed.
+- [x] Seed demonstrates each role and core feature.
+- [x] README documents local reset/seed command.
+- [x] No real personal data exists in seed.
 **Tests**: integration
 **Gate**: Full
 **Commit**: `chore: add Emaus demo scenario`
+
+**Verification**: `npm run test:integration -- --maxWorkers=1` — 100 passed; `npm run test:e2e -- --workers=1` — 21 passed. The default parallel E2E command remains subject to the pre-existing shared-fixture race documented in the handoff.
 
 ### T35: Complete critical-path Playwright suite
 

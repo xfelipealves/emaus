@@ -18,6 +18,23 @@ docker compose up -d
 
 O banco fica disponível em `localhost:5432`. A aplicação e o Prisma devem obter a conexão exclusivamente pela variável `DATABASE_URL`.
 
+## Cenário demo local
+
+Para começar de um banco limpo, aplique as migrations e execute o seed:
+
+```bash
+npx prisma migrate reset --force
+npm run db:seed
+```
+
+O `npm run db:seed` também pode ser executado novamente sobre o banco local: os registros do cenário demo usam IDs estáveis e não são duplicados. Todas as identidades são fictícias e usam domínios locais de teste.
+
+Contas demo (senha comum `emaus-demo`):
+
+- `demo-admin` — administrador
+- `demo-secretary` — secretaria
+- `demo-leader` — líder com escopo no Ministério Demo Acolhimento
+
 ## Documentação de produto
 
 - [Visão do produto](docs/product/01-visao-do-produto.md)
