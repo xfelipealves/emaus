@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { APP_NAME } from "../app-identity";
 
 export default function Home() {
@@ -18,11 +19,11 @@ export default function Home() {
           ["Criar encontro", "Organize a próxima reunião", "/encontros"],
           ["Lançar frequência", "Registre quem está presente", "/encontros"],
         ].map(([title, description, href]) => (
-          <a key={title} href={href} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-transform hover:-translate-y-0.5 hover:shadow-md">
+          <Link key={title} href={href} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-transform hover:-translate-y-0.5 hover:shadow-md">
             <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#e3f1ed] text-lg text-[#26766d]">+</span>
             <h2 className="mt-5 font-semibold text-slate-900">{title}</h2>
             <p className="mt-1 text-sm leading-5 text-slate-500">{description}</p>
-          </a>
+          </Link>
         ))}
       </section>
 
@@ -33,7 +34,7 @@ export default function Home() {
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Agenda</p>
               <h2 className="mt-2 text-xl font-semibold">Próximos encontros</h2>
             </div>
-            <a href="/encontros" className="text-sm font-semibold text-[#26766d]">Ver todos</a>
+            <Link href="/encontros" className="text-sm font-semibold text-[#26766d]">Ver todos</Link>
           </div>
           <div className="mt-6 flex items-center gap-4 rounded-xl bg-[#f7f9f8] p-4">
             <div className="rounded-xl bg-white px-3 py-2 text-center shadow-sm"><p className="text-[10px] font-bold uppercase text-[#26766d]">AGO</p><p className="text-xl font-semibold">09</p></div>

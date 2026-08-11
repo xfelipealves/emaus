@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import Link from "next/link";
 import { Button, Input } from "@/components/ui";
 import { createPersonAction, type PersonActionState } from "./actions";
 
@@ -25,7 +26,7 @@ export function PersonForm() {
       <Input id="birthDate" name="birthDate" label="Data de nascimento" type="date" />
       {state.error ? <p role="alert" className="rounded-xl bg-[#fff1f1] px-3 py-2 text-sm text-[#b54747]">{state.error}</p> : null}
       <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-        <a href="/pessoas" className="inline-flex min-h-10 items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100">Cancelar</a>
+        <Link href="/pessoas" className="inline-flex min-h-10 items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100">Cancelar</Link>
         <Button type="submit" disabled={isPending}>{isPending ? "Salvando..." : "Cadastrar Pessoa"}</Button>
       </div>
     </form>

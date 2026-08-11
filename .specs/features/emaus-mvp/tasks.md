@@ -41,7 +41,7 @@ M4 People:           T16 → T17 → T18 → T19 → T20
 M5 Ministries:       T21 → T22 → T23 → T24
 M6 Meetings:         T25 → T26 → T27 → T28 → T29
 M7 History/audit:    T30 → T31 → T32 → T33
-M8 Validation:       T34 → T35 → T36
+M8 Validation:       T34 → T35 → T36 → T37 (correction)
 ```
 
 Phases are sequential. Within each milestone, tasks are sequential unless their `Depends on` field says otherwise.
@@ -573,6 +573,22 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Tests**: full suite + UAT
 **Gate**: Build
 **Commit**: `docs: validate Emaus MVP locally`
+
+### T37: Restore clean Build gate navigation
+
+**What**: Correct internal navigation elements flagged by the T36 lint gate and remove the unused meeting-form import.
+**Where**: `src/app/(dashboard)/page.tsx`, `src/app/(dashboard)/pessoas/nova/person-form.tsx`, `src/app/(dashboard)/encontros/page.tsx`, `e2e/shell.spec.ts`
+**Depends on**: T36 validation gap
+**Requirement**: AUD-01
+**Done when**:
+- [x] Dashboard shortcuts and Person-form cancel keep their destinations while using `next/link`.
+- [x] The Encontros page has no unused `CreateMeetingForm` import.
+- [x] Build gate passes without lint errors and the existing E2E suite remains green.
+**Tests**: Build + E2E smoke
+**Gate**: Build
+**Commit**: `fix: restore clean navigation lint gate`
+
+**Verification**: `npm run db:validate && npm run typecheck && npm run lint && npm run build && npm run test` passed: schema valid, typecheck/lint clean of errors, production build succeeded, 31 files/100 tests passed. `npm run test:e2e -- --workers=1 e2e/shell.spec.ts` passed 3/3. Adequacy review PASS: `e2e/shell.spec.ts:53-55` asserts `/pessoas` and both `/encontros` shortcut hrefs; `e2e/shell.spec.ts:58-59` asserts Cancelar navigates to `/pessoas`; lint is the precise static evidence for the `next/link` and unused-import criteria. No tests were deleted or weakened.
 
 ---
 

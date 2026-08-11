@@ -4,7 +4,6 @@ import { redirect } from "next/navigation";
 import { getSession } from "@/features/auth/session-service";
 import { getMeetingActor, listMeetingOptions, listMeetings } from "@/features/encontros/meeting-service";
 import { SESSION_COOKIE_NAME } from "@/lib/session";
-import { CreateMeetingForm } from "./meeting-forms";
 
 export default async function MeetingsPage() {
   const token = (await cookies()).get(SESSION_COOKIE_NAME)?.value;

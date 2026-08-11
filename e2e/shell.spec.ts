@@ -47,4 +47,15 @@ test.describe("responsive application shell", () => {
     await expect(page.getByRole("navigation", { name: "Navegação principal" })).toBeHidden();
     await expect(navigation.getByRole("link", { name: "Mais" })).toHaveAttribute("href", "/configuracoes");
   });
+
+  test("dashboard shortcuts and person cancellation keep internal destinations", async ({ page }) => {
+    const shortcuts = page.getByRole("region", { name: "Atalhos rápidos" });
+    await expect(shortcuts.getByRole("link", { name: /Cadastrar pessoa/ })).toHaveAttribute("href", "/pessoas");
+    await expect(shortcuts.getByRole("link", { name: /Criar encontro/ })).toHaveAttribute("href", "/encontros");
+    await expect(shortcuts.getByRole("link", { name: /Lançar frequência/ })).toHaveAttribute("href", "/encontros");
+
+    await page.goto("/pessoas/nova");
+    await page.getByRole("link", { name: "Cancelar" }).click();
+    await expect(page).toHaveURL(/\/pessoas$/);
+  });
 });
