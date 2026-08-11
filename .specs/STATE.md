@@ -61,10 +61,10 @@
 ## Handoff
 
 - **Feature**: `.specs/features/emaus-mvp`
-- **Phase / Task**: Execute — M8/T36
+- **Phase / Task**: Execute — M8/T43
 - **Completed**: instalação do `tlc-spec-driven`; Specify aprovado; Design aprovado; milestones M1–M8 e tasks T01–T36 criados; bootstrap T01, runtime PostgreSQL T02, workflow Prisma T03, shell responsivo T04, primitives de interface T05, schema de Pessoa/Conta T06, schema de Ministérios/vínculos/escopos T07, schema de encontros/séries/públicos/frequência T08, schema de notas/versões/timeline/auditoria T09, seed/utilitários de data/fuso T10, hash Argon2/validação de credenciais T11, persistência/ciclo de sessão T12, login/redirecionamento protegido T13, autorização por papel e Ministério T14, administração de contas T15, serviço transacional de Pessoas T16, cadastro de visitantes/membros T17, transições de status T18, lista/busca/filtros de Pessoas T19, perfil geral de Pessoa T20, administração de Ministérios T21, histórico de vínculos ministeriais T22, grants/revogação de escopos ministeriais T23, perfil/histórico de Ministérios T24, categorias/séries/recorrência T25, criação de encontros/públicos T26, inicialização idempotente de frequência T27, ciclo/auditoria de presença T28, busca/visitante rápido/resumos de frequência T29, timeline/filtros do perfil T30, criação/edição versionada de notas T31, arquivamento/filtro de notas T32, consulta/tela administrativa de auditoria T33, cenário demo local idempotente T34, suíte Playwright crítica isolada T35, correção de lint/build gate T37, ciclo de status de Pessoa T38, histórico de frequência T39, estabilização de cold start T40, normalização de datas São Paulo T41 e retry de presença T42 validados
-- **In-progress** (file:line): T36 — verificação independente evidence-or-zero, sensor, UAT e validation.md; qualquer gap residual deve virar task atômica antes do PASS
-- **Next step**: executar o Build gate, consolidar a matriz independente de requisitos, confirmar sensor/UAT, corrigir gaps atômicos se houver e só então commitar validation.md/STATE final.
+- **In-progress** (file:line): T43 — confirmação discreta no cadastro inicial identificada pela revisão independente de PES-01 AC5; T36 permanece aberto até todas as correções e a revalidação PASS
+- **Next step**: implementar T43 em isolamento, com teste E2E para visitante e membro, gate Full e commit atômico; depois retomar T36 para o próximo gap ou PASS final.
 - **Blockers**: nenhum. T42 passou no Full com 31 arquivos/102 testes de integração e 26 E2E, com adequacy review PASS. A validação independente T36 segue inline pelo Codex; OpenCode e Ralph Loop não foram usados.
 - **Uncommitted files**: nenhum após o commit de T42 e esta sincronização do loop-state
 - **Branch**: main

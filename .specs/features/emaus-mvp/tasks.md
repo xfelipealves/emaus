@@ -675,6 +675,20 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 
 **Verification**: Full gate `npm run test:integration && npm run test:e2e` passed with 31 files/102 integration tests and 26/26 E2E tests. Adequacy review PASS: `src/app/(dashboard)/encontros/[meetingId]/attendance-board.tsx:33-57,88` restores the prior optimistic value, retains the exact server error and renders an explicit retry; `e2e/attendance.spec.ts:59-100` forces cancellation, asserts rollback/error/retry, reopens the meeting and asserts `PRESENT` in both UI and database. No existing test was deleted or weakened.
 
+### T43: Confirm initial Person registration in the profile
+
+**What**: Return a discreet success confirmation after creating a Person and render it in the destination profile without changing the existing registration flow.
+**Where**: `src/app/(dashboard)/pessoas/nova/actions.ts`, `src/app/(dashboard)/pessoas/[personId]/page.tsx`, `e2e/people-registration.spec.ts`, `e2e/people.spec.ts`
+**Depends on**: T42
+**Requirement**: PES-01
+**Done when**:
+- [ ] Initial visitor and member registrations redirect to the profile with a success status message.
+- [ ] The confirmation is exact, contextual and does not replace the persisted profile/status assertions.
+- [ ] Browser evidence covers both registration variants.
+**Tests**: E2E
+**Gate**: Full
+**Commit**: `fix: confirm person registration`
+
 ---
 
 ## Phase Execution Map
