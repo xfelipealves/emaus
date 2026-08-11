@@ -708,6 +708,19 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 
 **Verification**: Full gate `npm run test:integration && npm run test:e2e` passed with 31 files/102 integration tests and 27/27 E2E tests. Adequacy review PASS: `src/app/(dashboard)/encontros/meeting-forms.tsx:10-18` confirms only the `CANCELLED` path and prevents default on dismissal; `e2e/meetings.spec.ts:60-85` asserts the exact dialog text, no database row/success after dismissal, and persisted `CANCELLED` after acceptance. The 30-second success wait preserves the exact result while tolerating the documented dev-server cold start. No existing test was deleted or weakened.
 
+### T45: Strengthen cancellation-dismissal evidence
+
+**What**: Await the asynchronous outcome of a dismissed cancellation confirmation so the test fails if a cancelled meeting is accidentally created after dismissal.
+**Where**: `e2e/meetings.spec.ts`
+**Depends on**: T44
+**Requirement**: AUD-01
+**Done when**:
+- [ ] Dismissal evidence waits for the form to settle and polls persistence, rather than checking only the immediate state.
+- [ ] The test kills a mutation that bypasses the dismissal guard while preserving the exact acceptance assertions.
+**Tests**: E2E
+**Gate**: Full
+**Commit**: `test: harden cancellation dismissal evidence`
+
 ---
 
 ## Phase Execution Map
