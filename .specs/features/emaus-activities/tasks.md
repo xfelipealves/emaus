@@ -65,9 +65,9 @@ Implement with `tlc-spec-driven` and TDD. One atomic commit per task; every task
 **Requirement**: ACT-01, ACT-02, ACT-03, ACT-04, ACT-05, ACT-06, ACT-07
 **Done when**:
 
-- [ ] Tests first prove create/list/filter, invalid input and inactive-account rejection.
-- [ ] Tests prove subtask create, update title/completion and delete while preserving the parent.
-- [ ] Tests prove confirmed service deletion removes the activity and all subtasks and records audit evidence.
+- [x] Tests first prove create/list/filter, invalid input and inactive-account rejection.
+- [x] Tests prove subtask create, update title/completion and delete while preserving the parent.
+- [x] Tests prove confirmed service deletion removes the activity and all subtasks and records audit evidence.
 
 **Tests**: integration
 **Gate**: Quick, then Full after T5
