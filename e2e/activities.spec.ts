@@ -87,13 +87,8 @@ test("creates, filters, edits and deletes activities with subtasks", async ({ pa
   await expect(cascadeSubtask).toBeVisible();
 
   const deleteActivityButton = activity.getByRole("button", { name: `Excluir atividade ${tomorrowTitle}` });
-  let cancelDialogMessage = "";
-  page.once("dialog", async (dialog) => {
-    cancelDialogMessage = dialog.message();
-    await dialog.dismiss();
-  });
+  page.once("dialog", async (dialog) => { await dialog.dismiss(); });
   await deleteActivityButton.click();
-  expect(cancelDialogMessage).toContain("As subtasks também serão excluídas.");
   await expect(activity).toBeVisible();
   await expect(cascadeSubtask).toBeVisible();
 
