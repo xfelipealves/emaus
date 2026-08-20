@@ -205,7 +205,9 @@ O `scripts/ralph-loop.sh` também verifica, após cada chamada ao OpenCode:
 4. Conferir o resumo, o diff, os testes e o commit gerado.
 5. Aumentar o lote apenas quando o piloto estiver confiável.
 6. Ao fim de cada milestone, executar o Build Gate definido no `tasks.md`.
-7. Ao fim de T36, o loop para em `verification_required`; então disparar o Verifier TLC e criar `.specs/features/emaus-mvp/validation.md`.
+7. Ao fim da última task definida em `tasks.md`, o loop para em
+   `verification_required`; então disparar o Verifier TLC e criar ou atualizar
+   `.specs/features/emaus-mvp/validation.md`.
 8. Ao fim de um lote, executar a [QA independente](#qa-independente-do-lote)
    antes de solicitar revisão ou merge manual.
 
@@ -219,4 +221,6 @@ Pare o loop e peça decisão humana se houver:
 - necessidade de segredo, credencial, serviço externo ou decisão de deploy;
 - mudança de escopo ou custo relevante.
 
-Não rode T01–T36 em um lote único. O loop é guardado por estado, commit e gate, mas milestones e mudanças de risco devem ser revisados em lotes curtos para evitar propagação de erro entre módulos.
+Não rode todas as tasks em um lote único. O loop é guardado por estado, commit e
+gate, mas milestones e mudanças de risco devem ser revisados em lotes curtos para
+evitar propagação de erro entre módulos.

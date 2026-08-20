@@ -6,7 +6,10 @@ O Emaús será desenvolvido com **Spec-Driven Development**. Antes de implementa
 
 ## Estado atual
 
-Specify e Design estão aprovados. O projeto está na fase **Execute**, com a fundação local e o runtime PostgreSQL preparados pelo OpenCode.
+Specify e Design estão aprovados. O MVP está implementado e validado pelo relatório
+`.specs/features/emaus-mvp/validation.md`. O fluxo normal de novos lotes começa a
+partir de `origin/dev` e mantém um Draft PR por lote; a reconciliação histórica do
+MVP usa a branch `lote/L001-emaus-mvp-reconcile` antes de sua integração em `dev`.
 
 ## Banco local
 
@@ -52,7 +55,7 @@ Contas demo (senha comum `emaus-demo`):
 - [Estado operacional TLC](.specs/STATE.md)
 - [Especificação consolidada do MVP](.specs/features/emaus-mvp/spec.md)
 - [Design técnico e milestones](.specs/features/emaus-mvp/design.md)
-- [Plano de execução T01–T36](.specs/features/emaus-mvp/tasks.md)
+- [Plano de execução T01–T47](.specs/features/emaus-mvp/tasks.md)
 - [Operação do Ralph Loop com OpenCode](docs/operations/opencode-ralph-loop.md)
 - [QA e prontidão do lote Ralph](docs/operations/opencode-ralph-loop.md#qa-independente-do-lote)
 - [Fluxo de branches e PRs do Ralph](docs/operations/ralph-branch-pr-flow.md)

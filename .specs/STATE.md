@@ -61,10 +61,10 @@
 ## Handoff
 
 - **Feature**: `.specs/features/emaus-mvp`
-- **Phase / Task**: Complete — M8/T36
-- **Completed**: instalação do `tlc-spec-driven`; Specify aprovado; Design aprovado; milestones M1–M8 e tasks T01–T36 criados; bootstrap T01, runtime PostgreSQL T02, workflow Prisma T03, shell responsivo T04, primitives de interface T05, schema de Pessoa/Conta T06, schema de Ministérios/vínculos/escopos T07, schema de encontros/séries/públicos/frequência T08, schema de notas/versões/timeline/auditoria T09, seed/utilitários de data/fuso T10, hash Argon2/validação de credenciais T11, persistência/ciclo de sessão T12, login/redirecionamento protegido T13, autorização por papel e Ministério T14, administração de contas T15, serviço transacional de Pessoas T16, cadastro de visitantes/membros T17, transições de status T18, lista/busca/filtros de Pessoas T19, perfil geral de Pessoa T20, administração de Ministérios T21, histórico de vínculos ministeriais T22, grants/revogação de escopos T23, perfil/histórico de Ministérios T24, categorias/séries/recorrência T25, criação de encontros/públicos T26, inicialização idempotente de frequência T27, ciclo/auditoria de presença T28, busca/visitante rápido/resumos T29, timeline/filtros T30, notas versionadas T31, arquivamento/filtro T32, auditoria T33, cenário demo T34, suíte crítica T35, T36 verifier/UAT e correções T37–T47 concluídos e validados
-- **In-progress**: nenhum.
-- **Next step**: nenhuma; o MVP Emaús foi validado localmente. Uma evolução futura deve iniciar nova feature/spec.
-- **Blockers**: nenhum. `validation.md` é PASS com 31/31 critérios, Full 31/103 + 27/27, Build PASS, sensor 3/3 e UAT automatizado PASS. OpenCode e Ralph Loop não foram usados.
-- **Uncommitted files**: nenhum após o bookkeeping final.
-- **Branch**: main
+- **Phase / Task**: Integration — reconcile MVP with the Ralph `dev` flow
+- **Completed**: instalação do `tlc-spec-driven`; Specify e Design aprovados; MVP T01–T47 implementado; validação registrada em `validation.md`; branch `lote/L001-emaus-mvp-reconcile` criada a partir de `origin/dev`; código, migrations, testes e documentação operacional reconciliados sem force-push.
+- **In-progress**: validação técnica da árvore reconciliada e preparação do Draft PR para `dev`.
+- **Next step**: executar os gates completos, publicar a branch e abrir um único Draft PR para `dev`; depois da revisão independente, promover por PR separado de `dev` para `main`.
+- **Blockers**: nenhum conhecido. `origin/main` e `origin/dev` permanecem intocados; a reconciliação preserva a validação MVP existente e torna o Ralph compatível com tasks definidas além de T36.
+- **Uncommitted files**: reconciliação em andamento nesta branch; registrar o snapshot final após os gates.
+- **Branch**: lote/L001-emaus-mvp-reconcile
