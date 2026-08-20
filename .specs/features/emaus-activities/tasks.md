@@ -81,9 +81,9 @@ Implement with `tlc-spec-driven` and TDD. One atomic commit per task; every task
 **Requirement**: ACT-01, ACT-02, ACT-03, ACT-04, ACT-05, ACT-07
 **Done when**:
 
-- [ ] All actions resolve an active session before calling the service.
-- [ ] Invalid action input returns a contextual error without partial writes.
-- [ ] The page accepts valid bucket query values and defaults safely for invalid values.
+- [x] All actions resolve an active session before calling the service.
+- [x] Invalid action input returns a contextual error without partial writes.
+- [x] The page accepts valid bucket query values and defaults safely for invalid values.
 
 **Tests**: typecheck + integration coverage
 **Gate**: Build
