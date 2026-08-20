@@ -115,6 +115,8 @@ test("loads historical attendance after the audience ministry is archived", asyn
     const row = page.getByRole("button", { name: `Marcar ${person.fullName}` });
     await row.click();
     await expect(row).toContainText("Presente");
+    await expect(page.getByRole("status")).toHaveText("Presença salva.");
+    await expect.poll(() => prisma.attendance.findUnique({ where: { meetingId_personId: { meetingId: meeting.id, personId: person.id } } })).toMatchObject({ status: "PRESENT" });
 
     await prisma.ministry.update({ where: { id: ministry.id }, data: { status: "ARCHIVED" } });
     await page.reload();
