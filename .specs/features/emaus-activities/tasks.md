@@ -114,9 +114,9 @@ Implement with `tlc-spec-driven` and TDD. One atomic commit per task; every task
 **Requirement**: ACT-01 through ACT-07
 **Done when**:
 
-- [ ] E2E proves all buckets and the `Amanhã` filter.
-- [ ] E2E proves subtask CRUD and parent preservation after subtask deletion.
-- [ ] E2E proves cancelled deletion keeps activity/subtasks and confirmed deletion removes them.
+- [x] E2E proves all buckets and the `Amanhã` filter.
+- [x] E2E proves subtask CRUD and parent preservation after subtask deletion.
+- [x] E2E proves cancelled deletion keeps activity/subtasks and confirmed deletion removes them.
 
 **Tests**: E2E
 **Gate**: Full
