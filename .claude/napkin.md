@@ -7,23 +7,13 @@
 - Each item includes date + "Do instead".
 
 ## Execution & Validation (Highest Priority)
-1. **[2026-07-21] Execute one Ralph task per atomic commit**
-   Do instead: verify the task gate before updating loop state or committing.
-2. **[2026-07-21] Validate published Ralph state before QA**
-   Do instead: compare local HEAD and `lastPush.sha` with `origin/<runBranch>`.
-3. **[2026-07-21] Next build rewrites tracked `next-env.d.ts`**
-   Do instead: preserve and restore it around QA builds, then reject every other dirty path.
+1. **[2026-08-11] Local integration and E2E fixtures share a stateful PostgreSQL database**
+   Do instead: after verified synthetic-fixture pollution, reset the project database and use serial workers to distinguish product failures from shared-state races.
 
 ## Shell & Command Reliability
-1. **[2026-07-21] Keep later-task tooling out of earlier task commits**
-   Do instead: use placeholders only when the current task explicitly requires a future script name.
 
 ## Domain Behavior Guardrails
-1. **[2026-07-21] Preserve approved MVP scope**
-   Do instead: implement only the current task and leave authentication, data and operational features for their listed tasks.
-2. **[2026-07-21] Keep Ralph PRs Draft until independent QA**
-   Do instead: retry missing PR metadata on resume and stop safely if an open PR is already ready.
 
 ## User Directives
-1. **[2026-07-21] Prefer direct Unicode literals in APEX/SQL exports**
-   Do instead: use direct literals such as `Césio` rather than `unistr(...)` when editing those exports.
+1. **[2026-08-11] TLC tasks require isolated implementation and evidence gates**
+   Do instead: for each task, derive tests from acceptance criteria, run the mandatory gate and adequacy review, then create one atomic commit before moving on.

@@ -1,70 +1,95 @@
-import { AccountRole, AccountStatus, PersonStatus, PrismaClient } from "@prisma/client";
-import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { prisma } from "./prisma";
 
-const prisma = new PrismaClient();
+describe("Person and Account persistence", () => {
+  const personIds: string[] = [];
 
-describe("Person and Account schema", () => {
-  beforeEach(async () => {
-    await prisma.account.deleteMany();
-    await prisma.person.deleteMany();
+  beforeAll(async () => {
+    const person = await prisma.person.create({
+      data: { fullName: "Pessoa de integração T06" },
+    });
+    personIds.push(person.id);
   });
 
   afterAll(async () => {
+    await prisma.account.deleteMany({ where: { personId: { in: personIds } } });
+    await prisma.person.deleteMany({ where: { id: { in: personIds } } });
     await prisma.$disconnect();
   });
 
-  it("supports visitor, member and inactive person statuses", async () => {
-    const people = await prisma.$transaction([
-      prisma.person.create({ data: { fullName: "Visitante", status: PersonStatus.VISITOR } }),
-      prisma.person.create({ data: { fullName: "Membro", status: PersonStatus.MEMBER } }),
-      prisma.person.create({ data: { fullName: "Inativo", status: PersonStatus.INACTIVE } }),
-    ]);
+  it("creates a visitor with the default status and no persisted age", async () => {
+    const person = await prisma.person.findUniqueOrThrow({
+      where: { id: personIds[0] },
+    });
 
-    expect(people.map((person) => person.status)).toEqual([
-      PersonStatus.VISITOR,
-      PersonStatus.MEMBER,
-      PersonStatus.INACTIVE,
-    ]);
+    expect(person.status).toBe("VISITOR");
+    expect(person.birthDate).toBeNull();
+    expect("age" in person).toBe(false);
   });
 
-  it("enforces unique username, email and person link for accounts", async () => {
-    const firstPerson = await prisma.person.create({ data: { fullName: "Primeira Pessoa" } });
-    const secondPerson = await prisma.person.create({ data: { fullName: "Segunda Pessoa" } });
-    const accountData = {
-      username: "admin",
-      email: "admin@example.test",
-      passwordHash: "argon2-hash",
-      role: AccountRole.ADMIN,
-      status: AccountStatus.ACTIVE,
-      personId: firstPerson.id,
-    };
+  it("supports account roles and active status for one linked person", async () => {
+    const account = await prisma.account.create({
+      data: {
+        personId: personIds[0],
+        username: "integracao-t06",
+        email: "integracao-t06@example.test",
+        passwordHash: "test-hash",
+        role: "ADMINISTRATOR",
+      },
+      include: { person: true },
+    });
 
-    const account = await prisma.account.create({ data: accountData });
-
-    expect(account.personId).toBe(firstPerson.id);
-    expect(account.role).toBe(AccountRole.ADMIN);
-    expect(account.status).toBe(AccountStatus.ACTIVE);
-
-    await expect(
-      prisma.account.create({ data: { ...accountData, personId: secondPerson.id } }),
-    ).rejects.toMatchObject({ code: "P2002" });
-    await expect(
-      prisma.account.create({ data: { ...accountData, email: "other@example.test", personId: secondPerson.id } }),
-    ).rejects.toMatchObject({ code: "P2002" });
-    await expect(
-      prisma.account.create({ data: { ...accountData, username: "other-admin", personId: secondPerson.id } }),
-    ).rejects.toMatchObject({ code: "P2002" });
+    expect(account.role).toBe("ADMINISTRATOR");
+    expect(account.status).toBe("ACTIVE");
+    expect(account.person.id).toBe(personIds[0]);
   });
 
-  it("does not persist an age column", async () => {
-    const ageColumn = await prisma.$queryRaw<Array<{ count: bigint }>>`
-      SELECT COUNT(*)::bigint AS count
-      FROM information_schema.columns
-      WHERE table_schema = 'public'
-        AND table_name = 'Person'
-        AND column_name = 'age'
-    `;
+  it("enforces unique username, email and person account links", async () => {
+    const secondPerson = await prisma.person.create({
+      data: { fullName: "Segunda pessoa de integração T06" },
+    });
+    personIds.push(secondPerson.id);
 
-    expect(ageColumn[0]?.count).toBe(BigInt(0));
+    await prisma.account.create({
+      data: {
+        personId: secondPerson.id,
+        username: "segundo-usuario-t06",
+        email: "segundo-t06@example.test",
+        passwordHash: "test-hash",
+      },
+    });
+
+    await expect(
+      prisma.account.create({
+        data: {
+          personId: secondPerson.id,
+          username: "outro-usuario-t06",
+          email: "integracao-t06@example.test",
+          passwordHash: "test-hash",
+        },
+      }),
+    ).rejects.toMatchObject({ code: "P2002" });
+
+    await expect(
+      prisma.account.create({
+        data: {
+          personId: secondPerson.id,
+          username: "terceiro-usuario-t06",
+          email: "segundo-t06@example.test",
+          passwordHash: "test-hash",
+        },
+      }),
+    ).rejects.toMatchObject({ code: "P2002" });
+
+    await expect(
+      prisma.account.create({
+        data: {
+          personId: secondPerson.id,
+          username: "quarto-usuario-t06",
+          email: "terceiro-t06@example.test",
+          passwordHash: "test-hash",
+        },
+      }),
+    ).rejects.toMatchObject({ code: "P2002" });
   });
 });

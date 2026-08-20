@@ -6,15 +6,34 @@ O Emaús será desenvolvido com **Spec-Driven Development**. Antes de implementa
 
 ## Estado atual
 
-Specify e Design estão aprovados. O projeto está na fase **Tasks**, com T01–T11 concluídas e T12 como próxima tarefa pelo OpenCode. Cada lote publica a primeira task antes de criar ou reutilizar um Draft PR; a QA independente só marca o PR como pronto após a revalidação final.
+Specify e Design estão aprovados. O projeto está na fase **Execute**, com a fundação local e o runtime PostgreSQL preparados pelo OpenCode.
 
-## Desenvolvimento local
+## Banco local
 
-1. Copie `.env.example` para `.env`.
-2. Inicie o PostgreSQL com `docker compose up -d`.
-3. Pare o banco com `docker compose down`.
+Copie `.env.example` para `.env` e substitua os placeholders por valores locais. O arquivo `.env` é ignorado pelo Git.
 
-O `DATABASE_URL` é lido do ambiente pela aplicação. Os valores do Compose são exclusivos para desenvolvimento local e não devem ser reutilizados em ambientes compartilhados.
+```bash
+docker compose up -d
+```
+
+O banco fica disponível em `localhost:5432`. A aplicação e o Prisma devem obter a conexão exclusivamente pela variável `DATABASE_URL`.
+
+## Cenário demo local
+
+Para começar de um banco limpo, aplique as migrations e execute o seed:
+
+```bash
+npx prisma migrate reset --force
+npm run db:seed
+```
+
+O `npm run db:seed` também pode ser executado novamente sobre o banco local: os registros do cenário demo usam IDs estáveis e não são duplicados. Todas as identidades são fictícias e usam domínios locais de teste.
+
+Contas demo (senha comum `emaus-demo`):
+
+- `demo-admin` — administrador
+- `demo-secretary` — secretaria
+- `demo-leader` — líder com escopo no Ministério Demo Acolhimento
 
 ## Documentação de produto
 
