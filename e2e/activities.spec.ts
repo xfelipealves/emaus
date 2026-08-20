@@ -52,9 +52,17 @@ test("creates, filters, edits and deletes activities with subtasks", async ({ pa
   await expect(page.getByRole("article").filter({ hasText: tomorrowTitle })).toBeVisible();
   await expect(page.getByRole("article").filter({ hasText: backlogTitle })).toHaveCount(0);
 
+  await page.locator("#activity-filter").selectOption("parked");
+  await page.getByRole("button", { name: "Ver" }).click();
+  await expect(page).toHaveURL(/bucket=parked/);
+  await expect(page.getByRole("article").filter({ hasText: parkedTitle })).toBeVisible();
+  await expect(page.getByRole("article").filter({ hasText: tomorrowTitle })).toHaveCount(0);
+
   await page.locator("#activity-filter").selectOption("all");
   await page.getByRole("button", { name: "Ver" }).click();
   const activity = page.getByRole("article").filter({ hasText: tomorrowTitle });
+  await expect(page).toHaveURL(/\/atividades(?:\?|$)/);
+  await expect(activity).toBeVisible();
 
   await activity.getByLabel(`Nova subtask para ${tomorrowTitle}`).fill(firstSubtaskTitle);
   await activity.getByRole("button", { name: "Adicionar" }).click();
@@ -79,12 +87,17 @@ test("creates, filters, edits and deletes activities with subtasks", async ({ pa
   await expect(cascadeSubtask).toBeVisible();
 
   const deleteActivityButton = activity.getByRole("button", { name: `Excluir atividade ${tomorrowTitle}` });
-  await page.once("dialog", (dialog) => dialog.dismiss());
+  let cancelDialogMessage = "";
+  page.once("dialog", async (dialog) => {
+    cancelDialogMessage = dialog.message();
+    await dialog.dismiss();
+  });
   await deleteActivityButton.click();
+  expect(cancelDialogMessage).toContain("As subtasks também serão excluídas.");
   await expect(activity).toBeVisible();
   await expect(cascadeSubtask).toBeVisible();
 
-  await page.once("dialog", (dialog) => dialog.accept());
+  page.once("dialog", async (dialog) => { await dialog.accept(); });
   await deleteActivityButton.click();
   await expect(activity).toHaveCount(0);
   await expect.poll(async () => prisma.activity.count({ where: { title: tomorrowTitle } })).toBe(0);

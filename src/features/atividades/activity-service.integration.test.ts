@@ -73,12 +73,16 @@ describe("shared activity service", () => {
       { id: secretaryId },
       { title: `Planejar backlog ${suffix}`, bucket: "BACKLOG" },
     );
+    const parked = await createActivity(
+      { id: secretaryId },
+      { title: `Aguardar decisão ${suffix}`, bucket: "PARKED" },
+    );
 
     const visibleToSecretary = await listActivities({ id: secretaryId });
     const tomorrowOnly = await listActivities({ id: secretaryId }, "TOMORROW");
 
     expect(visibleToSecretary.map((activity) => activity.id)).toEqual(
-      expect.arrayContaining([tomorrow.id]),
+      expect.arrayContaining([tomorrow.id, parked.id]),
     );
     expect(tomorrowOnly).toHaveLength(1);
     expect(tomorrowOnly[0]).toMatchObject({ id: tomorrow.id, bucket: "TOMORROW" });
@@ -100,14 +104,48 @@ describe("shared activity service", () => {
     await expect(
       createActivity({ id: administratorId }, { title: "  ", bucket: "BACKLOG" }),
     ).rejects.toThrow("Título da atividade é obrigatório.");
+    await expect(
+      createActivity({ id: administratorId }, { title: `Bucket inválido ${suffix}`, bucket: "INVALID" as never }),
+    ).rejects.toThrow("Área da atividade inválida.");
+    await expect(
+      updateActivity(
+        { id: administratorId },
+        activity.id,
+        { title: `Bucket inválido ${suffix}`, bucket: "INVALID" as never },
+      ),
+    ).rejects.toThrow("Área da atividade inválida.");
   });
 
   it("rejects inactive accounts before reading or changing shared activities", async () => {
+    const activity = await createActivity(
+      { id: administratorId },
+      { title: `Atividade protegida ${suffix}`, bucket: "BACKLOG" },
+    );
+    const subtask = await createSubtask(
+      { id: administratorId },
+      { activityId: activity.id, title: `Subtask protegida ${suffix}` },
+    );
+
     await expect(getActivityActor(inactiveId)).resolves.toBeNull();
     await expect(listActivities({ id: inactiveId })).rejects.toThrow("Sessão inválida.");
     await expect(
       createActivity({ id: inactiveId }, { title: `Bloqueada ${suffix}`, bucket: "BACKLOG" }),
     ).rejects.toThrow("Sessão inválida.");
+    await expect(
+      updateActivity(
+        { id: inactiveId },
+        activity.id,
+        { title: `Não pode editar ${suffix}`, bucket: "PARKED" },
+      ),
+    ).rejects.toThrow("Sessão inválida.");
+    await expect(deleteActivity({ id: inactiveId }, activity.id)).rejects.toThrow("Sessão inválida.");
+    await expect(
+      createSubtask({ id: inactiveId }, { activityId: activity.id, title: `Não pode criar ${suffix}` }),
+    ).rejects.toThrow("Sessão inválida.");
+    await expect(
+      updateSubtask({ id: inactiveId }, subtask.id, { title: `Não pode editar ${suffix}`, completed: true }),
+    ).rejects.toThrow("Sessão inválida.");
+    await expect(deleteSubtask({ id: inactiveId }, subtask.id)).rejects.toThrow("Sessão inválida.");
   });
 
   it("rejects invalid buckets and missing activity references", async () => {
@@ -140,6 +178,16 @@ describe("shared activity service", () => {
       { title: `Subtask concluída ${suffix}`, completed: true },
     );
     expect(updated).toMatchObject({ title: `Subtask concluída ${suffix}`, completed: true, activityId: activity.id });
+
+    const reopened = await updateSubtask(
+      { id: secretaryId },
+      subtask.id,
+      { completed: false },
+    );
+    expect(reopened).toMatchObject({ title: `Subtask concluída ${suffix}`, completed: false });
+    await expect(
+      updateSubtask({ id: administratorId }, subtask.id, { title: "  " }),
+    ).rejects.toThrow("Título da subtask é obrigatório.");
 
     await deleteSubtask({ id: secretaryId }, subtask.id);
     const remaining = await prisma.activity.findUnique({ where: { id: activity.id }, include: { subtasks: true } });
