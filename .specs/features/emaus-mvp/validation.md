@@ -1,8 +1,8 @@
 # Emaús MVP Validation
 
-**Date**: 2026-08-11  
-**Spec**: `.specs/features/emaus-mvp/spec.md`  
-**Diff range**: `3ef7b0b..ca42cb2` (M8 validation work, including correction tasks)  
+**Date**: 2026-08-11
+**Spec**: `.specs/features/emaus-mvp/spec.md`
+**Diff range**: `3ef7b0b..ca42cb2` (M8 validation work, including correction tasks)
 **Verifier**: standalone fresh-eyes Codex pass; no external runner or sub-agent was used, and the validation pass re-read the spec and evidence independently of implementation.
 
 ## Verdict
