@@ -5,6 +5,7 @@ import {
   recordTimelineEvent,
 } from "../../server/audit";
 import { withTransaction } from "../../server/transaction";
+import { normalizeDateOnly } from "../../lib/dates";
 
 export type PersonActor = Pick<AuthorizationAccount, "role"> & {
   id: string;
@@ -43,7 +44,7 @@ export async function createPerson(actor: PersonActor, input: CreatePersonInput)
         fullName,
         status: input.status ?? "VISITOR",
         phone: input.phone,
-        birthDate: input.birthDate,
+        birthDate: input.birthDate ? normalizeDateOnly(input.birthDate) : undefined,
         profilePhotoUrl: input.profilePhotoUrl,
       },
     });

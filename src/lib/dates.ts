@@ -77,6 +77,14 @@ export function parseDateInput(value: string): Date {
   return date;
 }
 
+export function normalizeDateOnly(date: Date): Date {
+  if (!Number.isFinite(date.getTime())) {
+    throw new Error("Data inválida");
+  }
+
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+}
+
 export function parseDateTimeInput(value: string): Date {
   const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value);
   if (!match) throw new Error("Data e horário devem usar o formato AAAA-MM-DDTHH:mm");

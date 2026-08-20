@@ -86,6 +86,13 @@ ALTER TABLE "Note"
 
 ALTER TABLE "Person" ADD COLUMN "statusChangedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
 
+-- The published dev schema stores birthDate as a timestamp while the MVP
+-- treats it as a calendar date. Keep the date and normalize legacy time parts.
+UPDATE "Person"
+SET "birthDate" = date_trunc('day', "birthDate")
+WHERE "birthDate" IS NOT NULL
+  AND "birthDate" <> date_trunc('day', "birthDate");
+
 CREATE UNIQUE INDEX "AccountMinistryAccess_accountId_ministryId_key"
   ON "AccountMinistryAccess"("accountId", "ministryId");
 

@@ -3,6 +3,7 @@ import { canManagePeople, type AuthorizationAccount } from "../../server/authori
 import { recordAuditEvent, recordTimelineEvent } from "../../server/audit";
 import { withTransaction } from "../../server/transaction";
 import type { PersonActor } from "./person-service";
+import { normalizeDateOnly } from "../../lib/dates";
 
 export type PromotePersonInput = {
   phone: string;
@@ -35,7 +36,7 @@ export function validatePromotionInput(input: PromotePersonInput) {
     throw new Error("Data de nascimento é obrigatória para promover a membro.");
   }
 
-  return { phone, birthDate: input.birthDate };
+  return { phone, birthDate: normalizeDateOnly(input.birthDate) };
 }
 
 function personSnapshot(person: {
