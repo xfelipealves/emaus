@@ -1,6 +1,6 @@
 # Atividades compartilhadas — especificação
 
-**Status**: In Progress
+**Status**: Verified
 
 ## Problem Statement
 
@@ -8,9 +8,9 @@ O Emaús já organiza pessoas, ministérios e encontros, mas ainda não oferece 
 
 ## Goals
 
-- [ ] Disponibilizar uma área discreta e acessível de atividades compartilhadas para usuários ativos do Emaús.
-- [ ] Permitir organizar atividades em `Amanhã`, `Backlog` e `Estacionado`, com consulta filtrada de `Amanhã`.
-- [ ] Permitir excluir atividades e manter subtarefas consistentes por meio de CRUD completo.
+- [x] Disponibilizar uma área discreta e acessível de atividades compartilhadas para usuários ativos do Emaús.
+- [x] Permitir organizar atividades em `Amanhã`, `Backlog` e `Estacionado`, com consulta filtrada de `Amanhã`.
+- [x] Permitir excluir atividades e manter subtarefas consistentes por meio de CRUD completo.
 
 ## Out of Scope
 
@@ -85,20 +85,24 @@ O Emaús já organiza pessoas, ministérios e encontros, mas ainda não oferece 
 
 | Requirement ID | Story | Phase | Status |
 | --- | --- | --- | --- |
-| ACT-01 | P1: Organizar atividades compartilhadas | Design | Pending |
-| ACT-02 | P1: Organizar atividades compartilhadas | Design | Pending |
-| ACT-03 | P1: Organizar atividades compartilhadas | Design | Pending |
-| ACT-04 | P1: Gerenciar subtarefas | Design | Pending |
-| ACT-05 | P1: Excluir atividade com segurança | Design | Pending |
-| ACT-06 | P1: Excluir atividade com segurança | Design | Pending |
-| ACT-07 | P1: Auth e integridade | Design | Pending |
+| ACT-01 | P1: Organizar atividades compartilhadas | Implemented | Verified |
+| ACT-02 | P1: Organizar atividades compartilhadas | Implemented | Verified |
+| ACT-03 | P1: Organizar atividades compartilhadas | Implemented | Verified |
+| ACT-04 | P1: Gerenciar subtarefas | Implemented | Verified |
+| ACT-05 | P1: Excluir atividade com segurança | Implemented | Verified |
+| ACT-06 | P1: Excluir atividade com segurança | Implemented | Verified |
+| ACT-07 | P1: Auth e integridade | Implemented | Verified |
 
-**Coverage**: 7 total, 0 mapped to tasks, 7 pending.
+**Coverage**: 7 total, 7 mapped to tasks, 0 pending.
 
 ## Success Criteria
 
-- [ ] Usuários ativos conseguem criar e consultar atividades compartilhadas nas três áreas.
-- [ ] O filtro de `Amanhã` não mistura atividades de outros buckets.
-- [ ] CRUD de subtarefas funciona sem deixar registros órfãos.
-- [ ] Exclusão exige confirmação e remove a atividade com suas subtarefas.
-- [ ] A suíte de testes existente continua passando sem regressões.
+- [x] Usuários ativos conseguem criar e consultar atividades compartilhadas nas três áreas.
+- [x] O filtro de `Amanhã` não mistura atividades de outros buckets.
+- [x] CRUD de subtarefas funciona sem deixar registros órfãos.
+- [x] Exclusão exige confirmação e remove a atividade com suas subtarefas.
+- [x] A suíte de testes existente continua passando sem regressões.
+
+## Verification Summary
+
+The implementation was independently reviewed against ACT-01 through ACT-07. The final gates passed with 32 Vitest files / 114 tests and 29 Playwright scenarios. The remaining product ideas (entity links, civil dates, recurrence, assignment, comments and notifications) remain explicitly out of scope for this cut.

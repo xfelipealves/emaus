@@ -6,7 +6,7 @@ Implement with `tlc-spec-driven` and TDD. One atomic commit per task; every task
 
 **Spec**: `.specs/features/emaus-activities/spec.md`
 **Design**: `.specs/features/emaus-activities/design.md`
-**Status**: In Progress
+**Status**: Verified
 
 ## Test Coverage Matrix
 
@@ -130,9 +130,9 @@ Implement with `tlc-spec-driven` and TDD. One atomic commit per task; every task
 **Requirement**: ACT-01 through ACT-07
 **Done when**:
 
-- [ ] Full gates pass without reducing the pre-feature test count.
-- [ ] Independent verifier confirms spec-anchored coverage and kills targeted mutants.
-- [ ] Feature status and traceability are updated to Verified.
+- [x] Full gates pass without reducing the pre-feature test count.
+- [x] Independent verifier confirms spec-anchored coverage and kills targeted mutants.
+- [x] Feature status and traceability are updated to Verified.
 
 **Tests**: full gate + independent verifier
 **Gate**: Build
