@@ -3,7 +3,7 @@
 **Date**: 2026-08-20
 **Spec**: `.specs/features/emaus-mvp/spec.md`
 **Diff range**: `origin/dev...lote/L001-emaus-mvp-reconcile` (MVP reconciliation and final boundary revalidation)
-**Verifier**: standalone fresh-eyes Codex pass plus official Ralph QA with isolated local/remote databases and browser QA.
+**Verifier**: standalone fresh-eyes Codex pass plus official Ralph QA with isolated local/remote databases and browser QA; migration compatibility was revalidated against fresh and legacy-upgrade databases after `769de85`.
 
 ## Verdict
 
@@ -18,8 +18,30 @@ The local `.env` was exported before Vitest so `DATABASE_URL` is available to th
 | Full | `npm run test:integration && npm run test:e2e` | ✅ 31 files / 107 tests; 28 / 28 Playwright tests |
 | Build | `npm run db:validate && npm run typecheck && npm run lint && npm run build && npm run test` | ✅ schema, typecheck, build and 31 files / 107 Vitest tests passed; lint has one existing non-blocking `no-img-element` warning at `src/app/(dashboard)/pessoas/[personId]/page.tsx:59` |
 | Diff hygiene | `git diff --check` | ✅ passed before each implementation/bookkeeping commit |
+| Migration compatibility | `prisma migrate diff`, fresh deploy and legacy-upgrade deploy against isolated PostgreSQL databases | ✅ empty Prisma diff; six migrations apply on a fresh database; the four published `20260721*` migrations plus session and reconciliation migrations apply to a database already carrying legacy rows |
 
-**Test integrity**: The historical M8 validation ended with 103 integration tests and 27 E2E tests. The reconciled branch adds regression coverage for archived-ministry historical attendance and ends with 107 Vitest tests and 28 Playwright tests. Diff review found additions and strengthened assertions only—no deleted test and no relaxed behavioral assertion. T46 retained the exact current Brazil-calendar value and rendered birth date; its bounded timeout handles documented local cold start.
+## Migration compatibility revalidation
+
+The reconciliation keeps the four migration IDs already published by `dev`:
+
+- `20260721165940_add_people_and_accounts`
+- `20260721170536_add_ministries_and_scopes`
+- `20260721171445_add_meetings_and_attendance`
+- `20260721171925_add_history_and_audit`
+
+The RASP session migration `20260808022000_add_sessions` remains after that chain, followed by the additive `20260820170000_reconcile_mvp_with_dev`. The schema maps the current application names onto the deployed representation, including `ADMINISTRATOR` → `ADMIN`, `RecurrencePattern` → `MeetingRecurrence`, `scheduledAt` → `startsAt`, and `profilePhotoUrl` → `photoUrl`.
+
+Evidence from isolated PostgreSQL databases on 2026-08-20:
+
+- `prisma migrate diff --from-migrations prisma/migrations --to-schema-datamodel prisma/schema.prisma` returned an empty migration.
+- Fresh deploy applied all six migrations successfully and `prisma migrate status` reported the database up to date.
+- Upgrade deploy first applied only the four original `dev` migrations, inserted legacy Person/Account/Ministry/Meeting/Audience/Note data, then applied the session and reconciliation migrations successfully.
+- Legacy `ADMIN`, `photoUrl`, and timestamps remained readable; the note content was backfilled from its latest `NoteVersion`, `archivedAt` became `archived`, and the old whole-church audience sentinel was normalized to the current empty-audience representation.
+- The migration fails explicitly on ambiguous duplicate `(accountId, ministryId)` scopes instead of deleting access history silently.
+
+The database fixtures were temporary and isolated; the canonical RASP database was not reset or modified.
+
+**Test integrity**: The historical M8 validation ended with 103 integration tests and 27 E2E tests. The reconciled branch adds regression coverage for archived-ministry historical attendance and ends with 107 Vitest tests and 28 Playwright tests. The UI primitive test was relocated from `src/components/ui/primitives.test.ts` to `src/components/ui/ui.test.tsx`; diff review found no lost assertion coverage or relaxed behavioral assertion. T46 retained the exact current Brazil-calendar value and rendered birth date; its bounded timeout handles documented local cold start.
 
 ## Task completion
 

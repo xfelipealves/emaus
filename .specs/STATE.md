@@ -58,13 +58,29 @@
 - **Date**: 2026-07-20
 - **Status**: active
 
+### AD-008
+- **Decision**: A reconciliação do MVP preserva os IDs e checksums dos quatro migrations já publicados em `dev` e aplica as diferenças do RASP por um migration incremental compatível.
+- **Reason**: Bancos que já executaram `20260721*` não podem reaplicar DDL sob novos IDs `20260808*`; o deploy precisa ser seguro tanto em banco novo quanto em upgrade com dados existentes.
+- **Trade-off**: Nomes legados de tabelas, colunas, índices e enums permanecem no PostgreSQL e são expostos pelo Prisma com `@map`/`@@map`; registros sentinela de audiência de toda a igreja são normalizados para a representação atual.
+- **Scope**: Schema Prisma, migrations e deploy do banco do MVP.
+- **Date**: 2026-08-20
+- **Status**: active
+
+### AD-009
+- **Decision**: A linha de dependências validada no RASP permanece neste lote; a modernização da linha de `dev` (incluindo Next 16 e versões superiores) fica para uma tarefa separada.
+- **Reason**: Misturar a atualização de runtime com a reconciliação de migrations amplia o risco sem ser requisito do MVP; o baseline RASP foi o que passou nos gates de aplicação e browser.
+- **Trade-off**: A atualização de framework e ferramentas é adiada e deverá ter sua própria validação de compatibilidade.
+- **Scope**: `package.json`, `package-lock.json` e runtime do Emaús.
+- **Date**: 2026-08-20
+- **Status**: active
+
 ## Handoff
 
 - **Feature**: `.specs/features/emaus-mvp`
-- **Phase / Task**: Integration — reconcile MVP with the Ralph `dev` flow
-- **Completed**: instalação do `tlc-spec-driven`; Specify e Design aprovados; MVP T01–T47 implementado; validação registrada em `validation.md`; branch `lote/L001-emaus-mvp-reconcile` criada a partir de `origin/dev`; código, migrations, testes e documentação operacional reconciliados sem force-push.
-- **In-progress**: revisão humana do PR #1; a revalidação final passou e o PR está Ready para revisão/merge.
-- **Next step**: revisar/mesclar o PR #1 em `dev`; depois promover por PR separado de `dev` para `main`.
-- **Blockers**: nenhum conhecido após a correção. `origin/main` e `origin/dev` permanecem intocados; a reconciliação preserva a validação MVP existente e torna o Ralph compatível com tasks definidas além de T36.
-- **Uncommitted files**: nenhum; registrar o novo snapshot depois da revalidação.
+- **Phase / Task**: Release hardening — migration compatibility before the `dev` merge
+- **Completed**: instalação do `tlc-spec-driven`; Specify e Design aprovados; MVP T01–T47 implementado; validação registrada em `validation.md`; branch `lote/L001-emaus-mvp-reconcile` criada a partir de `origin/dev`; correção de compatibilidade de migrations em `769de85`; schema, banco novo, upgrade legado, typecheck, lint, build e 31/107 testes Vitest revalidados sem force-push.
+- **In-progress**: atualização final da documentação e verificação independente do PR #1 após o commit `769de85`.
+- **Next step**: concluir a QA browser disponível, mesclar manualmente o PR #1 em `dev` somente com todos os gates verdes; depois promover por PR separado de `dev` para `main`.
+- **Blockers**: o migration incremental falha deliberadamente quando encontra acessos ministeriais duplicados, exigindo reconciliação explícita antes do deploy daquele banco. Fora essa proteção, `origin/main` e `origin/dev` permanecem intocados e a reconciliação preserva a validação MVP existente.
+- **Uncommitted files**: nenhum após o commit de documentação deste snapshot.
 - **Branch**: lote/L001-emaus-mvp-reconcile
