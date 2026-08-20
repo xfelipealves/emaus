@@ -78,9 +78,9 @@
 
 - **Feature**: `.specs/features/emaus-mvp`
 - **Phase / Task**: Release hardening — migration compatibility before the `dev` merge
-- **Completed**: instalação do `tlc-spec-driven`; Specify e Design aprovados; MVP T01–T47 implementado; validação registrada em `validation.md`; branch `lote/L001-emaus-mvp-reconcile` criada a partir de `origin/dev`; correção de compatibilidade de migrations em `769de85`; schema, banco novo, upgrade legado, typecheck, lint, build e 31/107 testes Vitest revalidados sem force-push.
-- **In-progress**: atualização final da documentação e verificação independente do PR #1 após o commit `769de85`.
-- **Next step**: concluir a QA browser disponível, mesclar manualmente o PR #1 em `dev` somente com todos os gates verdes; depois promover por PR separado de `dev` para `main`.
+- **Completed**: instalação do `tlc-spec-driven`; Specify e Design aprovados; MVP T01–T47 implementado; validação registrada em `validation.md`; branch `lote/L001-emaus-mvp-reconcile` criada a partir de `origin/dev`; correção de compatibilidade de migrations em `769de85`; normalização de datas legadas em `9cba03f`; schema, banco novo, upgrade legado, typecheck, lint, build, 31/108 testes Vitest e 28/28 E2E revalidados sem force-push.
+- **In-progress**: revisão final do PR #1 após a verificação independente PASS e os três commits atômicos enviados ao remoto.
+- **Next step**: mesclar manualmente o PR #1 em `dev` somente com todos os gates verdes; depois promover por PR separado de `dev` para `main`.
 - **Blockers**: o migration incremental falha deliberadamente quando encontra acessos ministeriais duplicados, exigindo reconciliação explícita antes do deploy daquele banco. Fora essa proteção, `origin/main` e `origin/dev` permanecem intocados e a reconciliação preserva a validação MVP existente.
-- **Uncommitted files**: nenhum após o commit de documentação deste snapshot.
+- **Uncommitted files**: nenhum; este snapshot precisa ser atualizado junto com a próxima documentação de estado, se houver mudança pós-merge.
 - **Branch**: lote/L001-emaus-mvp-reconcile

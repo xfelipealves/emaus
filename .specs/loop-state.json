@@ -10,10 +10,10 @@
   "currentTask": null,
   "completedTasks": ["T01", "T02", "T03", "T04", "T05", "T06", "T07", "T08", "T09", "T10", "T11", "T12", "T13", "T14", "T15", "T16", "T17", "T18", "T19", "T20", "T21", "T22", "T23", "T24", "T25", "T26", "T27", "T28", "T29", "T30", "T31", "T32", "T33", "T34", "T35", "T36", "T37", "T38", "T39", "T40", "T41", "T42", "T43", "T44", "T45", "T46", "T47"],
   "completedMilestones": ["M8"],
-  "lastCommit": "769de85",
-  "lastGate": "L001 migration compatibility revalidation passed: Prisma diff empty; fresh and legacy-upgrade deploys passed; db:validate, typecheck, lint, build and test passed (31 files/107 tests); E2E/browser evidence remains from the prior official QA run; PR #1 Ready",
+  "lastCommit": "9cba03f",
+  "lastGate": "L001 final compatibility QA passed: Prisma diff empty; fresh and legacy-upgrade deploys passed; db:validate, typecheck, lint, build, test (31 files/108 tests), test:integration and test:e2e (28/28); independent verifier PASS; PR #1 Ready",
   "lastPush": {
-    "sha": "769de85b6426058f18f72ae6c398190511865b23",
+    "sha": "9cba03f4c999d97c76b0b60a59ae9caadfffe4d1",
     "remote": "origin",
     "branch": "lote/L001-emaus-mvp-reconcile",
     "status": "passed"
@@ -26,5 +26,5 @@
     "draft": false
   },
   "updatedAt": "2026-08-20",
-  "notes": "MVP complete. The task list is normalized to the declared T01–T47 order during the dev reconciliation; execution chronology remains in Git history. Migration history is preserved through the published 20260721 chain plus an additive reconciliation migration, with fresh/upgrade evidence and an explicit duplicate-scope guard. Attendance launch boundaries cover cancelled meetings, archived ministries, and historical corrections after archiving. PR #1 is Ready; dev/main merges remain manual and dependency modernization is deferred to a separate task."
+  "notes": "MVP complete. The task list is normalized to the declared T01–T47 order during the dev reconciliation; execution chronology remains in Git history. Migration history is preserved through the published 20260721 chain plus an additive reconciliation migration, with fresh/upgrade evidence, legacy birth-date normalization and an explicit duplicate-scope guard. Attendance launch boundaries cover cancelled meetings, archived ministries, and historical corrections after archiving. PR #1 is Ready; dev/main merges remain manual and dependency modernization is deferred to a separate task."
 }
