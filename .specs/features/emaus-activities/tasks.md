@@ -49,9 +49,9 @@ Implement with `tlc-spec-driven` and TDD. One atomic commit per task; every task
 **Requirement**: ACT-01, ACT-04, ACT-05
 **Done when**:
 
-- [ ] Fresh migration creates activity and subtask tables with the three buckets.
-- [ ] Activity deletion cascades to subtasks at the database boundary.
-- [ ] Existing migrations remain unchanged.
+- [x] Fresh migration creates activity and subtask tables with the three buckets.
+- [x] Activity deletion cascades to subtasks at the database boundary.
+- [x] Existing migrations remain unchanged.
 
 **Tests**: integration/reset
 **Gate**: Build

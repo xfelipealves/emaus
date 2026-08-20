@@ -59,6 +59,12 @@ enum AttendanceStatus {
   ABSENT
 }
 
+enum ActivityBucket {
+  TOMORROW
+  BACKLOG
+  PARKED
+}
+
 enum TimelineEventCategory {
   REGISTRATION
   STATUS
@@ -118,6 +124,32 @@ model Session {
   account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
   @@index([accountId, expiresAt])
+}
+
+model Activity {
+  id          String         @id @default(cuid())
+  title       String
+  description String?
+  bucket      ActivityBucket @default(BACKLOG)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  subtasks ActivitySubtask[]
+
+  @@index([bucket, createdAt])
+}
+
+model ActivitySubtask {
+  id         String   @id @default(cuid())
+  activityId String
+  title      String
+  completed  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  activity Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+
+  @@index([activityId, createdAt])
 }
 
 model Ministry {
