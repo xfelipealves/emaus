@@ -86,6 +86,21 @@ describe("attendance initialization", () => {
     await prisma.ministry.update({ where: { id: ministryId }, data: { status: "ACTIVE" } });
   });
 
+  it("keeps historical attendance available after the audience ministry is archived", async () => {
+    const [attendance] = await openAttendance(meetingId);
+    const actor = { id: accountId, role: "ADMINISTRATOR" as const, ministryAccess: [] };
+    await cycleAttendance(actor, attendance.id);
+    await prisma.ministry.update({ where: { id: ministryId }, data: { status: "ARCHIVED" } });
+
+    try {
+      await expect(openAttendance(meetingId)).resolves.toMatchObject([{ id: attendance.id, status: "PRESENT" }]);
+      await expect(cycleAttendance(actor, attendance.id, "Correção histórica após arquivamento")).resolves.toMatchObject({ status: "ABSENT" });
+      await expect(prisma.attendance.count({ where: { meetingId } })).resolves.toBe(1);
+    } finally {
+      await prisma.ministry.update({ where: { id: ministryId }, data: { status: "ACTIVE" } });
+    }
+  });
+
   it("initializes selected-ministry eligibility and is idempotent when reopened", async () => {
     const first = await openAttendance(meetingId);
     expect(first).toHaveLength(1);

@@ -45,12 +45,9 @@ function hasArchivedAudience(meeting: AttendanceMeetingBoundary) {
   return meeting.audiences.some((audience) => audience.ministry.status === "ARCHIVED");
 }
 
-function assertCanLaunchAttendance(meeting: AttendanceMeetingBoundary) {
+function assertMeetingCanOpenAttendance(meeting: AttendanceMeetingBoundary) {
   if (meeting.status === "CANCELLED") {
     throw new Error("Encontro cancelado não aceita lançamentos de presença.");
-  }
-  if (hasArchivedAudience(meeting)) {
-    throw new Error("Ministério arquivado não aceita novos lançamentos de presença.");
   }
 }
 
@@ -61,7 +58,19 @@ export async function openAttendance(meetingId: string): Promise<Attendance[]> {
       include: { audiences: { select: { ministryId: true, ministry: { select: { status: true } } } } },
     });
     if (!meeting) throw new Error("Encontro não encontrado.");
-    assertCanLaunchAttendance(meeting);
+    assertMeetingCanOpenAttendance(meeting);
+
+    if (hasArchivedAudience(meeting)) {
+      const historicalAttendance = await transaction.attendance.findMany({
+        where: { meetingId },
+        include: { person: true },
+        orderBy: { person: { fullName: "asc" } },
+      });
+      if (historicalAttendance.length === 0) {
+        throw new Error("Ministério arquivado não aceita novos lançamentos de presença.");
+      }
+      return historicalAttendance;
+    }
 
     const memberships = await transaction.ministryMembership.findMany({
       where: currentMembershipWhere(new Date()),
