@@ -758,7 +758,7 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Gate**: Full
 **Commit**: `test: cover account identifier uniqueness`
 
-**Verification**: Targeted integration gate passed 5/5. Full gate `npm run test:integration && npm run test:e2e` passed with 31 files/103 integration tests and 27/27 E2E tests. Adequacy review PASS: `src/features/auth/account-service.integration.test.ts:49-84` drives distinct Person records through duplicate username and case-normalized e-mail conflicts, asserts the exact service error, and proves zero partial accounts. No existing account test was weakened or deleted.
+**Verification**: Historical targeted integration gate passed 5/5 and historical Full gate passed with 31 files/103 integration tests and 27/27 E2E tests. Final reconciliation revalidation is recorded in `validation.md` with 31 files/107 Vitest tests and 28/28 E2E tests. Adequacy review PASS: `src/features/auth/account-service.integration.test.ts:49-84` drives distinct Person records through duplicate username and case-normalized e-mail conflicts, asserts the exact service error, and proves zero partial accounts. No existing account test was weakened or deleted.
 
 ---
 
