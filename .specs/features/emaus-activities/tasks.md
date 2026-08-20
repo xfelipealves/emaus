@@ -97,10 +97,10 @@ Implement with `tlc-spec-driven` and TDD. One atomic commit per task; every task
 **Requirement**: ACT-01, ACT-02, ACT-03, ACT-04, ACT-05, ACT-06
 **Done when**:
 
-- [ ] User can create activities in all three buckets.
-- [ ] User can create, edit/complete and delete subtasks.
-- [ ] User must confirm before activity deletion.
-- [ ] The selector is accessible despite being visually secondary.
+- [x] User can create activities in all three buckets.
+- [x] User can create, edit/complete and delete subtasks.
+- [x] User must confirm before activity deletion.
+- [x] The selector is accessible despite being visually secondary.
 
 **Tests**: E2E
 **Gate**: Full
