@@ -64,6 +64,21 @@ describe("attendance operation query", () => {
     expect(attendance).toMatchObject({ meetingId, status: "NOT_CONFIRMED", person: { fullName: `Visitante Rápido T29 ${suffix}`, status: "VISITOR" } });
   });
 
+  it("rejects new attendance additions for an archived ministry", async () => {
+    const actor = { id: accountId, role: "ADMINISTRATOR" as const, ministryAccess: [] };
+    const visitorName = `Visitante bloqueado T29 ${suffix}`;
+    await prisma.ministry.update({ where: { id: ministryId }, data: { status: "ARCHIVED" } });
+
+    try {
+      await expect(searchAttendancePeople(actor, meetingId, "encontrada")).rejects.toThrow("Ministério arquivado não aceita novos lançamentos de presença.");
+      await expect(addPersonToAttendance(actor, meetingId, existingPersonId)).rejects.toThrow("Ministério arquivado não aceita novos lançamentos de presença.");
+      await expect(addQuickVisitor(actor, meetingId, visitorName)).rejects.toThrow("Ministério arquivado não aceita novos lançamentos de presença.");
+      await expect(prisma.person.findFirst({ where: { fullName: visitorName } })).resolves.toBeNull();
+    } finally {
+      await prisma.ministry.update({ where: { id: ministryId }, data: { status: "ACTIVE" } });
+    }
+  });
+
   it("summarizes each attendance state", () => {
     expect(summarizeAttendance([{ status: "NOT_CONFIRMED" }, { status: "PRESENT" }, { status: "PRESENT" }, { status: "ABSENT" }])).toEqual({ NOT_CONFIRMED: 1, PRESENT: 2, ABSENT: 1 });
   });

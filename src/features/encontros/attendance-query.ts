@@ -11,15 +11,24 @@ export type AttendanceSearchItem = {
   status: "VISITOR" | "MEMBER";
 };
 
-function assertMeetingAccess(actor: MeetingActor, meeting: { audiences: Array<{ ministryId: string }>; status: string } | null) {
+function assertMeetingAccess(
+  actor: MeetingActor,
+  meeting: { audiences: Array<{ ministryId: string; ministry: { status: string } }>; status: string } | null,
+) {
   if (!meeting || !canManageMeeting(actor, meeting.audiences.map((audience) => audience.ministryId))) {
     throw new Error("Encontro não encontrado.");
   }
   if (meeting.status === "CANCELLED") throw new Error("Encontro cancelado não aceita lançamentos de presença.");
+  if (meeting.audiences.some((audience) => audience.ministry.status === "ARCHIVED")) {
+    throw new Error("Ministério arquivado não aceita novos lançamentos de presença.");
+  }
 }
 
 async function getMeetingForQuery(meetingId: string) {
-  return prisma.meeting.findUnique({ where: { id: meetingId }, include: { audiences: true } });
+  return prisma.meeting.findUnique({
+    where: { id: meetingId },
+    include: { audiences: { include: { ministry: { select: { status: true } } } } },
+  });
 }
 
 export async function searchAttendancePeople(actor: MeetingActor, meetingId: string, search: string): Promise<AttendanceSearchItem[]> {
@@ -61,6 +70,8 @@ export async function addPersonToAttendance(actor: MeetingActor, meetingId: stri
 }
 
 export async function addQuickVisitor(actor: MeetingActor, meetingId: string, fullName: string) {
+  const meeting = await getMeetingForQuery(meetingId);
+  assertMeetingAccess(actor, meeting);
   const person = await createPerson(actor, { fullName, status: "VISITOR" });
   return addPersonToAttendance(actor, meetingId, person.id);
 }

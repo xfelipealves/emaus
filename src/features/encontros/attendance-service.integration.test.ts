@@ -69,6 +69,23 @@ describe("attendance initialization", () => {
     await prisma.meeting.update({ where: { id: meetingId }, data: { status: "SCHEDULED" } });
   });
 
+  it("does not initialize attendance for a cancelled meeting", async () => {
+    await prisma.meeting.update({ where: { id: meetingId }, data: { status: "CANCELLED" } });
+    await expect(openAttendance(meetingId)).rejects.toThrow("Encontro cancelado não aceita lançamentos de presença.");
+    await expect(prisma.attendance.count({ where: { meetingId } })).resolves.toBe(0);
+    await prisma.meeting.update({ where: { id: meetingId }, data: { status: "SCHEDULED" } });
+  });
+
+  it("rejects a first attendance launch after the audience ministry is archived", async () => {
+    const [attendance] = await openAttendance(meetingId);
+    await prisma.ministry.update({ where: { id: ministryId }, data: { status: "ARCHIVED" } });
+    const actor = { id: accountId, role: "ADMINISTRATOR" as const, ministryAccess: [] };
+
+    await expect(cycleAttendance(actor, attendance.id)).rejects.toThrow("Ministério arquivado não aceita novos lançamentos de presença.");
+    await expect(prisma.attendance.findUnique({ where: { id: attendance.id } })).resolves.toMatchObject({ status: "NOT_CONFIRMED" });
+    await prisma.ministry.update({ where: { id: ministryId }, data: { status: "ACTIVE" } });
+  });
+
   it("initializes selected-ministry eligibility and is idempotent when reopened", async () => {
     const first = await openAttendance(meetingId);
     expect(first).toHaveLength(1);

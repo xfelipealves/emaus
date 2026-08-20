@@ -36,13 +36,32 @@ function currentMembershipWhere(today: Date) {
   };
 }
 
+type AttendanceMeetingBoundary = {
+  status: string;
+  audiences: Array<{ ministry: { status: string } }>;
+};
+
+function hasArchivedAudience(meeting: AttendanceMeetingBoundary) {
+  return meeting.audiences.some((audience) => audience.ministry.status === "ARCHIVED");
+}
+
+function assertCanLaunchAttendance(meeting: AttendanceMeetingBoundary) {
+  if (meeting.status === "CANCELLED") {
+    throw new Error("Encontro cancelado não aceita lançamentos de presença.");
+  }
+  if (hasArchivedAudience(meeting)) {
+    throw new Error("Ministério arquivado não aceita novos lançamentos de presença.");
+  }
+}
+
 export async function openAttendance(meetingId: string): Promise<Attendance[]> {
   return withTransaction(async (transaction) => {
     const meeting = await transaction.meeting.findUnique({
       where: { id: meetingId },
-      include: { audiences: { select: { ministryId: true } } },
+      include: { audiences: { select: { ministryId: true, ministry: { select: { status: true } } } } },
     });
     if (!meeting) throw new Error("Encontro não encontrado.");
+    assertCanLaunchAttendance(meeting);
 
     const memberships = await transaction.ministryMembership.findMany({
       where: currentMembershipWhere(new Date()),
@@ -86,13 +105,16 @@ export async function cycleAttendance(actor: MeetingActor, attendanceId: string,
   return withTransaction(async (transaction) => {
     const attendance = await transaction.attendance.findUnique({
       where: { id: attendanceId },
-      include: { meeting: { include: { audiences: true } }, person: true },
+      include: { meeting: { include: { audiences: { include: { ministry: { select: { status: true } } } } } }, person: true },
     });
     if (!attendance || !canManageMeeting(actor, attendance.meeting.audiences.map((audience) => audience.ministryId))) {
       throw new Error("Presença não encontrada.");
     }
     if (attendance.meeting.status === "CANCELLED") {
       throw new Error("Encontro cancelado não aceita lançamentos de presença.");
+    }
+    if (attendance.status === "NOT_CONFIRMED" && hasArchivedAudience(attendance.meeting)) {
+      throw new Error("Ministério arquivado não aceita novos lançamentos de presença.");
     }
 
     const nextStatus = nextAttendanceStatus(attendance.status);
