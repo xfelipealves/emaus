@@ -74,6 +74,14 @@
 - **Date**: 2026-08-20
 - **Status**: active
 
+### AD-010
+- **Decision**: Atividades futuras do Emaús serão registradas como backlog compartilhado, visível e editável por todos os usuários ativos/autorizados, com as áreas `Amanhã`, `Backlog` e `Estacionado`, exclusão da atividade e CRUD de subtarefas.
+- **Reason**: Dar ao time um lugar comum para organizar pendências e consultar rapidamente o que deve ser tratado amanhã, sem limitar a atividade ao usuário que a criou.
+- **Trade-off**: A capacidade fica fora do MVP já validado até ser especificada e implementada; associação com Pessoa, Ministério ou Encontro e o comportamento de subtarefas ao excluir a atividade ainda precisam ser definidos.
+- **Scope**: Backlog pós-MVP — atividades e subtarefas.
+- **Date**: 2026-08-20
+- **Status**: backlog
+
 ## Handoff
 
 - **Feature**: `.specs/features/emaus-mvp`
@@ -82,5 +90,6 @@
 - **In-progress**: PR #1 mergeado em `dev` (`3ec4fb6`); gates pós-merge de schema, geração, typecheck, lint e build aprovados; PR #2 aberto para promoção de `dev` para `main`.
 - **Next step**: revisão manual e merge do PR #2 quando aprovado; não promover `main` automaticamente.
 - **Blockers**: o migration incremental falha deliberadamente quando encontra acessos ministeriais duplicados, exigindo reconciliação explícita antes do deploy daquele banco. Fora essa proteção, `origin/main` permanece em `a84a1c3` até a revisão do PR #2, enquanto `origin/dev` contém a reconciliação validada.
-- **Uncommitted files**: nenhum; este snapshot precisa ser atualizado junto com a próxima documentação de estado, se houver mudança pós-merge.
+- **Uncommitted files**: `.specs/STATE.md` e `.specs/features/emaus-mvp/tasks.md`, contendo somente o registro do backlog de atividades; ainda não commitados.
 - **Branch**: dev (PR #2 para main)
+- **Backlog registrado**: atividade compartilhada com áreas `Amanhã`, `Backlog` e `Estacionado`, exclusão e CRUD de subtarefas; requisito refletido também na nota diária do Obsidian.

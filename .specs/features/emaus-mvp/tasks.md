@@ -777,6 +777,37 @@ M1 Foundation → M2 Data → M3 Auth → M4 People → M5 Ministries → M6 Mee
 | T11–T33 | one service, action, query or page capability per task | ✅ granular |
 | T34–T36 | one validation deliverable per task | ✅ granular |
 
+## Backlog pós-MVP — não iniciar automaticamente
+
+### Atividades compartilhadas e subtarefas
+
+**Status**: backlog; levantamento registrado em 2026-08-20.
+
+**Contexto atual**: o Emaús possui agenda de encontros, mas ainda não possui uma entidade ou área própria para atividades gerais.
+
+**Mudança desejada**: criar uma capacidade compartilhada de atividades para todos os usuários ativos/autorizados do Emaús, sem restringir a visualização ou edição ao criador.
+
+**Requisitos confirmados**:
+
+- Permitir criar atividades na área `Amanhã`.
+- Permitir criar atividades no `Backlog`.
+- Permitir criar atividades em `Estacionado`.
+- Oferecer um seletor/filtro discreto para visualizar as atividades de `Amanhã`.
+- Permitir excluir uma atividade.
+- Permitir CRUD completo de subtarefas vinculadas à atividade.
+
+**Preservações obrigatórias**:
+
+- Manter intactos os fluxos e critérios do MVP já validados.
+- Respeitar autenticação e o acesso de usuários ativos/autorizados, mantendo a atividade compartilhada entre eles.
+- Não iniciar implementação desta demanda enquanto ela permanecer no backlog.
+
+**Lacunas a definir antes da execução**:
+
+- Se a atividade poderá ser vinculada a uma Pessoa, Ministério ou Encontro.
+- Se a exclusão da atividade exclui, arquiva ou desassocia suas subtarefas.
+- Se subtarefas terão conclusão própria, ordenação e/ou data independente.
+
 ## Diagram-Definition Cross-Check
 
 | Milestone | Depends on | Map | Status |
