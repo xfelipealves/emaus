@@ -58,13 +58,29 @@
 - **Date**: 2026-07-20
 - **Status**: active
 
+### AD-008
+- **Decision**: A reconciliação do MVP preserva os IDs e checksums dos quatro migrations já publicados em `dev` e aplica as diferenças do RASP por um migration incremental compatível.
+- **Reason**: Bancos que já executaram `20260721*` não podem reaplicar DDL sob novos IDs `20260808*`; o deploy precisa ser seguro tanto em banco novo quanto em upgrade com dados existentes.
+- **Trade-off**: Nomes legados de tabelas, colunas, índices e enums permanecem no PostgreSQL e são expostos pelo Prisma com `@map`/`@@map`; registros sentinela de audiência de toda a igreja são normalizados para a representação atual.
+- **Scope**: Schema Prisma, migrations e deploy do banco do MVP.
+- **Date**: 2026-08-20
+- **Status**: active
+
+### AD-009
+- **Decision**: A linha de dependências validada no RASP permanece neste lote; a modernização da linha de `dev` (incluindo Next 16 e versões superiores) fica para uma tarefa separada.
+- **Reason**: Misturar a atualização de runtime com a reconciliação de migrations amplia o risco sem ser requisito do MVP; o baseline RASP foi o que passou nos gates de aplicação e browser.
+- **Trade-off**: A atualização de framework e ferramentas é adiada e deverá ter sua própria validação de compatibilidade.
+- **Scope**: `package.json`, `package-lock.json` e runtime do Emaús.
+- **Date**: 2026-08-20
+- **Status**: active
+
 ## Handoff
 
 - **Feature**: `.specs/features/emaus-mvp`
-- **Phase / Task**: M3 Auth/access — T11 concluída
-- **Completed**: instalação do `tlc-spec-driven`; Specify aprovado; Design aprovado; milestones M1–M8 e tasks T01–T36 criados; T01 bootstrap local implementado com smoke unitário e E2E; T02 PostgreSQL local e contrato de ambiente implementados; T03 Prisma client, schema PostgreSQL mínimo e validação configurados; T04 shell responsivo com navegação desktop/mobile e smoke E2E; T05 primitives compartilhadas de UI e estados de feedback implementados com 7 testes unitários; T06 modelos Prisma de Pessoa e Conta, enums de papel/status, unicidades, migration e testes de integração implementados; T07 modelos Prisma de Ministério, vínculos históricos e escopos independentes de líder, migration e testes de integração implementados; T08 modelos Prisma de categorias, séries recorrentes, encontros, públicos e presença, migration e testes de integração implementados; T09 modelos Prisma de notas, versões, timeline e auditoria, migration e testes de integração implementados; T10 seed administrativo, cálculo de idade e utilitários de data em `America/Sao_Paulo` implementados; T11 hashing Argon2, verificação de senha e validação de credenciais implementados; OpenCode Ralph Loop guardado por `.specs/loop-state.json`
-- **In-progress** (file:line): `.specs/features/emaus-mvp/tasks.md:213` — T12 aguardando execução
-- **Next step**: executar T12, adicionando persistência de sessão, lookup e logout.
-- **Blockers**: nenhum para T11. OpenCode é o runner do loop; modelo permanece configurável por `OPENCODE_MODEL`. O loop para se uma task falhar, não fizer commit, deixar árvore suja ou não avançar `.specs/loop-state.json`; deploy, e-mail, backup e monitoramento permanecem postergados para depois da validação local.
-- **Uncommitted files**: nenhum
-- **Branch**: main
+- **Phase / Task**: Release hardening — migration compatibility before the `dev` merge
+- **Completed**: instalação do `tlc-spec-driven`; Specify e Design aprovados; MVP T01–T47 implementado; validação registrada em `validation.md`; branch `lote/L001-emaus-mvp-reconcile` criada a partir de `origin/dev`; correção de compatibilidade de migrations em `769de85`; normalização de datas legadas em `9cba03f`; schema, banco novo, upgrade legado, typecheck, lint, build, 31/108 testes Vitest e 28/28 E2E revalidados sem force-push.
+- **In-progress**: revisão final do PR #1 após a verificação independente PASS e os três commits atômicos enviados ao remoto.
+- **Next step**: mesclar manualmente o PR #1 em `dev` somente com todos os gates verdes; depois promover por PR separado de `dev` para `main`.
+- **Blockers**: o migration incremental falha deliberadamente quando encontra acessos ministeriais duplicados, exigindo reconciliação explícita antes do deploy daquele banco. Fora essa proteção, `origin/main` e `origin/dev` permanecem intocados e a reconciliação preserva a validação MVP existente.
+- **Uncommitted files**: nenhum; este snapshot precisa ser atualizado junto com a próxima documentação de estado, se houver mudança pós-merge.
+- **Branch**: lote/L001-emaus-mvp-reconcile

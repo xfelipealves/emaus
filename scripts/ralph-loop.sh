@@ -170,15 +170,22 @@ PY
 }
 
 next_task_id() {
-  python3 - "$1" <<'PY'
+  python3 - "$1" "$TASKS_FILE" <<'PY'
 import re
 import sys
 
-match = re.fullmatch(r"T(\d{2})", sys.argv[1])
-if not match:
-    raise SystemExit(f"Invalid task ID: {sys.argv[1]}")
-number = int(match.group(1))
-print(f"T{number + 1:02d}" if number < 36 else "")
+task_id, tasks_path = sys.argv[1:]
+with open(tasks_path, encoding="utf-8") as source:
+    task_ids = sorted(
+        set(re.findall(r"^### (T\d{2}):", source.read(), re.MULTILINE)),
+        key=lambda value: int(value[1:]),
+    )
+
+if task_id not in task_ids:
+    raise SystemExit(f"Invalid task ID: {task_id}")
+
+position = task_ids.index(task_id)
+print(task_ids[position + 1] if position + 1 < len(task_ids) else "")
 PY
 }
 
@@ -707,7 +714,9 @@ if expected_next:
         )
 else:
     if after.get("status") != "verification_required" or after.get("currentTask") is not None:
-        raise SystemExit("T36 must advance to verification_required with no currentTask")
+        raise SystemExit(
+            "The terminal task must advance to verification_required with no currentTask"
+        )
 
 if before_commit == after_commit:
     raise SystemExit("task iteration did not create a new commit")

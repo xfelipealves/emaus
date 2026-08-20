@@ -26,6 +26,7 @@ Implement these tasks with the `tlc-spec-driven` skill: **activate it by name an
 | --- | --- | --- |
 | Quick | Domain/UI task with unit tests | `npm run test` |
 | Full | Action, database or E2E task | `npm run test:integration && npm run test:e2e` |
+| Build (foundation) | T01–T02, before Prisma exists | `npm run typecheck && npm run lint && npm run build && npm run test` |
 | Build | At end of every milestone | `npm run db:validate && npm run typecheck && npm run lint && npm run build && npm run test` |
 
 ---
@@ -40,7 +41,7 @@ M4 People:           T16 → T17 → T18 → T19 → T20
 M5 Ministries:       T21 → T22 → T23 → T24
 M6 Meetings:         T25 → T26 → T27 → T28 → T29
 M7 History/audit:    T30 → T31 → T32 → T33
-M8 Validation:       T34 → T35 → T36
+M8 Validation:       T34 → T35 → T36 → T37 → T38 → T39 → T40 → T41 → T42 → T43 → T44 → T45 → T46 → T47 (corrections)
 ```
 
 Phases are sequential. Within each milestone, tasks are sequential unless their `Depends on` field says otherwise.
@@ -62,7 +63,7 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 - [x] A minimal Vitest and Playwright smoke test pass.
 - [x] No visual library is installed.
 **Tests**: unit + E2E smoke
-**Gate**: Build
+**Gate**: Build (foundation)
 **Commit**: `chore: bootstrap Emaus application`
 
 ### T02: Add local PostgreSQL runtime and environment contract
@@ -76,7 +77,7 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 - [x] `.env.example` documents no secret values.
 - [x] Database URL is consumed only through environment configuration.
 **Tests**: none (configuration)
-**Gate**: Build
+**Gate**: Build (foundation)
 **Commit**: `chore: add local PostgreSQL environment`
 
 ### T03: Configure Prisma client and migration workflow
@@ -216,9 +217,9 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Depends on**: T11
 **Requirement**: AUTH-01
 **Done when**:
-- [ ] Active account receives secure session cookie.
-- [ ] Logout invalidates session.
-- [ ] Inactive account cannot create session.
+- [x] Active account receives secure session cookie.
+- [x] Logout invalidates session.
+- [x] Inactive account cannot create session.
 **Tests**: integration
 **Gate**: Full
 **Commit**: `feat: add secure account sessions`
@@ -230,9 +231,9 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Depends on**: T12, T04
 **Requirement**: AUTH-01
 **Done when**:
-- [ ] Unauthenticated dashboard request redirects to login.
-- [ ] Valid credentials reach home.
-- [ ] Invalid credentials show generic feedback.
+- [x] Unauthenticated dashboard request redirects to login.
+- [x] Valid credentials reach home.
+- [x] Invalid credentials show generic feedback.
 **Tests**: E2E
 **Gate**: Full
 **Commit**: `feat: add login flow`
@@ -244,9 +245,9 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Depends on**: T12
 **Requirement**: AUTH-02
 **Done when**:
-- [ ] Secretary cannot manage ministries/accounts.
-- [ ] Leader is restricted to explicit scopes.
-- [ ] Administrator has full MVP access.
+- [x] Secretary cannot manage ministries/accounts.
+- [x] Leader is restricted to explicit scopes.
+- [x] Administrator has full MVP access.
 **Tests**: unit
 **Gate**: Quick
 **Commit**: `feat: add role and ministry authorization`
@@ -258,9 +259,9 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Depends on**: T14, T05
 **Requirement**: AUTH-01, AUTH-02
 **Done when**:
-- [ ] Admin creates account only for existing Person.
-- [ ] Admin can deactivate account without deleting history.
-- [ ] Non-admin action is denied server-side.
+- [x] Admin creates account only for existing Person.
+- [x] Admin can deactivate account without deleting history.
+- [x] Non-admin action is denied server-side.
 **Tests**: integration + E2E
 **Gate**: Full
 **Commit**: `feat: add account administration`
@@ -274,9 +275,9 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Depends on**: T10, T14
 **Requirement**: PES-01, AUD-01
 **Done when**:
-- [ ] Service requires authorized actor.
-- [ ] Person mutation, timeline and audit share one transaction.
-- [ ] Failed transaction leaves no partial event.
+- [x] Service requires authorized actor.
+- [x] Person mutation, timeline and audit share one transaction.
+- [x] Failed transaction leaves no partial event.
 **Tests**: integration
 **Gate**: Full
 **Commit**: `feat: add transactional person service`
@@ -288,9 +289,9 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Depends on**: T16
 **Requirement**: PES-01
 **Done when**:
-- [ ] Visitor requires only full name.
-- [ ] Member requires phone and birth date.
-- [ ] Successful creation opens new profile.
+- [x] Visitor requires only full name.
+- [x] Member requires phone and birth date.
+- [x] Successful creation opens new profile.
 **Tests**: integration + E2E
 **Gate**: Full
 **Commit**: `feat: add person registration flows`
@@ -302,9 +303,9 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Depends on**: T16
 **Requirement**: PES-02
 **Done when**:
-- [ ] Promotion rejects missing phone/birth date.
-- [ ] Effective date is editable.
-- [ ] Inactivation keeps Person and history queryable.
+- [x] Promotion rejects missing phone/birth date.
+- [x] Effective date is editable.
+- [x] Inactivation keeps Person and history queryable.
 **Tests**: unit + integration
 **Gate**: Full
 **Commit**: `feat: add person status transitions`
@@ -316,9 +317,9 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Depends on**: T17
 **Requirement**: PES-01
 **Done when**:
-- [ ] List filters all, visitors, members and inactive.
-- [ ] Search locates by name.
-- [ ] Age displays only when birth date exists.
+- [x] List filters all, visitors, members and inactive.
+- [x] Search locates by name.
+- [x] Age displays only when birth date exists.
 **Tests**: integration + E2E
 **Gate**: Full
 **Commit**: `feat: add people list and search`
@@ -330,9 +331,9 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Depends on**: T18, T19
 **Requirement**: PES-01, TIM-01
 **Done when**:
-- [ ] Profile displays status, contact, birthday/age and actions allowed by role.
-- [ ] Missing photo uses initials.
-- [ ] Unauthorised leader is blocked.
+- [x] Profile displays status, contact, birthday/age and actions allowed by role.
+- [x] Missing photo uses initials.
+- [x] Unauthorised leader is blocked.
 **Tests**: E2E
 **Gate**: Full
 **Commit**: `feat: add person profile`
@@ -346,9 +347,9 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Depends on**: T16
 **Requirement**: MIN-01
 **Done when**:
-- [ ] Only admin can mutate Ministry.
-- [ ] Archived Ministry rejects new memberships and attendance operations.
-- [ ] Mutations are audited.
+- [x] Only admin can mutate Ministry.
+- [x] Archived Ministry rejects new memberships and attendance operations.
+- [x] Mutations are audited.
 **Tests**: integration + E2E
 **Gate**: Full
 **Commit**: `feat: add ministry administration`
@@ -360,9 +361,9 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Depends on**: T21
 **Requirement**: MIN-02
 **Done when**:
-- [ ] One Person can hold multiple memberships.
-- [ ] Membership stores editable effective dates.
-- [ ] Start/end produces Person timeline event.
+- [x] One Person can hold multiple memberships.
+- [x] Membership stores editable effective dates.
+- [x] Start/end produces Person timeline event.
 **Tests**: integration
 **Gate**: Full
 **Commit**: `feat: add ministry membership history`
@@ -374,9 +375,9 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Depends on**: T22, T15
 **Requirement**: AUTH-02, MIN-02
 **Done when**:
-- [ ] Admin can grant/revoke scope.
-- [ ] Revocation blocks future access but preserves authorship.
-- [ ] Scope is not inferred from membership role.
+- [x] Admin can grant/revoke scope.
+- [x] Revocation blocks future access but preserves authorship.
+- [x] Scope is not inferred from membership role.
 **Tests**: unit + integration
 **Gate**: Full
 **Commit**: `feat: add leader ministry scopes`
@@ -388,9 +389,9 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Depends on**: T22
 **Requirement**: MIN-01, MIN-02
 **Done when**:
-- [ ] Profile follows approved wireframe information hierarchy.
-- [ ] Current and historic participants are distinguishable.
-- [ ] Leader only sees authorized Ministry.
+- [x] Profile follows approved wireframe information hierarchy.
+- [x] Current and historic participants are distinguishable.
+- [x] Leader only sees authorized Ministry.
 **Tests**: E2E
 **Gate**: Full
 **Commit**: `feat: add ministry profile`
@@ -404,9 +405,9 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Depends on**: T21
 **Requirement**: ENC-01
 **Done when**:
-- [ ] Admin manages categories.
-- [ ] Series supports weekly, biweekly and monthly patterns, weekday selection and optional end.
-- [ ] Each generated occurrence remains independently editable.
+- [x] Admin manages categories.
+- [x] Series supports weekly, biweekly and monthly patterns, weekday selection and optional end.
+- [x] Each generated occurrence remains independently editable.
 **Tests**: unit + integration
 **Gate**: Full
 **Commit**: `feat: add meeting categories and recurrence`
@@ -418,9 +419,9 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Depends on**: T25
 **Requirement**: ENC-01
 **Done when**:
-- [ ] Audience accepts whole church or selected Ministries.
-- [ ] Leader can create only within granted scope.
-- [ ] Cancelled meeting remains queryable and rejects new attendance writes.
+- [x] Audience accepts whole church or selected Ministries.
+- [x] Leader can create only within granted scope.
+- [x] Cancelled meeting remains queryable and rejects new attendance writes.
 **Tests**: integration + E2E
 **Gate**: Full
 **Commit**: `feat: add meeting creation and audiences`
@@ -432,9 +433,9 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Depends on**: T26
 **Requirement**: ENC-01
 **Done when**:
-- [ ] Current Ministry memberships determine eligibility.
-- [ ] Reopening attendance does not duplicate rows.
-- [ ] Every displayed person has an attendance record.
+- [x] Current Ministry memberships determine eligibility.
+- [x] Reopening attendance does not duplicate rows.
+- [x] Every displayed person has an attendance record.
 **Tests**: unit + integration
 **Gate**: Full
 **Commit**: `feat: initialize meeting attendance`
@@ -446,9 +447,9 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Depends on**: T27, T05
 **Requirement**: ENC-01, AUD-01
 **Done when**:
-- [ ] Row cycles unknown → present → absent → unknown.
-- [ ] UI uses white/green/red feedback and rolls back display on server failure.
-- [ ] Audit stores before/after, actor, timestamp and optional reason for correction.
+- [x] Row cycles unknown → present → absent → unknown.
+- [x] UI uses white/green/red feedback and rolls back display on server failure.
+- [x] Audit stores before/after, actor, timestamp and optional reason for correction.
 **Tests**: unit + integration + E2E
 **Gate**: Full
 **Commit**: `feat: add one-tap attendance`
@@ -460,9 +461,9 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Depends on**: T28, T17
 **Requirement**: ENC-01
 **Done when**:
-- [ ] Existing Person search works without leaving attendance.
-- [ ] Quick visitor requires only name and is immediately eligible.
-- [ ] Summary reflects each state.
+- [x] Existing Person search works without leaving attendance.
+- [x] Quick visitor requires only name and is immediately eligible.
+- [x] Summary reflects each state.
 **Tests**: integration + E2E
 **Gate**: Full
 **Commit**: `feat: complete attendance operation`
@@ -476,9 +477,9 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Depends on**: T20, T22, T28
 **Requirement**: TIM-01
 **Done when**:
-- [ ] Events sort newest first.
-- [ ] Filters distinguish status, ministries, attendance, notes and corrections.
-- [ ] Filters change query only and never data.
+- [x] Events sort newest first.
+- [x] Filters distinguish status, ministries, attendance, notes and corrections.
+- [x] Filters change query only and never data.
 **Tests**: integration + E2E
 **Gate**: Full
 **Commit**: `feat: add person timeline filters`
@@ -490,9 +491,9 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Depends on**: T30
 **Requirement**: TIM-01
 **Done when**:
-- [ ] Note stores author, creation and update timestamps.
-- [ ] Every edit creates ordered NoteVersion.
-- [ ] Creation/edit emits timeline and audit events.
+- [x] Note stores author, creation and update timestamps.
+- [x] Every edit creates ordered NoteVersion.
+- [x] Creation/edit emits timeline and audit events.
 **Tests**: unit + integration + E2E
 **Gate**: Full
 **Commit**: `feat: add versioned person notes`
@@ -504,9 +505,9 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Depends on**: T31
 **Requirement**: TIM-01
 **Done when**:
-- [ ] Archive never deletes note/version history.
-- [ ] Default timeline hides archived notes.
-- [ ] Filter reveals archived notes only to authorized profile viewer.
+- [x] Archive never deletes note/version history.
+- [x] Default timeline hides archived notes.
+- [x] Filter reveals archived notes only to authorized profile viewer.
 **Tests**: integration + E2E
 **Gate**: Full
 **Commit**: `feat: add note archiving`
@@ -518,9 +519,9 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Depends on**: T32
 **Requirement**: AUD-01
 **Done when**:
-- [ ] Admin sees sensitive actions specified by the spec.
-- [ ] Non-admin cannot access audit query.
-- [ ] Correction audit shows optional reason when present.
+- [x] Admin sees sensitive actions specified by the spec.
+- [x] Non-admin cannot access audit query.
+- [x] Correction audit shows optional reason when present.
 **Tests**: integration + E2E
 **Gate**: Full
 **Commit**: `feat: add audit history view`
@@ -534,26 +535,30 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Depends on**: T33
 **Requirement**: AUD-01
 **Done when**:
-- [ ] Seed demonstrates each role and core feature.
-- [ ] README documents local reset/seed command.
-- [ ] No real personal data exists in seed.
+- [x] Seed demonstrates each role and core feature.
+- [x] README documents local reset/seed command.
+- [x] No real personal data exists in seed.
 **Tests**: integration
 **Gate**: Full
 **Commit**: `chore: add Emaus demo scenario`
 
+**Verification**: `npm run test:integration -- --maxWorkers=1` — 100 passed; `npm run test:e2e -- --workers=1` — 21 passed. The default parallel E2E command remains subject to the pre-existing shared-fixture race documented in the handoff.
+
 ### T35: Complete critical-path Playwright suite
 
 **What**: Add end-to-end coverage for P1 journeys.
-**Where**: `e2e/auth.spec.ts`, `e2e/people.spec.ts`, `e2e/attendance.spec.ts`, `e2e/permissions.spec.ts`
+**Where**: `e2e/auth.spec.ts`, `e2e/audit.spec.ts`, `e2e/people.spec.ts`, `e2e/attendance.spec.ts`, `e2e/permissions.spec.ts`, `e2e/demo-fixtures.ts`, `e2e/global-setup.ts`, `playwright.config.ts`, `vitest.config.ts`
 **Depends on**: T34
 **Requirement**: AUTH-01, PES-01, MIN-02, ENC-01, TIM-01, AUD-01
 **Done when**:
-- [ ] Suite covers login/deactivation, Person lifecycle, leader restriction and attendance correction.
-- [ ] E2E uses isolated seeded/reset state.
-- [ ] All P1 acceptance criteria map to test evidence.
+- [x] Suite covers login/deactivation, Person lifecycle, leader restriction and attendance correction.
+- [x] E2E uses isolated seeded/reset state.
+- [x] All P1 acceptance criteria map to test evidence.
 **Tests**: E2E
 **Gate**: Full
 **Commit**: `test: cover Emaus critical MVP journeys`
+
+**Verification**: `npm run test:integration && npm run test:e2e` — integration 31 files/100 tests passed; E2E 24 tests passed. `workers: 1`, Vitest `fileParallelism: false` and Prisma reset/seed global setup isolate the shared local PostgreSQL fixtures. `npm run typecheck` and `git diff --check` passed. Adequacy review PASS: `e2e/auth.spec.ts:33-62` asserts account creation, deactivation, preserved Person and denied login; `e2e/people.spec.ts:24-84` asserts visitor→member→inactive UI plus persisted status, ministry, attendance, timeline and audit; `e2e/permissions.spec.ts:16-39` asserts leader scope and secretary/admin boundary; `e2e/attendance.spec.ts:21-43` asserts all three states, before/after/reason audit and timeline; existing full E2E tests remain green and audit locators are scoped to their own record.
 
 ### T36: Run TLC verifier and local UAT
 
@@ -562,12 +567,198 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Depends on**: T35
 **Requirement**: all requirements
 **Done when**:
-- [ ] Fresh verifier writes PASS/FAIL evidence for every requirement ID.
-- [ ] Discrimination sensor results are recorded.
-- [ ] Any gap becomes a new atomic task; no unresolved P1 gap is marked done.
+- [x] Standalone fresh-eyes verifier writes evidence-or-zero PASS for all 31 acceptance criteria in `validation.md`.
+- [x] Discrimination sensor results are recorded: 3 behavior-level mutations, 3 killed, 0 survived.
+- [x] Every discovered gap became T37–T47 and no unresolved P1 gap remains.
 **Tests**: full suite + UAT
 **Gate**: Build
 **Commit**: `docs: validate Emaus MVP locally`
+
+**Verification**: `validation.md` records 31/31 spec-anchored PASS, automated UAT, adequacy review PASS and a lightweight scratch sensor with 3/3 killed. Final Full gate passed with 31 files/103 integration tests and 27/27 E2E tests. Final Build gate passed (`db:validate`, typecheck, lint with one existing warning, build and 31/103 Vitest tests). Lessons L-001–L-006 were generated by `lessons.py`; no unresolved gap remains.
+
+### T37: Restore clean Build gate navigation
+
+**What**: Correct internal navigation elements flagged by the T36 lint gate and remove the unused meeting-form import.
+**Where**: `src/app/(dashboard)/page.tsx`, `src/app/(dashboard)/pessoas/nova/person-form.tsx`, `src/app/(dashboard)/encontros/page.tsx`, `e2e/shell.spec.ts`
+**Depends on**: T36 validation gap
+**Requirement**: AUD-01
+**Done when**:
+- [x] Dashboard shortcuts and Person-form cancel keep their destinations while using `next/link`.
+- [x] The Encontros page has no unused `CreateMeetingForm` import.
+- [x] Build gate passes without lint errors and the existing E2E suite remains green.
+**Tests**: Build + E2E smoke
+**Gate**: Build
+**Commit**: `fix: restore clean navigation lint gate`
+
+**Verification**: `npm run db:validate && npm run typecheck && npm run lint && npm run build && npm run test` passed: schema valid, typecheck/lint clean of errors, production build succeeded, 31 files/100 tests passed. `npm run test:e2e -- --workers=1 e2e/shell.spec.ts` passed 3/3. Adequacy review PASS: `e2e/shell.spec.ts:53-55` asserts `/pessoas` and both `/encontros` shortcut hrefs; `e2e/shell.spec.ts:58-59` asserts Cancelar navigates to `/pessoas`; lint is the precise static evidence for the `next/link` and unused-import criteria. No tests were deleted or weakened.
+
+### T38: Expose Person status lifecycle in the profile
+
+**What**: Add authorized profile actions to promote a visitor to member and inactivate a Person, including effective dates, validation feedback and explicit inactivation confirmation.
+**Where**: `src/app/(dashboard)/pessoas/[personId]/actions.ts`, `src/app/(dashboard)/pessoas/[personId]/page.tsx`, `src/app/(dashboard)/pessoas/[personId]/status-actions.tsx`, `e2e/people.spec.ts`
+**Depends on**: T36 validation gap
+**Requirement**: PES-02, AUD-01
+**Done when**:
+- [x] Authorized users can promote a visitor from the profile with phone, birth date and effective date.
+- [x] Authorized users can inactivate a Person from the profile without deleting history.
+- [x] Promotion/inactivation errors remain contextual and inactivation asks for explicit confirmation.
+- [x] Browser evidence covers the complete visitor → member → inactive journey through the profile UI.
+**Tests**: E2E
+**Gate**: Full
+**Commit**: `feat: expose person status lifecycle`
+
+**Verification**: `npm run test:integration && npm run test:e2e` passed: 31 files/100 integration tests and 25/25 E2E tests. Adequacy review PASS: `e2e/people.spec.ts:36-48` submits promotion through labeled profile controls and asserts the redirect, confirmation, persisted member status, phone and exact effective timestamp; `e2e/people.spec.ts:67-87` accepts the explicit inactivation dialog and asserts confirmation, preserved memberships/attendance/timeline and exact `INACTIVE` audit action. `src/app/(dashboard)/pessoas/[personId]/actions.ts:13-25,44-46,64-66` provides server-side role/date validation and contextual error results; no tests were deleted or weakened.
+
+### T39: Render Person attendance history in the profile
+
+**What**: Query historical Attendance records with their meetings and render them in the Person profile with Brazil dates and explicit status labels.
+**Where**: `src/features/pessoas/person-query.ts`, `src/app/(dashboard)/pessoas/[personId]/page.tsx`, `e2e/people-profile.spec.ts`
+**Depends on**: T36 validation gap
+**Requirement**: TIM-01
+**Done when**:
+- [x] Profile frequency section lists persisted meetings for the Person.
+- [x] Each entry shows meeting, scheduled date and exact attendance status.
+- [x] Empty history remains an intentional, readable state.
+- [x] Browser evidence confirms a persisted attendance is visible in the profile.
+**Tests**: integration + E2E
+**Gate**: Full
+**Commit**: `feat: show person attendance history`
+
+**Verification**: `npm run test:integration && npm run test:e2e` passed: 31 files/101 integration tests and 25/25 E2E tests. Adequacy review PASS: `src/features/pessoas/person-query.integration.test.ts:97-102` asserts the profile query returns meeting, scheduled timestamp and `PRESENT`; `e2e/people-profile.spec.ts:80-84` asserts the named frequency region renders meeting, Brazil date and status; `src/app/(dashboard)/pessoas/[personId]/page.tsx:92-106` preserves an explicit empty state. No existing test was deleted or weakened.
+
+### T40: Stabilize critical-path E2E cold-start waits
+
+**What**: Give the audit login helper and Person registration navigation assertions the same cold-start tolerance as the other critical flows so the full gate does not fail on valid behavior during application compilation.
+**Where**: `e2e/audit.spec.ts`, `e2e/people-registration.spec.ts`
+**Depends on**: T39 Full gate failure
+**Requirement**: AUTH-01, AUD-01
+**Done when**:
+- [x] Audit administrator and secretary login assertions tolerate the documented dev-server cold start.
+- [x] Person registration navigation assertions tolerate the documented dev-server cold start.
+- [x] The audit spec remains exact and passes in isolation.
+- [x] The Full gate can be rerun without the observed login timeout.
+**Tests**: E2E
+**Gate**: Full
+**Commit**: `test: stabilize audit e2e login`
+
+**Verification**: `npm run test:integration && npm run test:e2e` passed: 31 files/100 integration tests and 25/25 E2E tests; `npm run test:e2e -- --workers=1 e2e/audit.spec.ts e2e/people-registration.spec.ts` passed 4/4. Adequacy review PASS: `e2e/audit.spec.ts:41` preserves the exact `/` destination while allowing only 30 seconds for cold start; `e2e/people-registration.spec.ts:49-50,66-67` preserves exact profile URL assertions with the same bounded wait. No behavior assertion was weakened and no test was deleted.
+
+### T41: Normalize business date and time inputs to São Paulo
+
+**What**: Parse date-only and `datetime-local` inputs as `America/Sao_Paulo`, and format persisted calendar dates without host-timezone drift.
+**Where**: `src/lib/dates.ts`, `src/lib/dates.test.ts`, `src/app/(dashboard)/pessoas/nova/actions.ts`, `src/app/(dashboard)/encontros/actions.ts`, `src/app/(dashboard)/pessoas/page.tsx`, `src/app/(dashboard)/pessoas/[personId]/page.tsx`, `src/app/(dashboard)/ministerios/[ministryId]/page.tsx`, `src/features/encontros/series-service.ts`, `src/features/encontros/series-service.test.ts`, `e2e/people-registration.spec.ts`, `e2e/meetings.spec.ts`, `e2e/people-profile.spec.ts`
+**Depends on**: T36 validation gap
+**Requirement**: AUD-01, PES-01, ENC-01
+**Done when**:
+- [x] Date-only fields preserve the entered Brazil calendar date after persistence.
+- [x] Meeting local date/time persists as the equivalent São Paulo instant independent of host timezone.
+- [x] Date-only and instant display paths use the correct formatter for their data type.
+- [x] Unit/integration/browser evidence asserts exact dates and timestamps.
+**Tests**: unit + integration + E2E
+**Gate**: Full
+**Commit**: `fix: preserve Sao Paulo calendar inputs`
+
+**Verification**: Unit date tests in `src/lib/dates.test.ts:23-31` assert date-only formatting and the exact `2026-09-10T19:00` → `2026-09-10T22:00:00.000Z` conversion; recurrence tests in `src/features/encontros/series-service.test.ts:6-47` assert calendar dates remain stable at noon UTC. Browser evidence in `e2e/people-registration.spec.ts:71-80` asserts the persisted birth date and profile rendering, `e2e/meetings.spec.ts:61-64` asserts the persisted São Paulo instant and agenda date, and `e2e/people-profile.spec.ts:68` asserts the date-only profile value. Adequacy review PASS: assertions cover persistence plus both date-only and instant display paths; no existing test was deleted or weakened.
+
+### T42: Provide an explicit attendance retry path after cancellation failure
+
+**What**: Keep the optimistic attendance rollback visible when the server rejects a cancelled meeting, and expose a retry action that succeeds after the meeting becomes writable again.
+**Where**: `src/app/(dashboard)/encontros/[meetingId]/attendance-board.tsx`, `e2e/attendance.spec.ts`
+**Depends on**: T41
+**Requirement**: AUD-01
+**Done when**:
+- [x] A failed attendance cycle restores the previous status and preserves the exact server feedback.
+- [x] The board exposes an explicit retry action for the failed row.
+- [x] A retry after the meeting is reopened persists the new attendance status and feedback.
+- [x] Browser evidence covers the failure, rollback, retry and persistence sequence.
+**Tests**: E2E
+**Gate**: Full
+**Commit**: `fix: add attendance retry feedback`
+
+**Verification**: Full gate `npm run test:integration && npm run test:e2e` passed with 31 files/102 integration tests and 26/26 E2E tests. Adequacy review PASS: `src/app/(dashboard)/encontros/[meetingId]/attendance-board.tsx:33-57,88` restores the prior optimistic value, retains the exact server error and renders an explicit retry; `e2e/attendance.spec.ts:59-100` forces cancellation, asserts rollback/error/retry, reopens the meeting and asserts `PRESENT` in both UI and database. No existing test was deleted or weakened.
+
+### T43: Confirm initial Person registration in the profile
+
+**What**: Return a discreet success confirmation after creating a Person and render it in the destination profile without changing the existing registration flow.
+**Where**: `src/app/(dashboard)/pessoas/nova/actions.ts`, `src/app/(dashboard)/pessoas/[personId]/page.tsx`, `e2e/people-registration.spec.ts`, `e2e/people.spec.ts`
+**Depends on**: T42
+**Requirement**: PES-01
+**Done when**:
+- [x] Initial visitor and member registrations redirect to the profile with a success status message.
+- [x] The confirmation is exact, contextual and does not replace the persisted profile/status assertions.
+- [x] Browser evidence covers both registration variants.
+**Tests**: E2E
+**Gate**: Full
+**Commit**: `fix: confirm person registration`
+
+**Verification**: Full gate `npm run test:integration && npm run test:e2e` passed with 31 files/102 integration tests and 26/26 E2E tests. Adequacy review PASS: `src/app/(dashboard)/pessoas/nova/actions.ts:51` redirects with `status=created`, `src/app/(dashboard)/pessoas/[personId]/page.tsx:29-37` renders the exact contextual message, and `e2e/people-registration.spec.ts:49-52,66-69` plus `e2e/people.spec.ts:27-30` assert visitor/member confirmation without dropping persistence or status checks. No existing test was deleted or weakened.
+
+### T44: Confirm meeting cancellation before creation
+
+**What**: Require explicit confirmation when a user submits a new meeting with the `CANCELLED` state, preventing creation on dismissal and preserving creation on acceptance.
+**Where**: `src/app/(dashboard)/encontros/meeting-forms.tsx`, `e2e/meetings.spec.ts`
+**Depends on**: T43
+**Requirement**: AUD-01
+**Done when**:
+- [x] Submitting a cancelled meeting opens an explicit confirmation dialog.
+- [x] Dismissing the dialog prevents creation and does not show a success result.
+- [x] Accepting the dialog creates the cancelled meeting and preserves its status.
+- [x] Browser evidence covers both dismissal and acceptance.
+**Tests**: E2E
+**Gate**: Full
+**Commit**: `fix: confirm meeting cancellation`
+
+**Verification**: Full gate `npm run test:integration && npm run test:e2e` passed with 31 files/102 integration tests and 27/27 E2E tests. Adequacy review PASS: `src/app/(dashboard)/encontros/meeting-forms.tsx:10-18` confirms only the `CANCELLED` path and prevents default on dismissal; `e2e/meetings.spec.ts:60-85` asserts the exact dialog text, no database row/success after dismissal, and persisted `CANCELLED` after acceptance. The 30-second success wait preserves the exact result while tolerating the documented dev-server cold start. No existing test was deleted or weakened.
+
+### T45: Strengthen cancellation-dismissal evidence
+
+**What**: Await the asynchronous outcome of a dismissed cancellation confirmation so the test fails if a cancelled meeting is accidentally created after dismissal.
+**Where**: `e2e/meetings.spec.ts`
+**Depends on**: T44
+**Requirement**: AUD-01
+**Done when**:
+- [x] Dismissal evidence waits for the form to settle and polls persistence, rather than checking only the immediate state.
+- [x] The test kills a mutation that bypasses the dismissal guard while preserving the exact acceptance assertions.
+**Tests**: E2E
+**Gate**: Full
+**Commit**: `test: harden cancellation dismissal evidence`
+
+**Verification**: Full gate `npm run test:integration && npm run test:e2e` passed with 31 files/102 integration tests and 27/27 E2E tests. Adequacy review PASS: `e2e/meetings.spec.ts:72-82` waits for the submit button to settle and polls the database for absence after dismissal, then preserves exact accepted-dialog/status assertions. The sensor mutation that inverted the confirmation guard failed this strengthened test; no existing behavior assertion was weakened or deleted.
+
+### T46: Stabilize calendar-relative age evidence
+
+**What**: Remove the calendar-date flake in the profile E2E assertion and tolerate the documented dev cold start while preserving exact birth-date, calculated-age and destination evidence.
+**Where**: `e2e/people-profile.spec.ts`
+**Depends on**: T36 validation gap
+**Requirement**: PES-01
+**Assumptions**: The age is derived at assertion time from the fixture birth date using the approved Brazil-calendar rule; the visible birth date remains exact.
+**Done when**:
+- [x] The profile E2E expects the current calendar-relative age instead of a stale hard-coded value.
+- [x] The exact birth date and the rendered age remain asserted together.
+- [x] The profile login wait has a bounded cold-start tolerance while preserving the exact protected destination assertion.
+- [x] Full gate passes without weakening or deleting existing profile assertions.
+**Tests**: E2E
+**Gate**: Full
+**Commit**: `test: stabilize calendar-relative age evidence`
+
+**Verification**: Full gate `npm run test:integration && npm run test:e2e` passed with 31 files/102 integration tests and 27/27 E2E tests. Adequacy review PASS: `e2e/people-profile.spec.ts:68-82` retains exact protected-navigation, birth-date and calculated-age assertions; the bounded timeout only covers the documented dev cold start. Build gate also passed with schema validation, typecheck, lint, production build and 31/102 Vitest tests. No test was deleted or weakened.
+
+### T47: Prove account identifier uniqueness
+
+**What**: Add integration evidence that account creation rejects both a duplicate username and a duplicate e-mail, closing AUTH-01.3 evidence-or-zero coverage.
+**Where**: `src/features/auth/account-service.integration.test.ts`
+**Depends on**: T36 validation gap
+**Requirement**: AUTH-01
+**Assumptions**: Prisma uniqueness is the implementation invariant; the test must exercise the service boundary and prove each identifier conflict explicitly.
+**Done when**:
+- [x] Reusing an existing username is rejected and no second account is persisted.
+- [x] Reusing an existing e-mail is rejected and no second account is persisted.
+- [x] Full gate passes without weakening any account test.
+**Tests**: integration
+**Gate**: Full
+**Commit**: `test: cover account identifier uniqueness`
+
+**Verification**: Historical targeted integration gate passed 5/5 and historical Full gate passed with 31 files/103 integration tests and 27/27 E2E tests. Final reconciliation revalidation is recorded in `validation.md` with 31 files/108 Vitest tests and 28/28 E2E tests. Adequacy review PASS: `src/features/auth/account-service.integration.test.ts:49-84` drives distinct Person records through duplicate username and case-normalized e-mail conflicts, asserts the exact service error, and proves zero partial accounts. No existing account test was weakened or deleted.
 
 ---
 

@@ -6,19 +6,24 @@ type InputProps = InputHTMLAttributes<HTMLInputElement> & {
 };
 
 export function Input({ id, label, error, className = "", ...props }: InputProps) {
-  const errorId = error && id ? `${id}-error` : undefined;
+  const inputId = id ?? label.toLowerCase().replaceAll(" ", "-");
+  const errorId = error ? `${inputId}-error` : undefined;
 
   return (
-    <label className="block text-sm font-medium text-slate-700" htmlFor={id}>
-      <span className="mb-2 block">{label}</span>
+    <label className="grid gap-2 text-sm font-medium text-slate-700" htmlFor={inputId}>
+      <span>{label}</span>
       <input
         {...props}
-        id={id}
+        id={inputId}
         aria-describedby={errorId}
         aria-invalid={error ? true : undefined}
-        className={`min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-slate-950 outline-none transition focus:border-[#477462] focus:ring-2 focus:ring-[#dcebe3] ${error ? "border-red-500" : ""} ${className}`}
+        className={`min-h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-950 outline-none transition focus:border-[#26766d] focus:ring-2 focus:ring-[#dceee9] ${error ? "border-[#b54747]" : ""} ${className}`}
       />
-      {error ? <span className="mt-1 block text-xs font-normal text-red-700" id={errorId}>{error}</span> : null}
+      {error ? (
+        <span id={errorId} className="text-xs font-normal text-[#b54747]">
+          {error}
+        </span>
+      ) : null}
     </label>
   );
 }

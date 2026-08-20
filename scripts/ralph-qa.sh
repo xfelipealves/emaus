@@ -204,13 +204,21 @@ try:
 except subprocess.CalledProcessError:
     raise SystemExit(f"recorded baseSha is not present locally: {base_sha}")
 
+with open(tasks_path, encoding="utf-8") as source:
+    defined_tasks = sorted(
+        set(re.findall(r"^### (T\d{2}):", source.read(), re.MULTILINE)),
+        key=lambda value: int(value[1:]),
+    )
+defined_numbers = [int(task[1:]) for task in defined_tasks]
+if not defined_tasks:
+    raise SystemExit("task definition file has no task headings")
+
 completed = state.get("completedTasks")
 if not isinstance(completed, list) or not completed:
     raise SystemExit("loop state has no completed task list")
 if any(
     not isinstance(task, str)
-    or not re.fullmatch(r"T\d{2}", task)
-    or not 1 <= int(task[1:]) <= 36
+    or task not in defined_tasks
     for task in completed
 ):
     raise SystemExit("loop state contains an invalid completed task ID")
@@ -226,8 +234,7 @@ if not isinstance(base_completed, list):
     raise SystemExit("recorded base state has no completed task list")
 if any(
     not isinstance(task, str)
-    or not re.fullmatch(r"T\d{2}", task)
-    or not 1 <= int(task[1:]) <= 36
+    or task not in defined_tasks
     for task in base_completed
 ):
     raise SystemExit("recorded base state contains an invalid completed task ID")
@@ -238,13 +245,14 @@ if not new_tasks:
     raise SystemExit("batch has no completed tasks after the recorded base")
 
 base_numbers = [int(task[1:]) for task in base_completed]
-base_next_number = base_numbers[-1] + 1 if base_numbers else 1
-base_next = f"T{base_next_number:02d}" if base_next_number <= 36 else None
+base_position = defined_numbers.index(base_numbers[-1]) if base_numbers else -1
+base_next = defined_tasks[base_position + 1] if base_position + 1 < len(defined_tasks) else None
 if base_next is None or base_state.get("currentTask") != base_next:
     raise SystemExit("recorded base state currentTask is not the next task after its completedTasks")
 new_numbers = [int(task[1:]) for task in new_tasks]
-expected_numbers = list(range(base_next_number, new_numbers[-1] + 1))
-if new_numbers != expected_numbers:
+new_positions = [defined_numbers.index(number) for number in new_numbers]
+expected_positions = list(range(base_position + 1, new_positions[-1] + 1))
+if new_positions != expected_positions:
     raise SystemExit("completed task sequence is not contiguous from the recorded base next task")
 
 with open(tasks_path, encoding="utf-8") as source:
@@ -274,8 +282,8 @@ if last_push.get("remote") != "origin" or last_push.get("branch") != run_branch:
 if last_push.get("status") != "passed":
     raise SystemExit("recorded lastPush status is not passed")
 
-numbers = [int(task[1:]) for task in completed]
-expected_current = f"T{numbers[-1] + 1:02d}" if numbers[-1] < 36 else None
+last_position = defined_tasks.index(completed[-1])
+expected_current = defined_tasks[last_position + 1] if last_position + 1 < len(defined_tasks) else None
 status = state.get("status")
 if status not in {"ready", "verification_required", "complete"}:
     raise SystemExit(f"loop status is not valid for QA: {status!r}")
@@ -283,7 +291,7 @@ if status == "ready":
     if expected_current is None or state.get("currentTask") != expected_current:
         raise SystemExit("ready state must have the next task after completedTasks")
 elif expected_current is not None or state.get("currentTask") is not None:
-    raise SystemExit(f"{status} state must have all T01..T36 completed and no currentTask")
+    raise SystemExit(f"{status} state must have all defined tasks completed and no currentTask")
 
 task_range = new_tasks[0] if len(new_tasks) == 1 else f"{new_tasks[0]}..{new_tasks[-1]}"
 print("\t".join((base_sha, last_push_sha, task_range, str(number), url)))

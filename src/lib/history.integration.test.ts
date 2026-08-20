@@ -1,122 +1,114 @@
-import { AccountRole, PrismaClient, TimelineEventCategory } from "@prisma/client";
-import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { prisma } from "./prisma";
 
-const prisma = new PrismaClient();
+describe("History and audit persistence", () => {
+  let personId: string;
+  let accountId: string;
+  let noteId: string;
 
-describe("History schema", () => {
-  beforeEach(async () => {
-    await prisma.auditEvent.deleteMany();
-    await prisma.timelineEvent.deleteMany();
-    await prisma.noteVersion.deleteMany();
-    await prisma.note.deleteMany();
-    await prisma.account.deleteMany();
-    await prisma.person.deleteMany();
+  beforeAll(async () => {
+    const person = await prisma.person.create({
+      data: { fullName: "Pessoa de integração T09" },
+    });
+    personId = person.id;
+
+    const account = await prisma.account.create({
+      data: {
+        personId,
+        username: "integracao-t09",
+        email: "integracao-t09@example.test",
+        passwordHash: "test-hash",
+      },
+    });
+    accountId = account.id;
   });
 
   afterAll(async () => {
-    await prisma.auditEvent.deleteMany();
-    await prisma.timelineEvent.deleteMany();
-    await prisma.noteVersion.deleteMany();
-    await prisma.note.deleteMany();
-    await prisma.account.deleteMany();
-    await prisma.person.deleteMany();
+    await prisma.auditEvent.deleteMany({ where: { actorId: accountId } });
+    await prisma.timelineEvent.deleteMany({ where: { personId } });
+    await prisma.noteVersion.deleteMany({ where: { authorId: accountId } });
+    await prisma.note.deleteMany({ where: { id: noteId } });
+    await prisma.account.delete({ where: { id: accountId } });
+    await prisma.person.delete({ where: { id: personId } });
     await prisma.$disconnect();
   });
 
-  it("preserves note version author, content and sequence", async () => {
-    const person = await prisma.person.create({ data: { fullName: "Pessoa acompanhada" } });
-    const author = await prisma.person.create({ data: { fullName: "Autora" } });
-    const account = await prisma.account.create({
+  it("preserves complete note versions with author and sequence", async () => {
+    const note = await prisma.note.create({
       data: {
-        username: "autora",
-        email: "autora@example.test",
-        passwordHash: "argon2-hash",
-        role: AccountRole.SECRETARY,
-        personId: author.id,
+        personId,
+        authorId: accountId,
+        content: "Primeiro acompanhamento",
+        versions: {
+          create: {
+            authorId: accountId,
+            content: "Primeiro acompanhamento",
+            sequence: 1,
+          },
+        },
+      },
+      include: { versions: true },
+    });
+    noteId = note.id;
+
+    const version = note.versions[0];
+    expect(version.authorId).toBe(accountId);
+    expect(version.content).toBe("Primeiro acompanhamento");
+    expect(version.sequence).toBe(1);
+
+    const edited = await prisma.noteVersion.create({
+      data: {
+        noteId,
+        authorId: accountId,
+        content: "Acompanhamento atualizado",
+        sequence: 2,
       },
     });
-    const note = await prisma.note.create({ data: { personId: person.id, authorId: account.id } });
-
-    await prisma.noteVersion.createMany({
-      data: [
-        { noteId: note.id, authorId: account.id, content: "Primeiro acompanhamento", sequence: 1 },
-        { noteId: note.id, authorId: account.id, content: "Acompanhamento atualizado", sequence: 2 },
-      ],
-    });
-    const versions = await prisma.noteVersion.findMany({
-      where: { noteId: note.id },
-      orderBy: { sequence: "asc" },
-    });
-
-    expect(versions.map(({ sequence }) => sequence)).toEqual([1, 2]);
-    expect(versions.map(({ content }) => content)).toEqual([
-      "Primeiro acompanhamento",
-      "Acompanhamento atualizado",
-    ]);
-    expect(versions.every(({ authorId }) => authorId === account.id)).toBe(true);
+    expect(edited.sequence).toBe(2);
+    expect(edited.content).toBe("Acompanhamento atualizado");
   });
 
-  it("stores audit actor, target, action and before/after values", async () => {
-    const actorPerson = await prisma.person.create({ data: { fullName: "Administrador" } });
-    const target = await prisma.person.create({ data: { fullName: "Alvo" } });
-    const actor = await prisma.account.create({
+  it("stores categorized timeline events with timestamps for a person", async () => {
+    const occurredAt = new Date("2026-08-08T12:00:00.000Z");
+    const event = await prisma.timelineEvent.create({
       data: {
-        username: "admin-auditoria",
-        email: "admin-auditoria@example.test",
-        passwordHash: "argon2-hash",
-        role: AccountRole.ADMIN,
-        personId: actorPerson.id,
+        personId,
+        category: "NOTE",
+        title: "Nota adicionada",
+        description: "Acompanhamento atualizado",
+        occurredAt,
       },
-    });
-
-    const audit = await prisma.auditEvent.create({
-      data: {
-        actorId: actor.id,
-        targetType: "Person",
-        targetId: target.id,
-        action: "status_changed",
-        before: { status: "VISITOR" },
-        after: { status: "MEMBER" },
-      },
-    });
-
-    expect(audit.actorId).toBe(actor.id);
-    expect(audit.targetType).toBe("Person");
-    expect(audit.targetId).toBe(target.id);
-    expect(audit.action).toBe("status_changed");
-    expect(audit.before).toEqual({ status: "VISITOR" });
-    expect(audit.after).toEqual({ status: "MEMBER" });
-  });
-
-  it("supports timeline categories and descending timestamp queries", async () => {
-    const person = await prisma.person.create({ data: { fullName: "Pessoa da timeline" } });
-    const older = new Date("2026-01-01T12:00:00.000Z");
-    const newer = new Date("2026-02-01T12:00:00.000Z");
-
-    await prisma.timelineEvent.createMany({
-      data: [
-        {
-          personId: person.id,
-          category: TimelineEventCategory.STATUS,
-          occurredAt: older,
-          title: "Visitante cadastrado",
-        },
-        {
-          personId: person.id,
-          category: TimelineEventCategory.NOTE,
-          occurredAt: newer,
-          title: "Nota registrada",
-        },
-      ],
     });
 
     const timeline = await prisma.timelineEvent.findMany({
-      where: { personId: person.id, category: TimelineEventCategory.NOTE },
+      where: { personId },
       orderBy: { occurredAt: "desc" },
     });
+    expect(timeline[0].id).toBe(event.id);
+    expect(timeline[0].category).toBe("NOTE");
+    expect(timeline[0].occurredAt).toEqual(occurredAt);
+  });
 
-    expect(timeline).toHaveLength(1);
-    expect(timeline[0]?.category).toBe(TimelineEventCategory.NOTE);
-    expect(timeline[0]?.occurredAt).toEqual(newer);
+  it("stores audit actor, target, action and before/after values", async () => {
+    const audit = await prisma.auditEvent.create({
+      data: {
+        actorId: accountId,
+        targetType: "Note",
+        targetId: noteId,
+        action: "UPDATE",
+        before: { content: "Primeiro acompanhamento" },
+        after: { content: "Acompanhamento atualizado" },
+        reason: "Correção de acompanhamento",
+      },
+    });
+
+    expect(audit.actorId).toBe(accountId);
+    expect(audit.targetType).toBe("Note");
+    expect(audit.targetId).toBe(noteId);
+    expect(audit.action).toBe("UPDATE");
+    expect(audit.before).toEqual({ content: "Primeiro acompanhamento" });
+    expect(audit.after).toEqual({ content: "Acompanhamento atualizado" });
+    expect(audit.reason).toBe("Correção de acompanhamento");
+    expect(audit.createdAt).toBeInstanceOf(Date);
   });
 });
