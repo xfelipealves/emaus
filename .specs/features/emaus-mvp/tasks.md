@@ -626,23 +626,6 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 
 **Verification**: `npm run test:integration && npm run test:e2e` passed: 31 files/101 integration tests and 25/25 E2E tests. Adequacy review PASS: `src/features/pessoas/person-query.integration.test.ts:97-102` asserts the profile query returns meeting, scheduled timestamp and `PRESENT`; `e2e/people-profile.spec.ts:80-84` asserts the named frequency region renders meeting, Brazil date and status; `src/app/(dashboard)/pessoas/[personId]/page.tsx:92-106` preserves an explicit empty state. No existing test was deleted or weakened.
 
-### T41: Normalize business date and time inputs to São Paulo
-
-**What**: Parse date-only and `datetime-local` inputs as `America/Sao_Paulo`, and format persisted calendar dates without host-timezone drift.
-**Where**: `src/lib/dates.ts`, `src/lib/dates.test.ts`, `src/app/(dashboard)/pessoas/nova/actions.ts`, `src/app/(dashboard)/encontros/actions.ts`, `src/app/(dashboard)/pessoas/page.tsx`, `src/app/(dashboard)/pessoas/[personId]/page.tsx`, `src/app/(dashboard)/ministerios/[ministryId]/page.tsx`, `src/features/encontros/series-service.ts`, `src/features/encontros/series-service.test.ts`, `e2e/people-registration.spec.ts`, `e2e/meetings.spec.ts`, `e2e/people-profile.spec.ts`
-**Depends on**: T36 validation gap
-**Requirement**: AUD-01, PES-01, ENC-01
-**Done when**:
-- [x] Date-only fields preserve the entered Brazil calendar date after persistence.
-- [x] Meeting local date/time persists as the equivalent São Paulo instant independent of host timezone.
-- [x] Date-only and instant display paths use the correct formatter for their data type.
-- [x] Unit/integration/browser evidence asserts exact dates and timestamps.
-**Tests**: unit + integration + E2E
-**Gate**: Full
-**Commit**: `fix: preserve Sao Paulo calendar inputs`
-
-**Verification**: Unit date tests in `src/lib/dates.test.ts:23-31` assert date-only formatting and the exact `2026-09-10T19:00` → `2026-09-10T22:00:00.000Z` conversion; recurrence tests in `src/features/encontros/series-service.test.ts:6-47` assert calendar dates remain stable at noon UTC. Browser evidence in `e2e/people-registration.spec.ts:71-80` asserts the persisted birth date and profile rendering, `e2e/meetings.spec.ts:61-64` asserts the persisted São Paulo instant and agenda date, and `e2e/people-profile.spec.ts:68` asserts the date-only profile value. Adequacy review PASS: assertions cover persistence plus both date-only and instant display paths; no existing test was deleted or weakened.
-
 ### T40: Stabilize critical-path E2E cold-start waits
 
 **What**: Give the audit login helper and Person registration navigation assertions the same cold-start tolerance as the other critical flows so the full gate does not fail on valid behavior during application compilation.
@@ -659,6 +642,23 @@ Phases are sequential. Within each milestone, tasks are sequential unless their 
 **Commit**: `test: stabilize audit e2e login`
 
 **Verification**: `npm run test:integration && npm run test:e2e` passed: 31 files/100 integration tests and 25/25 E2E tests; `npm run test:e2e -- --workers=1 e2e/audit.spec.ts e2e/people-registration.spec.ts` passed 4/4. Adequacy review PASS: `e2e/audit.spec.ts:41` preserves the exact `/` destination while allowing only 30 seconds for cold start; `e2e/people-registration.spec.ts:49-50,66-67` preserves exact profile URL assertions with the same bounded wait. No behavior assertion was weakened and no test was deleted.
+
+### T41: Normalize business date and time inputs to São Paulo
+
+**What**: Parse date-only and `datetime-local` inputs as `America/Sao_Paulo`, and format persisted calendar dates without host-timezone drift.
+**Where**: `src/lib/dates.ts`, `src/lib/dates.test.ts`, `src/app/(dashboard)/pessoas/nova/actions.ts`, `src/app/(dashboard)/encontros/actions.ts`, `src/app/(dashboard)/pessoas/page.tsx`, `src/app/(dashboard)/pessoas/[personId]/page.tsx`, `src/app/(dashboard)/ministerios/[ministryId]/page.tsx`, `src/features/encontros/series-service.ts`, `src/features/encontros/series-service.test.ts`, `e2e/people-registration.spec.ts`, `e2e/meetings.spec.ts`, `e2e/people-profile.spec.ts`
+**Depends on**: T36 validation gap
+**Requirement**: AUD-01, PES-01, ENC-01
+**Done when**:
+- [x] Date-only fields preserve the entered Brazil calendar date after persistence.
+- [x] Meeting local date/time persists as the equivalent São Paulo instant independent of host timezone.
+- [x] Date-only and instant display paths use the correct formatter for their data type.
+- [x] Unit/integration/browser evidence asserts exact dates and timestamps.
+**Tests**: unit + integration + E2E
+**Gate**: Full
+**Commit**: `fix: preserve Sao Paulo calendar inputs`
+
+**Verification**: Unit date tests in `src/lib/dates.test.ts:23-31` assert date-only formatting and the exact `2026-09-10T19:00` → `2026-09-10T22:00:00.000Z` conversion; recurrence tests in `src/features/encontros/series-service.test.ts:6-47` assert calendar dates remain stable at noon UTC. Browser evidence in `e2e/people-registration.spec.ts:71-80` asserts the persisted birth date and profile rendering, `e2e/meetings.spec.ts:61-64` asserts the persisted São Paulo instant and agenda date, and `e2e/people-profile.spec.ts:68` asserts the date-only profile value. Adequacy review PASS: assertions cover persistence plus both date-only and instant display paths; no existing test was deleted or weakened.
 
 ### T42: Provide an explicit attendance retry path after cancellation failure
 
