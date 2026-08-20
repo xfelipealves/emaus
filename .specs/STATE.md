@@ -63,8 +63,8 @@
 - **Feature**: `.specs/features/emaus-mvp`
 - **Phase / Task**: Integration — reconcile MVP with the Ralph `dev` flow
 - **Completed**: instalação do `tlc-spec-driven`; Specify e Design aprovados; MVP T01–T47 implementado; validação registrada em `validation.md`; branch `lote/L001-emaus-mvp-reconcile` criada a partir de `origin/dev`; código, migrations, testes e documentação operacional reconciliados sem force-push.
-- **In-progress**: revalidação final da proteção de lançamentos de presença após a auditoria independente; o PR #1 permanece aberto e Ready para revisão.
-- **Next step**: concluir os gates da correção e revisar/mesclar o PR #1 em `dev`; depois promover por PR separado de `dev` para `main`.
+- **In-progress**: revalidação final da proteção de lançamentos de presença após a auditoria independente; o PR #1 permanece aberto em Draft enquanto os gates são executados.
+- **Next step**: concluir os gates da correção e marcar o PR #1 como Ready para revisão/merge em `dev`; depois promover por PR separado de `dev` para `main`.
 - **Blockers**: nenhum conhecido após a correção. `origin/main` e `origin/dev` permanecem intocados; a reconciliação preserva a validação MVP existente e torna o Ralph compatível com tasks definidas além de T36.
 - **Uncommitted files**: nenhum; registrar o novo snapshot depois da revalidação.
 - **Branch**: lote/L001-emaus-mvp-reconcile
