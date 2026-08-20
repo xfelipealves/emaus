@@ -2,13 +2,12 @@
 CREATE TYPE "MinistryStatus" AS ENUM ('ACTIVE', 'ARCHIVED');
 
 -- CreateEnum
-CREATE TYPE "MinistryMembershipRole" AS ENUM ('MEMBER', 'LEADER');
+CREATE TYPE "MinistryMembershipRole" AS ENUM ('LEADER', 'MEMBER');
 
 -- CreateTable
 CREATE TABLE "Ministry" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
-    "description" TEXT,
     "status" "MinistryStatus" NOT NULL DEFAULT 'ACTIVE',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
@@ -21,9 +20,9 @@ CREATE TABLE "MinistryMembership" (
     "id" TEXT NOT NULL,
     "personId" TEXT NOT NULL,
     "ministryId" TEXT NOT NULL,
-    "role" "MinistryMembershipRole" NOT NULL DEFAULT 'MEMBER',
-    "startDate" DATE NOT NULL,
-    "endDate" DATE,
+    "role" "MinistryMembershipRole" NOT NULL,
+    "startDate" TIMESTAMP(3) NOT NULL,
+    "endDate" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -37,6 +36,8 @@ CREATE TABLE "AccountMinistryAccess" (
     "ministryId" TEXT NOT NULL,
     "grantedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "revokedAt" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "AccountMinistryAccess_pkey" PRIMARY KEY ("id")
 );
@@ -48,10 +49,10 @@ CREATE INDEX "MinistryMembership_personId_startDate_idx" ON "MinistryMembership"
 CREATE INDEX "MinistryMembership_ministryId_startDate_idx" ON "MinistryMembership"("ministryId", "startDate");
 
 -- CreateIndex
-CREATE INDEX "AccountMinistryAccess_ministryId_idx" ON "AccountMinistryAccess"("ministryId");
+CREATE INDEX "AccountMinistryAccess_accountId_revokedAt_idx" ON "AccountMinistryAccess"("accountId", "revokedAt");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "AccountMinistryAccess_accountId_ministryId_key" ON "AccountMinistryAccess"("accountId", "ministryId");
+CREATE INDEX "AccountMinistryAccess_ministryId_revokedAt_idx" ON "AccountMinistryAccess"("ministryId", "revokedAt");
 
 -- AddForeignKey
 ALTER TABLE "MinistryMembership" ADD CONSTRAINT "MinistryMembership_personId_fkey" FOREIGN KEY ("personId") REFERENCES "Person"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

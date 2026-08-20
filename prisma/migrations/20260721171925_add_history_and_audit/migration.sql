@@ -1,13 +1,12 @@
 -- CreateEnum
-CREATE TYPE "TimelineEventCategory" AS ENUM ('REGISTRATION', 'STATUS', 'MINISTRY', 'ATTENDANCE', 'NOTE', 'CORRECTION');
+CREATE TYPE "TimelineEventCategory" AS ENUM ('STATUS', 'MINISTRY', 'ATTENDANCE', 'CORRECTION', 'NOTE');
 
 -- CreateTable
 CREATE TABLE "Note" (
     "id" TEXT NOT NULL,
     "personId" TEXT NOT NULL,
-    "authorId" TEXT NOT NULL,
-    "content" TEXT NOT NULL,
-    "archived" BOOLEAN NOT NULL DEFAULT false,
+    "authorId" TEXT,
+    "archivedAt" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -18,7 +17,7 @@ CREATE TABLE "Note" (
 CREATE TABLE "NoteVersion" (
     "id" TEXT NOT NULL,
     "noteId" TEXT NOT NULL,
-    "authorId" TEXT NOT NULL,
+    "authorId" TEXT,
     "content" TEXT NOT NULL,
     "sequence" INTEGER NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -30,10 +29,12 @@ CREATE TABLE "NoteVersion" (
 CREATE TABLE "TimelineEvent" (
     "id" TEXT NOT NULL,
     "personId" TEXT NOT NULL,
+    "actorId" TEXT,
     "category" "TimelineEventCategory" NOT NULL,
+    "occurredAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "title" TEXT NOT NULL,
     "description" TEXT,
-    "occurredAt" TIMESTAMP(3) NOT NULL,
+    "metadata" JSONB,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "TimelineEvent_pkey" PRIMARY KEY ("id")
@@ -55,7 +56,7 @@ CREATE TABLE "AuditEvent" (
 );
 
 -- CreateIndex
-CREATE INDEX "Note_personId_createdAt_idx" ON "Note"("personId", "createdAt");
+CREATE INDEX "Note_personId_archivedAt_idx" ON "Note"("personId", "archivedAt");
 
 -- CreateIndex
 CREATE INDEX "NoteVersion_noteId_createdAt_idx" ON "NoteVersion"("noteId", "createdAt");
@@ -79,16 +80,19 @@ CREATE INDEX "AuditEvent_actorId_createdAt_idx" ON "AuditEvent"("actorId", "crea
 ALTER TABLE "Note" ADD CONSTRAINT "Note_personId_fkey" FOREIGN KEY ("personId") REFERENCES "Person"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Note" ADD CONSTRAINT "Note_authorId_fkey" FOREIGN KEY ("authorId") REFERENCES "Account"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "Note" ADD CONSTRAINT "Note_authorId_fkey" FOREIGN KEY ("authorId") REFERENCES "Account"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "NoteVersion" ADD CONSTRAINT "NoteVersion_noteId_fkey" FOREIGN KEY ("noteId") REFERENCES "Note"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "NoteVersion" ADD CONSTRAINT "NoteVersion_authorId_fkey" FOREIGN KEY ("authorId") REFERENCES "Account"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "NoteVersion" ADD CONSTRAINT "NoteVersion_authorId_fkey" FOREIGN KEY ("authorId") REFERENCES "Account"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "TimelineEvent" ADD CONSTRAINT "TimelineEvent_personId_fkey" FOREIGN KEY ("personId") REFERENCES "Person"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "TimelineEvent" ADD CONSTRAINT "TimelineEvent_actorId_fkey" FOREIGN KEY ("actorId") REFERENCES "Account"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "AuditEvent" ADD CONSTRAINT "AuditEvent_actorId_fkey" FOREIGN KEY ("actorId") REFERENCES "Account"("id") ON DELETE SET NULL ON UPDATE CASCADE;

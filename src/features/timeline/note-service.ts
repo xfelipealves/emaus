@@ -9,7 +9,7 @@ export type NoteActor = { id: string; role: AccountRole };
 export type PersonNote = {
   id: string;
   personId: string;
-  authorId: string;
+  authorId: string | null;
   content: string;
   archived: boolean;
   createdAt: Date;
