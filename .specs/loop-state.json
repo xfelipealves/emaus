@@ -10,10 +10,10 @@
   "currentTask": null,
   "completedTasks": ["T01", "T02", "T03", "T04", "T05", "T06", "T07", "T08", "T09", "T10", "T11", "T12", "T13", "T14", "T15", "T16", "T17", "T18", "T19", "T20", "T21", "T22", "T23", "T24", "T25", "T26", "T27", "T28", "T29", "T30", "T31", "T32", "T33", "T34", "T35", "T36", "T37", "T38", "T39", "T40", "T41", "T42", "T43", "T44", "T45", "T46", "T47"],
   "completedMilestones": ["M8"],
-  "lastCommit": "3a6e006",
+  "lastCommit": "b2b09c5",
   "lastGate": "L001 revalidation pending: attendance-boundary regression tests passed; full QA pending",
   "lastPush": {
-    "sha": "3a6e00602d0064b6485e3e82655a230f9b032f54",
+    "sha": "b2b09c5a3ca706e48de70b38d3504de99d38e741",
     "remote": "origin",
     "branch": "lote/L001-emaus-mvp-reconcile",
     "status": "passed"
