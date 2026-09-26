@@ -1,31 +1,35 @@
 import { describe, expect, it } from "vitest";
-
 import { hashPassword, verifyPassword } from "./password";
 import { validateLoginInput } from "../../lib/validations/auth";
 
-describe("password authentication primitives", () => {
-  it("hashes a password without returning or persisting the plain value", async () => {
-    const plainPassword = "uma-senha-segura";
+describe("password authentication", () => {
+  it("hashes a password without returning the plain value", async () => {
+    const password = "correct horse battery staple";
+    const passwordHash = await hashPassword(password);
 
-    const passwordHash = await hashPassword(plainPassword);
-
-    expect(passwordHash).not.toBe(plainPassword);
-    expect(passwordHash).not.toContain(plainPassword);
-    expect(await verifyPassword(passwordHash, plainPassword)).toBe(true);
+    expect(passwordHash).not.toBe(password);
+    expect(passwordHash).toMatch(/^\$argon2id\$/);
   });
 
-  it("rejects an incorrect password", async () => {
-    const passwordHash = await hashPassword("uma-senha-segura");
+  it("verifies the correct password and rejects a wrong password", async () => {
+    const passwordHash = await hashPassword("correct password");
 
-    expect(await verifyPassword(passwordHash, "senha-incorreta")).toBe(false);
+    await expect(verifyPassword(passwordHash, "correct password")).resolves.toBe(
+      true,
+    );
+    await expect(verifyPassword(passwordHash, "wrong password")).resolves.toBe(
+      false,
+    );
   });
 
   it("rejects blank username and password fields", () => {
-    expect(validateLoginInput({ username: "", password: "" })).toEqual({
+    const result = validateLoginInput({ username: " ", password: "" });
+
+    expect(result).toEqual({
       success: false,
       errors: {
-        username: "Informe o nome de usuário.",
-        password: "Informe a senha.",
+        username: "Nome de usuário é obrigatório",
+        password: "Senha é obrigatória",
       },
     });
   });

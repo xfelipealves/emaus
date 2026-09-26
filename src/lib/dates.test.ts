@@ -1,17 +1,37 @@
 import { describe, expect, it } from "vitest";
+import {
+  calculateAge,
+  formatDateOnly,
+  formatDateInBrazil,
+  normalizeDateOnly,
+  parseDateTimeInput,
+  parseDateInput,
+} from "./dates";
 
-import { calculateAge, formatBusinessDate } from "./dates";
+describe("Brazil date utilities", () => {
+  it("calculates age before and on the birthday in Sao Paulo", () => {
+    const birthDate = parseDateInput("2000-08-08");
 
-describe("business date utilities", () => {
-  it("calculates age from the local Sao Paulo birthday boundary", () => {
-    const birthDate = new Date("2000-07-22T03:00:00.000Z");
-
-    expect(calculateAge(birthDate, new Date("2026-07-22T02:59:59.000Z"))).toBe(25);
-    expect(calculateAge(birthDate, new Date("2026-07-22T03:00:00.000Z"))).toBe(26);
+    expect(calculateAge(birthDate, new Date("2026-08-07T23:00:00.000Z"))).toBe(25);
+    expect(calculateAge(birthDate, new Date("2026-08-08T03:00:00.000Z"))).toBe(26);
   });
 
-  it("does not invent age without a birth date and formats in Sao Paulo time", () => {
-    expect(calculateAge(null, new Date("2026-07-22T03:00:00.000Z"))).toBeNull();
-    expect(formatBusinessDate(new Date("2026-07-22T02:30:00.000Z"))).toBe("21/07/2026");
+  it("returns no age when birth date is absent", () => {
+    expect(calculateAge(null, new Date("2026-08-08T03:00:00.000Z"))).toBeNull();
+  });
+
+  it("parses and formats business dates using the Brazil timezone", () => {
+    const date = parseDateInput("2026-08-08");
+
+    expect(formatDateInBrazil(date)).toBe("08/08/2026");
+    expect(formatDateOnly(new Date("1990-08-11T00:00:00.000Z"))).toBe("11/08/1990");
+  });
+
+  it("normalizes date-only values to UTC midnight for timestamp-backed legacy columns", () => {
+    expect(normalizeDateOnly(parseDateInput("2026-08-08"))).toEqual(new Date("2026-08-08T00:00:00.000Z"));
+  });
+
+  it("converts local Sao Paulo date-times to exact instants", () => {
+    expect(parseDateTimeInput("2026-09-10T19:00")).toEqual(new Date("2026-09-10T22:00:00.000Z"));
   });
 });

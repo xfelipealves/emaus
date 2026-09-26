@@ -3,43 +3,29 @@ export type LoginInput = {
   password: string;
 };
 
-type LoginValidationSuccess = {
-  success: true;
-  data: LoginInput;
+type LoginErrors = {
+  username?: string;
+  password?: string;
 };
 
-type LoginValidationFailure = {
-  success: false;
-  errors: {
-    username?: string;
-    password?: string;
-  };
-};
+export type LoginValidation =
+  | { success: true; data: LoginInput }
+  | { success: false; errors: LoginErrors };
 
-export type LoginValidationResult =
-  | LoginValidationSuccess
-  | LoginValidationFailure;
-
-export function validateLoginInput(input: LoginInput): LoginValidationResult {
-  const errors: LoginValidationFailure["errors"] = {};
+export function validateLoginInput(input: LoginInput): LoginValidation {
+  const errors: LoginErrors = {};
 
   if (!input.username.trim()) {
-    errors.username = "Informe o nome de usuário.";
+    errors.username = "Nome de usuário é obrigatório";
   }
 
   if (!input.password.trim()) {
-    errors.password = "Informe a senha.";
+    errors.password = "Senha é obrigatória";
   }
 
   if (Object.keys(errors).length > 0) {
     return { success: false, errors };
   }
 
-  return {
-    success: true,
-    data: {
-      username: input.username.trim(),
-      password: input.password,
-    },
-  };
+  return { success: true, data: input };
 }

@@ -14,7 +14,7 @@ enum PersonStatus {
 }
 
 enum AccountRole {
-  ADMIN
+  ADMINISTRATOR @map("ADMIN")
   SECRETARY
   LEADER
 }
@@ -30,14 +30,16 @@ enum MinistryStatus {
 }
 
 enum MinistryMembershipRole {
-  LEADER
   MEMBER
+  LEADER
 }
 
-enum MeetingRecurrence {
+enum RecurrencePattern {
   WEEKLY
   BIWEEKLY
   MONTHLY
+
+  @@map("MeetingRecurrence")
 }
 
 enum MeetingStatus {
@@ -57,23 +59,31 @@ enum AttendanceStatus {
   ABSENT
 }
 
+enum ActivityBucket {
+  TOMORROW
+  BACKLOG
+  PARKED
+}
+
 enum TimelineEventCategory {
+  REGISTRATION
   STATUS
   MINISTRY
   ATTENDANCE
-  CORRECTION
   NOTE
+  CORRECTION
 }
 
 model Person {
-  id        String       @id @default(cuid())
-  fullName  String
-  status    PersonStatus @default(VISITOR)
-  phone     String?
-  birthDate DateTime?
-  photoUrl  String?
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
+  id              String       @id @default(cuid())
+  fullName        String
+  status          PersonStatus @default(VISITOR)
+  phone           String?
+  birthDate       DateTime?
+  profilePhotoUrl String?      @map("photoUrl")
+  statusChangedAt DateTime     @default(now())
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
 
   account     Account?
   memberships MinistryMembership[]
@@ -84,32 +94,74 @@ model Person {
 
 model Account {
   id           String        @id @default(cuid())
+  personId     String        @unique
   username     String        @unique
   email        String        @unique
   passwordHash String
   role         AccountRole   @default(SECRETARY)
   status       AccountStatus @default(ACTIVE)
-  personId     String        @unique
+  lastLoginAt  DateTime?
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 
-  person           Person                  @relation(fields: [personId], references: [id])
-  ministryAccesses AccountMinistryAccess[]
-  authoredNotes    Note[]                  @relation("NoteAuthor")
-  noteVersions     NoteVersion[]           @relation("NoteVersionAuthor")
-  timelineEvents   TimelineEvent[]         @relation("TimelineActor")
-  auditEvents      AuditEvent[]            @relation("AuditActor")
+  person         Person                  @relation(fields: [personId], references: [id])
+  ministryAccess AccountMinistryAccess[]
+  notes          Note[]                  @relation("NoteAuthor")
+  noteVersions   NoteVersion[]           @relation("NoteVersionAuthor")
+  timelineEvents TimelineEvent[]         @relation("TimelineActor")
+  auditEvents    AuditEvent[]            @relation("AuditActor")
+  sessions       Session[]
+}
+
+model Session {
+  id        String    @id @default(cuid())
+  accountId String
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId, expiresAt])
+}
+
+model Activity {
+  id          String         @id @default(cuid())
+  title       String
+  description String?
+  bucket      ActivityBucket @default(BACKLOG)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  subtasks ActivitySubtask[]
+
+  @@index([bucket, createdAt])
+}
+
+model ActivitySubtask {
+  id         String   @id @default(cuid())
+  activityId String
+  title      String
+  completed  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  activity Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+
+  @@index([activityId, createdAt])
 }
 
 model Ministry {
-  id        String         @id @default(cuid())
-  name      String
-  status    MinistryStatus @default(ACTIVE)
-  createdAt DateTime       @default(now())
-  updatedAt DateTime       @updatedAt
+  id          String         @id @default(cuid())
+  name        String
+  description String?
+  status      MinistryStatus @default(ACTIVE)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
 
   memberships      MinistryMembership[]
-  accesses         AccountMinistryAccess[]
+  accountAccess    AccountMinistryAccess[]
   meetingAudiences MeetingAudience[]
 }
 
@@ -117,7 +169,7 @@ model MinistryMembership {
   id         String                 @id @default(cuid())
   personId   String
   ministryId String
-  role       MinistryMembershipRole
+  role       MinistryMembershipRole @default(MEMBER)
   startDate  DateTime
   endDate    DateTime?
   createdAt  DateTime               @default(now())
@@ -142,15 +194,17 @@ model AccountMinistryAccess {
   account  Account  @relation(fields: [accountId], references: [id])
   ministry Ministry @relation(fields: [ministryId], references: [id])
 
+  @@unique([accountId, ministryId])
   @@index([accountId, revokedAt])
   @@index([ministryId, revokedAt])
 }
 
 model Category {
-  id        String   @id @default(cuid())
-  name      String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   series   MeetingSeries[]
   meetings Meeting[]
@@ -158,9 +212,9 @@ model Category {
 
 model MeetingSeries {
   id         String            @id @default(cuid())
-  name       String
   categoryId String
-  recurrence MeetingRecurrence
+  name       String
+  recurrence RecurrencePattern
   weekdays   Int[]
   startDate  DateTime
   endDate    DateTime?
@@ -174,35 +228,35 @@ model MeetingSeries {
 }
 
 model Meeting {
-  id         String        @id @default(cuid())
-  title      String
-  categoryId String
-  seriesId   String?
-  startsAt   DateTime
-  endsAt     DateTime?
-  status     MeetingStatus @default(DRAFT)
-  createdAt  DateTime      @default(now())
-  updatedAt  DateTime      @updatedAt
+  id          String        @id @default(cuid())
+  categoryId  String
+  seriesId    String?
+  title       String
+  scheduledAt DateTime      @map("startsAt")
+  endsAt      DateTime?
+  status      MeetingStatus @default(DRAFT)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
 
   category    Category          @relation(fields: [categoryId], references: [id])
   series      MeetingSeries?    @relation(fields: [seriesId], references: [id])
   audiences   MeetingAudience[]
   attendances Attendance[]
 
-  @@index([startsAt, status])
-  @@index([seriesId, startsAt])
+  @@index([scheduledAt, status], map: "Meeting_startsAt_status_idx")
+  @@index([seriesId, scheduledAt], map: "Meeting_seriesId_startsAt_idx")
 }
 
 model MeetingAudience {
   id         String              @id @default(cuid())
   meetingId  String
-  type       MeetingAudienceType
-  ministryId String?
+  type       MeetingAudienceType @default(MINISTRIES)
+  ministryId String
   createdAt  DateTime            @default(now())
   updatedAt  DateTime            @updatedAt
 
-  meeting  Meeting   @relation(fields: [meetingId], references: [id])
-  ministry Ministry? @relation(fields: [ministryId], references: [id])
+  meeting  Meeting  @relation(fields: [meetingId], references: [id])
+  ministry Ministry @relation(fields: [ministryId], references: [id])
 
   @@unique([meetingId, ministryId])
   @@index([ministryId])
@@ -220,21 +274,24 @@ model Attendance {
   person  Person  @relation(fields: [personId], references: [id])
 
   @@unique([meetingId, personId])
-  @@index([personId, status])
+  @@index([personId])
 }
 
 model Note {
-  id        String    @id @default(cuid())
-  personId  String
-  authorId  String?
+  id         String    @id @default(cuid())
+  personId   String
+  authorId   String?
+  content    String    @default("")
+  archived   Boolean   @default(false)
   archivedAt DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
   person   Person        @relation(fields: [personId], references: [id])
   author   Account?      @relation("NoteAuthor", fields: [authorId], references: [id], onDelete: SetNull)
   versions NoteVersion[]
 
+  @@index([personId, createdAt])
   @@index([personId, archivedAt])
 }
 
@@ -254,15 +311,15 @@ model NoteVersion {
 }
 
 model TimelineEvent {
-  id          String                @id @default(cuid())
+  id          String                 @id @default(cuid())
   personId    String
   actorId     String?
   category    TimelineEventCategory
-  occurredAt DateTime              @default(now())
   title       String
   description String?
+  occurredAt  DateTime               @default(now())
   metadata    Json?
-  createdAt   DateTime              @default(now())
+  createdAt   DateTime               @default(now())
 
   person Person  @relation(fields: [personId], references: [id])
   actor  Account? @relation("TimelineActor", fields: [actorId], references: [id], onDelete: SetNull)
@@ -282,7 +339,7 @@ model AuditEvent {
   reason     String?
   createdAt  DateTime @default(now())
 
-  actor Account? @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+  actor Account? @relation("AuditActor", fields: [actorId], references: [id])
 
   @@index([targetType, targetId, createdAt])
   @@index([actorId, createdAt])

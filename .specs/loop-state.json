@@ -1,20 +1,30 @@
 {
   "schemaVersion": 1,
   "feature": "emaus-mvp",
-  "batch": null,
-  "scope": null,
-  "baseBranch": null,
-  "runBranch": null,
-  "baseSha": null,
-  "status": "ready",
-  "currentTask": "T12",
-  "completedTasks": ["T01", "T02", "T03", "T04", "T05", "T06", "T07", "T08", "T09", "T10", "T11"],
-  "completedMilestones": [],
-  "lastCommit": "8e796fc6083f768abf01ae2ada24d2a126113149",
-  "lastGate": {
-    "command": "DATABASE_URL='postgresql://emaus:emaus-local@localhost:5433/emaus?schema=public' npm run test",
-    "result": "passed: 9 Vitest test files; 25 tests passed"
+  "batch": "L001",
+  "scope": "emaus-mvp-reconcile",
+  "baseBranch": "dev",
+  "runBranch": "lote/L001-emaus-mvp-reconcile",
+  "baseSha": "a84a1c3944785a20266e599e9cb1d2cf2b42ffa8",
+  "status": "complete",
+  "currentTask": null,
+  "completedTasks": ["T01", "T02", "T03", "T04", "T05", "T06", "T07", "T08", "T09", "T10", "T11", "T12", "T13", "T14", "T15", "T16", "T17", "T18", "T19", "T20", "T21", "T22", "T23", "T24", "T25", "T26", "T27", "T28", "T29", "T30", "T31", "T32", "T33", "T34", "T35", "T36", "T37", "T38", "T39", "T40", "T41", "T42", "T43", "T44", "T45", "T46", "T47"],
+  "completedMilestones": ["M8"],
+  "lastCommit": "3ec4fb6",
+  "lastGate": "L001 post-merge dev QA passed: db:validate, db:generate, typecheck, lint and build; pre-merge fresh/legacy-upgrade deploys, 31 files/108 tests and 28/28 E2E remain valid; PR #1 merged and PR #2 dev-to-main opened for manual review",
+  "lastPush": {
+    "sha": "3ec4fb67c2f9ef5aac61da8542d83d08e1b10a45",
+    "remote": "origin",
+    "branch": "lote/L001-emaus-mvp-reconcile",
+    "status": "passed"
   },
-  "updatedAt": "2026-07-21",
-  "notes": "The Ralph Loop may execute only currentTask. It advances this file after a passing task gate and atomic commit."
+  "pullRequest": {
+    "number": 1,
+    "url": "https://github.com/xfelipealves/emaus/pull/1",
+    "base": "dev",
+    "head": "lote/L001-emaus-mvp-reconcile",
+    "draft": false
+  },
+  "updatedAt": "2026-08-20",
+  "notes": "MVP complete. The task list is normalized to the declared T01–T47 order during the dev reconciliation; execution chronology remains in Git history. Migration history is preserved through the published 20260721 chain plus an additive reconciliation migration, with fresh/upgrade evidence, legacy birth-date normalization and an explicit duplicate-scope guard. Attendance launch boundaries cover cancelled meetings, archived ministries, and historical corrections after archiving. PR #1 is merged into dev; PR #2 dev-to-main is Ready for manual review; dependency modernization is deferred to a separate task."
 }

@@ -1,7 +1,9 @@
-type ErrorMessageProps = {
-  message: string;
-};
+import type { ReactNode } from "react";
 
-export function ErrorMessage({ message }: ErrorMessageProps) {
-  return <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">{message}</p>;
+export function ErrorMessage({ children }: { children: ReactNode }) {
+  return (
+    <div className="rounded-xl border border-[#ecc3c3] bg-[#fff5f5] px-4 py-3 text-sm text-[#963b3b]" role="alert">
+      {children}
+    </div>
+  );
 }

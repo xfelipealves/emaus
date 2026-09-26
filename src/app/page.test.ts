@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { homePageTitle } from "./page";
+import { APP_NAME } from "./app-identity";
 
-describe("home page foundation", () => {
-  it("exposes the Emaús product title", () => {
-    expect(homePageTitle).toBe("Emaús");
+describe("Emaús application bootstrap", () => {
+  it("defines the application identity", () => {
+    expect(APP_NAME).toBe("Emaús");
   });
 });
