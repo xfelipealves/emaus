@@ -1,4 +1,5 @@
 import { DesktopNavigation, MobileNavigation } from "./navigation";
+import Link from "next/link";
 
 export function AppShell({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
@@ -12,6 +13,7 @@ export function AppShell({ children }: Readonly<{ children: React.ReactNode }>) 
               <p className="mt-1 text-sm text-slate-500">Sábado, 08 de agosto</p>
             </div>
             <div className="flex items-center gap-3">
+              <Link href="/atividades" aria-label="Atividades compartilhadas" title="Atividades compartilhadas" className="rounded-full p-2 text-slate-500 hover:bg-white hover:text-slate-900">✓</Link>
               <button type="button" aria-label="Notificações" className="rounded-full p-2 text-slate-500 hover:bg-white hover:text-slate-900">
                 ◌
               </button>

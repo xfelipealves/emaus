@@ -77,19 +77,19 @@
 ### AD-010
 - **Decision**: Atividades futuras do Emaús serão registradas como backlog compartilhado, visível e editável por todos os usuários ativos/autorizados, com as áreas `Amanhã`, `Backlog` e `Estacionado`, exclusão da atividade e CRUD de subtarefas.
 - **Reason**: Dar ao time um lugar comum para organizar pendências e consultar rapidamente o que deve ser tratado amanhã, sem limitar a atividade ao usuário que a criou.
-- **Trade-off**: A capacidade fica fora do MVP já validado até ser especificada e implementada; associação com Pessoa, Ministério ou Encontro e o comportamento de subtarefas ao excluir a atividade ainda precisam ser definidos.
+- **Trade-off**: O primeiro corte não associa atividades a Pessoa, Ministério ou Encontro e usa `Amanhã` como bucket de fluxo; essas evoluções ficam para depois.
 - **Scope**: Backlog pós-MVP — atividades e subtarefas.
 - **Date**: 2026-08-20
-- **Status**: backlog
+- **Status**: active
 
 ## Handoff
 
-- **Feature**: `.specs/features/emaus-mvp`
-- **Phase / Task**: Release hardening — dev validated, awaiting `dev` → `main` promotion
-- **Completed**: instalação do `tlc-spec-driven`; Specify e Design aprovados; MVP T01–T47 implementado; validação registrada em `validation.md`; branch `lote/L001-emaus-mvp-reconcile` criada a partir de `origin/dev`; correção de compatibilidade de migrations em `769de85`; normalização de datas legadas em `9cba03f`; schema, banco novo, upgrade legado, typecheck, lint, build, 31/108 testes Vitest e 28/28 E2E revalidados sem force-push.
-- **In-progress**: PR #1 mergeado em `dev` (`3ec4fb6`); gates pós-merge de schema, geração, typecheck, lint e build aprovados; PR #2 aberto para promoção de `dev` para `main`.
-- **Next step**: revisão manual e merge do PR #2 quando aprovado; não promover `main` automaticamente.
-- **Blockers**: o migration incremental falha deliberadamente quando encontra acessos ministeriais duplicados, exigindo reconciliação explícita antes do deploy daquele banco. Fora essa proteção, `origin/main` permanece em `a84a1c3` até a revisão do PR #2, enquanto `origin/dev` contém a reconciliação validada.
-- **Uncommitted files**: `.specs/STATE.md` e `.specs/features/emaus-mvp/tasks.md`, contendo somente o registro do backlog de atividades; ainda não commitados.
-- **Branch**: dev (PR #2 para main)
+- **Feature**: `.specs/features/emaus-activities`
+- **Phase / Task**: Verified — branch ready for PR `feat/emaus-shared-activities` → `dev`
+- **Completed**: especificação, design e tarefas da feature; migration aditiva; serviço com autorização de conta ativa, CRUD de atividades/subtasks e auditoria; página protegida, filtros e interface; cobertura de integração/E2E; validação independente registrada em `.specs/features/emaus-activities/validation.md`.
+- **In-progress**: PR #2 continua aberto para promoção de `dev` para `main`; a branch desta feature ainda precisa ser publicada e revisada contra `dev`.
+- **Next step**: push da branch, abertura do PR para `dev` e revisão manual; depois de mergear em `dev`, reavaliar o PR #2. Não promover `main` automaticamente.
+- **Blockers**: nenhum blocker técnico conhecido para esta feature. O migration incremental legado continua exigindo reconciliação explícita quando encontra acessos ministeriais duplicados.
+- **Uncommitted files**: nenhum dentro do repositório; a nota diária do Obsidian foi atualizada fora do Git.
+- **Branch**: `feat/emaus-shared-activities` (PR para `dev`)
 - **Backlog registrado**: atividade compartilhada com áreas `Amanhã`, `Backlog` e `Estacionado`, exclusão e CRUD de subtarefas; requisito refletido também na nota diária do Obsidian.
