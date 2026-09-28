@@ -1,7 +1,7 @@
 "use client";
 
 import { Archive, CheckCircle, Clock, ListChecks, Plus, Trash } from "@phosphor-icons/react";
-import { useActionState, type FormEvent } from "react";
+import { useActionState, useEffect, useState, type FormEvent } from "react";
 import {
   createActivityAction,
   createSubtaskAction,
@@ -31,6 +31,12 @@ const bucketIcons = {
   BACKLOG: ListChecks,
   PARKED: Archive,
 } as const;
+
+function useHydrated() {
+  const [isHydrated, setIsHydrated] = useState(false);
+  useEffect(() => setIsHydrated(true), []);
+  return isHydrated;
+}
 
 function ActionMessage({ state }: { state: ActivityActionState }) {
   if (state.error) return <p role="alert" className="status-message status-message--error">{state.error}</p>;
@@ -95,6 +101,7 @@ function CreateSubtaskForm({ activityId, activityTitle }: { activityId: string; 
 }
 
 function SubtaskRow({ subtask }: { subtask: ActivityView["subtasks"][number] }) {
+  const isHydrated = useHydrated();
   const [updateState, updateAction, isUpdating] = useActionState<ActivityActionState, FormData>(updateSubtaskAction, {});
   const [deleteState, deleteAction, isDeleting] = useActionState<ActivityActionState, FormData>(deleteSubtaskAction, {});
 
@@ -112,7 +119,7 @@ function SubtaskRow({ subtask }: { subtask: ActivityView["subtasks"][number] }) 
       </form>
       <form action={deleteAction} onSubmit={(event: FormEvent<HTMLFormElement>) => { if (!window.confirm(`Excluir a subtask ${subtask.title}?`)) event.preventDefault(); }} className="col-start-3 row-start-1">
         <input type="hidden" name="subtaskId" value={subtask.id} />
-        <button type="submit" disabled={isDeleting} aria-label={`Excluir subtask ${subtask.title}`} className="button-danger min-h-9 px-2.5 text-xs">
+        <button type="submit" disabled={isDeleting || !isHydrated} aria-label={`Excluir subtask ${subtask.title}`} className="button-danger min-h-9 px-2.5 text-xs">
           <Trash size={15} weight="regular" aria-hidden="true" />
           <span className="hidden sm:inline">Excluir</span>
         </button>
@@ -123,6 +130,7 @@ function SubtaskRow({ subtask }: { subtask: ActivityView["subtasks"][number] }) 
 }
 
 function ActivityCard({ activity }: { activity: ActivityView }) {
+  const isHydrated = useHydrated();
   const [updateState, updateAction, isUpdating] = useActionState<ActivityActionState, FormData>(updateActivityAction, {});
   const [deleteState, deleteAction, isDeleting] = useActionState<ActivityActionState, FormData>(deleteActivityAction, {});
   const BucketIcon = bucketIcons[activity.bucket];
@@ -138,7 +146,7 @@ function ActivityCard({ activity }: { activity: ActivityView }) {
         </div>
         <form action={deleteAction} onSubmit={(event: FormEvent<HTMLFormElement>) => { if (!window.confirm(`Excluir a atividade ${activity.title}? As subtasks também serão excluídas.`)) event.preventDefault(); }}>
           <input type="hidden" name="activityId" value={activity.id} />
-          <button type="submit" disabled={isDeleting} aria-label={`Excluir atividade ${activity.title}`} className="button-danger min-h-9 px-2.5 text-xs">
+          <button type="submit" disabled={isDeleting || !isHydrated} aria-label={`Excluir atividade ${activity.title}`} className="button-danger min-h-9 px-2.5 text-xs">
             <Trash size={15} weight="regular" aria-hidden="true" />
             <span className="hidden sm:inline">{isDeleting ? "Excluindo..." : "Excluir"}</span>
           </button>
