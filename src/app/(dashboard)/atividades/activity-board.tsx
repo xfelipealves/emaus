@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, type FormEvent } from "react";
+import { useActionState, useEffect, useState, type FormEvent } from "react";
 import {
   createActivityAction,
   createSubtaskAction,
@@ -24,6 +24,12 @@ const bucketLabels = {
   BACKLOG: "Backlog",
   PARKED: "Estacionado",
 } as const;
+
+function useHydrated() {
+  const [isHydrated, setIsHydrated] = useState(false);
+  useEffect(() => setIsHydrated(true), []);
+  return isHydrated;
+}
 
 function ActionMessage({ state }: { state: ActivityActionState }) {
   if (state.error) return <p role="alert" className="rounded-lg bg-[#fff1f1] px-3 py-2 text-xs text-[#b54747]">{state.error}</p>;
@@ -62,6 +68,7 @@ function CreateSubtaskForm({ activityId, activityTitle }: { activityId: string; 
 function SubtaskRow({ subtask }: { subtask: ActivityView["subtasks"][number] }) {
   const [updateState, updateAction, isUpdating] = useActionState<ActivityActionState, FormData>(updateSubtaskAction, {});
   const [deleteState, deleteAction, isDeleting] = useActionState<ActivityActionState, FormData>(deleteSubtaskAction, {});
+  const isHydrated = useHydrated();
 
   return (
     <li className="grid gap-2 rounded-xl bg-slate-50 p-3 sm:grid-cols-[auto_1fr_auto] sm:items-center">
@@ -77,7 +84,7 @@ function SubtaskRow({ subtask }: { subtask: ActivityView["subtasks"][number] }) 
       </form>
       <form action={deleteAction} onSubmit={(event: FormEvent<HTMLFormElement>) => { if (!window.confirm(`Excluir a subtask ${subtask.title}?`)) event.preventDefault(); }} className="sm:col-start-3 sm:row-start-1">
         <input type="hidden" name="subtaskId" value={subtask.id} />
-        <button type="submit" disabled={isDeleting} aria-label={`Excluir subtask ${subtask.title}`} className="min-h-9 rounded-lg px-2.5 text-xs font-semibold text-[#963b3b] hover:bg-[#fff1f1] disabled:opacity-60">Excluir</button>
+        <button type="submit" disabled={isDeleting || !isHydrated} aria-label={`Excluir subtask ${subtask.title}`} className="min-h-9 rounded-lg px-2.5 text-xs font-semibold text-[#963b3b] hover:bg-[#fff1f1] disabled:opacity-60">Excluir</button>
       </form>
       <div className="sm:col-span-3"><ActionMessage state={updateState} /><ActionMessage state={deleteState} /></div>
     </li>
@@ -87,6 +94,7 @@ function SubtaskRow({ subtask }: { subtask: ActivityView["subtasks"][number] }) 
 function ActivityCard({ activity }: { activity: ActivityView }) {
   const [updateState, updateAction, isUpdating] = useActionState<ActivityActionState, FormData>(updateActivityAction, {});
   const [deleteState, deleteAction, isDeleting] = useActionState<ActivityActionState, FormData>(deleteActivityAction, {});
+  const isHydrated = useHydrated();
 
   return (
     <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" data-testid={`activity-${activity.id}`}>
@@ -94,7 +102,7 @@ function ActivityCard({ activity }: { activity: ActivityView }) {
         <div className="min-w-0"><p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">{bucketLabels[activity.bucket]}</p><h2 className="mt-1 text-lg font-semibold text-slate-950">{activity.title}</h2>{activity.description ? <p className="mt-1 text-sm leading-5 text-slate-500">{activity.description}</p> : null}</div>
         <form action={deleteAction} onSubmit={(event: FormEvent<HTMLFormElement>) => { if (!window.confirm(`Excluir a atividade ${activity.title}? As subtasks também serão excluídas.`)) event.preventDefault(); }}>
           <input type="hidden" name="activityId" value={activity.id} />
-          <button type="submit" disabled={isDeleting} aria-label={`Excluir atividade ${activity.title}`} className="rounded-lg px-2.5 py-2 text-xs font-semibold text-[#963b3b] hover:bg-[#fff1f1] disabled:opacity-60">{isDeleting ? "Excluindo..." : "Excluir"}</button>
+          <button type="submit" disabled={isDeleting || !isHydrated} aria-label={`Excluir atividade ${activity.title}`} className="rounded-lg px-2.5 py-2 text-xs font-semibold text-[#963b3b] hover:bg-[#fff1f1] disabled:opacity-60">{isDeleting ? "Excluindo..." : "Excluir"}</button>
         </form>
       </div>
       <form action={updateAction} className="mt-4 flex flex-wrap items-end gap-2">
