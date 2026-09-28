@@ -2,6 +2,7 @@ import type { Prisma } from "@prisma/client";
 
 export type TimelineEventInput = {
   personId: string;
+  actorId?: string;
   category: Prisma.TimelineEventCreateInput["category"];
   title: string;
   description?: string;

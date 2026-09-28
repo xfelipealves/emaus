@@ -15,6 +15,7 @@ export type TimelineEventItem = {
   title: string;
   description: string | null;
   occurredAt: Date;
+  actor: { id: string; fullName: string } | null;
 };
 
 const categoryMap: Record<Exclude<TimelineFilter, "all">, TimelineEventCategory[]> = {
@@ -53,12 +54,25 @@ export async function getPersonTimeline(
     return [];
   }
 
-  return prisma.timelineEvent.findMany({
+  const events = await prisma.timelineEvent.findMany({
     where: {
       personId,
       ...(filter === "all" ? {} : { category: { in: categoryMap[filter] } }),
     },
     orderBy: [{ occurredAt: "desc" }, { id: "desc" }],
-    select: { id: true, personId: true, category: true, title: true, description: true, occurredAt: true },
+    select: {
+      id: true,
+      personId: true,
+      category: true,
+      title: true,
+      description: true,
+      occurredAt: true,
+      actor: { select: { id: true, person: { select: { fullName: true } } } },
+    },
   });
+
+  return events.map((event) => ({
+    ...event,
+    actor: event.actor ? { id: event.actor.id, fullName: event.actor.person.fullName } : null,
+  }));
 }

@@ -81,6 +81,7 @@ export default async function PersonTimelinePage({
                     <p className="text-xs font-semibold uppercase tracking-wide text-[#26766d]">{categoryLabels[event.category]}</p>
                     <h2 className="mt-1 font-semibold text-slate-900">{event.title}</h2>
                     {event.description ? <p className="mt-1 text-sm text-slate-600">{event.description}</p> : null}
+                    <p className="mt-1 text-xs text-slate-500">Pessoa: {person.fullName} · Por: {event.actor?.fullName ?? "Sistema"}</p>
                   </div>
                   <time dateTime={event.occurredAt.toISOString()} className="shrink-0 text-xs text-slate-500">{formatDateInBrazil(event.occurredAt)}</time>
                 </div>
