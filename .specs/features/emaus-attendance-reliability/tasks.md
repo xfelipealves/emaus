@@ -4,7 +4,7 @@
 
 Executar com a skill `tlc-spec-driven`: uma tarefa por vez, testes derivados dos ACs, gate obrigatório e um commit atômico por tarefa. Nesta rodada paralela, o agente coordenador fará os commits por paths explícitos depois dos gates; não incluir arquivos de outras frentes.
 
-O E2E global executa `prisma migrate reset --force`. `ATTENDANCE_E2E_DATABASE_URL` deve apontar somente para o banco descartável `emaus_attendance_worker1_e2e_20260927`, após confirmar `current_database`, usuário e destino local. Use `PLAYWRIGHT_PORT=3101` durante esta rodada. Nunca copie o valor da URL para docs ou logs.
+Os testes de integração usam a URL descartável validada em `ATTENDANCE_E2E_DATABASE_URL`. Para E2E, use somente o wrapper do repositório, que cria PostgreSQL temporário em tmpfs e valida o destino antes de resetar; não passe DB fixo nem invoque Playwright diretamente. Use `PLAYWRIGHT_PORT=3101`. Nunca copie URL ou credenciais para docs ou logs.
 
 **Design**: `.specs/features/emaus-attendance-reliability/design.md`
 **Status**: Complete — validação da frente concluída em 2026-09-27.
@@ -17,9 +17,9 @@ O E2E global executa `prisma migrate reset --force`. `ATTENDANCE_E2E_DATABASE_UR
 | Code Layer | Required Test Type | Coverage Expectation | Location Pattern | Run Command |
 |---|---|---|---|---|
 | Ciclo e invariantes de presença | unit + integration | Cada estado e AC do serviço; estados esperados repetidos, autorização, cancelamento, arquivo e rollback de escrita histórica | `src/features/encontros/attendance-service*.test.ts` | `npm test -- src/features/encontros/attendance-service.test.ts src/features/encontros/attendance-service.cycle.test.ts src/features/encontros/attendance-service.integration.test.ts` |
-| Server Action e quadro React | e2e | Abertura/reabertura, ciclo confirmado, clique duplicado, loading por linha, falha/reversão/retry, estado após reload; perfis Admin, Secretaria e Líder em/fora do escopo | `e2e/attendance.spec.ts` | `PLAYWRIGHT_PORT=3101 npm run test:e2e -- e2e/attendance.spec.ts` |
+| Server Action e quadro React | e2e | Abertura/reabertura, ciclo confirmado, clique duplicado, loading por linha, falha/reversão/retry, estado após reload; perfis Admin, Secretaria e Líder em/fora do escopo | `e2e/attendance.spec.ts` | `rtk run -c 'PLAYWRIGHT_PORT=3101 npm run test:e2e -- e2e/attendance.spec.ts'` |
 | Consulta de auditoria | integration | Alvo Attendance apresenta pessoa/encontro; eventos sem contexto preservam consulta; autorização administrativa continua obrigatória | `src/features/auditoria/audit-query.integration.test.ts` | `npm test -- src/features/auditoria/audit-query.integration.test.ts` |
-| Tela de auditoria/timeline | e2e | Evento identifica pessoa/encontro e antes/depois no alvo certo; timeline mostra pessoa, encontro e transição | `e2e/attendance.spec.ts` | `PLAYWRIGHT_PORT=3101 npm run test:e2e -- e2e/attendance.spec.ts` |
+| Tela de auditoria/timeline | e2e | Evento identifica pessoa/encontro e antes/depois no alvo certo; timeline mostra pessoa, encontro e transição | `e2e/attendance.spec.ts` | `rtk run -c 'PLAYWRIGHT_PORT=3101 npm run test:e2e -- e2e/attendance.spec.ts'` |
 | Página, schema e config sem regra nova | none | Build e typecheck | — | `npm run build && npm run typecheck` |
 
 ## Gate Check Commands
@@ -29,8 +29,8 @@ O E2E global executa `prisma migrate reset --force`. `ATTENDANCE_E2E_DATABASE_UR
 | Gate Level | When to Use | Command |
 |---|---|---|
 | Quick | Serviço ou consulta com testes Vitest | `DATABASE_URL="$ATTENDANCE_E2E_DATABASE_URL" npx prisma migrate deploy && DATABASE_URL="$ATTENDANCE_E2E_DATABASE_URL" npm run test -- [arquivos Vitest da tarefa]` |
-| Full | Mudança de interface/rota coberta por E2E | `DATABASE_URL="$ATTENDANCE_E2E_DATABASE_URL" npx prisma migrate deploy && DATABASE_URL="$ATTENDANCE_E2E_DATABASE_URL" npm run test -- src/features/encontros/attendance-service.test.ts src/features/encontros/attendance-service.cycle.test.ts src/features/encontros/attendance-service.integration.test.ts src/features/auditoria/audit-query.integration.test.ts && DATABASE_URL="$ATTENDANCE_E2E_DATABASE_URL" PLAYWRIGHT_PORT=3101 npm run test:e2e -- e2e/attendance.spec.ts` |
-| Build | Fechamento desta frente | `npm run build && npm run lint && npm run typecheck && DATABASE_URL="$ATTENDANCE_E2E_DATABASE_URL" npx prisma migrate deploy && DATABASE_URL="$ATTENDANCE_E2E_DATABASE_URL" npm test && DATABASE_URL="$ATTENDANCE_E2E_DATABASE_URL" PLAYWRIGHT_PORT=3101 npm run test:e2e -- e2e/attendance.spec.ts` |
+| Full | Mudança de interface/rota coberta por E2E | `DATABASE_URL="$ATTENDANCE_E2E_DATABASE_URL" npx prisma migrate deploy && DATABASE_URL="$ATTENDANCE_E2E_DATABASE_URL" npm run test -- src/features/encontros/attendance-service.test.ts src/features/encontros/attendance-service.cycle.test.ts src/features/encontros/attendance-service.integration.test.ts src/features/auditoria/audit-query.integration.test.ts && rtk run -c 'PLAYWRIGHT_PORT=3101 npm run test:e2e -- e2e/attendance.spec.ts'` |
+| Build | Fechamento desta frente | `npm run build && npm run lint && npm run typecheck && DATABASE_URL="$ATTENDANCE_E2E_DATABASE_URL" npx prisma migrate deploy && DATABASE_URL="$ATTENDANCE_E2E_DATABASE_URL" npm test && rtk run -c 'PLAYWRIGHT_PORT=3101 npm run test:e2e -- e2e/attendance.spec.ts'` |
 
 O E2E de fechamento desta frente cobre os sete casos de `e2e/attendance.spec.ts`; o E2E global do workspace fica para a coordenação após estabilizar as outras frentes paralelas.
 

@@ -57,6 +57,55 @@ Os REDs de T2/T3 foram reproduzidos no checkout temporário de teste-only solici
 - Uma execução adicional após o reset do banco isolado não conseguiu lançar nenhum dos sete casos porque o cache de Chromium estava ausente. Não houve teste de browser nessa tentativa. A coordenação restaurou o `headless_shell` e confirmou a versão; a execução final passou 7/7.
 - Não foi executado `npm run test:e2e` global sem filtro: a rodada era paralela e as demais specs pertenciam a outras frentes. O gate E2E desta feature rodou integralmente seus sete casos; o E2E global fica para a coordenação final do workspace.
 
+## Gate consolidado — 2026-09-28
+
+- `npm run build` passou (compilação, checagem de tipos do Next e geração das páginas) usando PostgreSQL temporário em tmpfs; as guardas passaram 2/2 e o container foi removido.
+- O teste separado de capacidade `e2e/capacity.spec.ts` excedeu o timeout de 180 s e o teardown do trace expirou. O runner encerrou com falha e removeu o container. O E2E funcional desta frente segue 7/7.
+- Lint passou sem erros, com um warning existente de `<img>`; `db:validate` e `git diff --check` passaram. No typecheck global, segue o import externo de `resetAccountPassword`; no unit-only, 51/52 passaram, com falha externa no link de categorias de Encontros.
+
+## Verificação independente — 2026-09-28
+
+**Veredito do escopo da frequência:** PASS — 10/10 critérios com assertion rastreável; nenhum gap de precisão da spec. A revisão cobriu os arquivos de implementação/teste indicados em `tasks.md`. O código de frequência está no `HEAD` `37b11a6`; não havia diff local nos arquivos de frequência, testes ou E2E. Apenas este relatório foi atualizado nesta passada.
+
+### Critérios ancorados na spec
+
+| Critério | Resultado esperado | `file:line` + assertion/value | Resultado |
+|---|---|---|---|
+| Lançamento AC1 — elegíveis começam não confirmados e reabrir não duplica | `NOT_CONFIRMED`; uma linha preserva o estado existente | `src/features/encontros/attendance-service.integration.test.ts:166-173` — `toHaveLength(1)`, status `NOT_CONFIRMED`, reabertura `PRESENT`, `attendance.count === 1`; `e2e/attendance.spec.ts:19-27` — linha inicia `Não confirmado`, DB fica `PRESENT` e reload mostra `Presente` | ✅ PASS |
+| Lançamento AC2 — ciclo e resposta confirmada | `NOT_CONFIRMED → PRESENT → ABSENT → NOT_CONFIRMED`; tela/DB refletem resposta persistida | `src/features/encontros/attendance-service.cycle.test.ts:5-8` — três transições exatas; `src/features/encontros/attendance-service.integration.test.ts:55-60` — cada chamada retorna o status seguinte e `changed: true`; `e2e/attendance.spec.ts:21-27, 39-44, 59-64` — rótulos e status lidos do DB | ✅ PASS |
+| Lançamento AC3 — bloquear transição concorrente na mesma linha | Uma única transição para o estado esperado; a mesma linha fica pendente/desabilitada | `src/features/encontros/attendance-service.integration.test.ts:86-96` — duas chamadas resultam em `PRESENT`, uma `changed`, auditoria/timeline contam 1; `e2e/attendance.spec.ts:148-168` — dois cliques, linha 1 `disabled`, linha 2 `enabled`, cada linha persiste `PRESENT` e gera um evento | ✅ PASS |
+| Lançamento AC4 — erro restaura o estado e oferece nova tentativa | Falha não salva presença; estado anterior e mensagem de erro ficam visíveis; retry pode salvar | `src/features/encontros/attendance-service.integration.test.ts:105-108` — chamada rejeita, status fica `NOT_CONFIRMED`, auditoria/timeline contam 0; `e2e/attendance.spec.ts:98-116` — POST abortado, linha/DB continuam `NOT_CONFIRMED`, erro e botão `Tentar novamente`, depois DB fica `PRESENT` | ✅ PASS |
+| Lançamento AC5 — retry/reconciliação no máximo uma vez | Estado obsoleto retorna o status persistido com `changed: false`; evento não duplica | `src/features/encontros/attendance-service.integration.test.ts:75-79` — segunda chamada com `NOT_CONFIRMED` retorna `{ status: "PRESENT", changed: false }`, DB `PRESENT`, audit/timeline `1`; `e2e/attendance.spec.ts:113-116` — retry de rede termina com rótulo/salvamento `Presente` e DB `PRESENT` | ✅ PASS |
+| Histórico AC1 — auditoria registra ator, horário, alvo, antes/depois e motivo opcional | `Attendance`/ID e ator corretos; `PRESENT → ABSENT`; motivo informado ou `null`; timestamp Date | `src/features/encontros/attendance-service.integration.test.ts:62-66` — `actorId`, `targetType`, `targetId`, `before`, `after`, motivo e `createdAt instanceof Date`; `e2e/attendance.spec.ts:29-37, 45-57` — auditor, `<time datetime>`, alvo Pessoa/Encontro e payloads exatos | ✅ PASS |
+| Histórico AC2 — timeline da Pessoa | Evento `ATTENDANCE` pertence à Pessoa e identifica Encontro/transição | `src/features/encontros/attendance-service.integration.test.ts:67-68` — `personId`, título `Presença atualizada` e descrição exata `Ministério …: PRESENT → ABSENT`; `e2e/attendance.spec.ts:61-67` — timeline mostra `${meeting.title}: ABSENT → NOT_CONFIRMED` | ✅ PASS |
+| Histórico AC3 — auditoria permite reconhecer Pessoa/Encontro e antes/depois | Contexto de alvo exato e estados anteriores/novos exatos | `src/features/auditoria/audit-query.integration.test.ts:118-132` — pessoa, título do encontro, `NOT_CONFIRMED` e `PRESENT`; `e2e/attendance.spec.ts:31-37, 52-57` — artigo identifica Pessoa/Encontro e apresenta payloads antes/depois | ✅ PASS |
+| Histórico AC4 — fora do escopo não lista/altera nem expõe o quadro | Listagem e alteração negadas, sem mudar a linha; quadro sem Pessoa para Líder fora do escopo | `src/features/encontros/attendance-service.integration.test.ts:114-120` — rejeições `Encontro não encontrado.`/`Presença não encontrada.`, estado `NOT_CONFIRMED`; `e2e/attendance.spec.ts:184-221` — Secretaria e Líder escopado persistem mudanças, Líder externo é redirecionado, Pessoa não aparece e estado continua `ABSENT` | ✅ PASS |
+| Histórico AC5 — cancelado/Ministério arquivado bloqueia novos lançamentos e mantém histórico | Rejeitar mudanças/adições; manter presença histórica consultável | `src/features/encontros/attendance-service.integration.test.ts:132-160` — cancelado não inicializa (contagem 0), arquivado rejeita lançamento em `NOT_CONFIRMED`, histórico `PRESENT` reabre e correção `ABSENT` preserva uma linha; `src/features/encontros/attendance-query.integration.test.ts:105-117` — busca/adição manual/visitante rejeitados para Ministério arquivado; `e2e/attendance.spec.ts:239-266, 282-309` — cancelamento reverte e permite retry após reabertura; histórico arquivado recarrega e permanece corrigível | ✅ PASS |
+
+### Discrimination sensor
+
+| Mutação no scratch | Sensor | Resultado |
+|---|---|---|
+| `src/features/encontros/attendance-service.ts:27` no worktree temporário: retorno da transição de `PRESENT` alterado de `ABSENT` para `NOT_CONFIRMED` | O runner `npm run test:e2e` criou DB PostgreSQL descartável em tmpfs; somente `cycles an eligible person's attendance` foi executado. A assertion `e2e/attendance.spec.ts:45-50` esperava auditoria `PRESENT → ABSENT` e recebeu `PRESENT → NOT_CONFIRMED`. | ✅ Mutante morto (1/1). Container e worktree temporários removidos. A tentativa inicial com timeout padrão expirou durante cold start; a repetição com limite de 90s chegou à assertion e matou o mutante. Nenhum teste foi alterado e a árvore compartilhada não foi modificada. |
+
+### Cobertura de bordas e qualidade
+
+- Elegibilidade por audiência e deduplicação: `src/features/encontros/attendance-service.test.ts:12-18` espera `person-a/person-b` para `ministry-b` e uma ocorrência de cada pessoa; adição manual de Pessoa/visitante está coberta em `e2e/attendance.spec.ts:325-347`.
+- Falha de rede, ações rápidas, cancelamento, arquivo e leitura do histórico estão cobertos pelas evidências acima. Os E2Es criam entidades com sufixo único e limpam registros no `finally` (`e2e/attendance.spec.ts:8-14, 68-80`); a execução do sensor usou somente o runner seguro do projeto.
+- Princípios revisados conforme `.agents/skills/tlc-spec-driven/references/coding-principles.md`: alterações focadas e alinhadas às tarefas, sem sinal de teste enfraquecido; cada teste listado mapeia AC/caso de borda; cobertura de serviço e UI inclui sucesso, erro e autorização. Guidelines consultadas: `README.md`, `vitest.config.ts`, `playwright.config.ts`, `package.json` e `tasks.md` (sem threshold próprio; aplicados strong defaults).
+- Contagem nas paths de `tasks.md`: baseline documentado de 22 casos, atual de 32 (+10); E2E de frequência passou de 4 para 7 casos. A contagem global anterior não estava registrada.
+
+### Gate observado nesta verificação
+
+- O resultado atual informado para `e2e/attendance.spec.ts` é 7/7; a última compilação consolidada `npm run build` passou.
+- O teste separado `e2e/capacity.spec.ts` excedeu 180s e o teardown do trace expirou. Esse resultado é separado do build e do E2E funcional 7/7 desta frente.
+- A verificação consolidada também registrou lint sem erros, `db:validate` e `git diff --check` aprovados. O unit-only global ficou 51/52 por falha em `encontros/page.test.tsx`; o typecheck global apontou `resetAccountPassword` ausente em arquivos da frente de contas. Esses dois erros são de paths de outras frentes.
+- Não executei Vitest de integração diretamente: esta passada proibiu teste DB direto. O sensor usou exclusivamente `npm run test:e2e` do projeto; gates focais anteriores de Vitest/migration permanecem registrados nas seções históricas acima.
+
+**Resumo:** critérios funcionais da frequência 10/10 cobertos; sensor 1/1 morto; sem gap de spec ou mutant sobrevivente. O build e o E2E funcional estão verdes; falhas globais de outras frentes e o timeout independente de capacidade estão discriminados acima.
+
 ## Resultado
 
-Os critérios FREQ-01 a FREQ-05 desta frente estão cobertos por testes de serviço, integração e interface E2E. Gates de build, lint, typecheck, Vitest, migration, E2E da frequência e whitespace passaram. Não há requisito funcional pendente identificado nesta frente.
+Os critérios FREQ-01 a FREQ-05 desta frente estão cobertos por testes de serviço, integração e interface E2E. Os gates focais anteriores de build, lint, typecheck, Vitest, migration, E2E da frequência e whitespace passaram. Não há requisito funcional pendente identificado nesta frente.
+
+Na verificação combinada mais recente do workspace, o full unit-only ficou 51/52 por falha de link administrativo em `encontros/page.test.tsx`, e o typecheck falhou por `resetAccountPassword` ausente em arquivos da frente de contas. Essas falhas não atingem os paths desta frente; seus gates focal anteriores passaram. Para novos E2Es, usar o runner temporário do projeto, por exemplo `rtk run -c 'PLAYWRIGHT_PORT=3101 npm run test:e2e -- e2e/attendance.spec.ts'`, sem URL de banco fixa.
