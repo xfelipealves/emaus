@@ -1,13 +1,14 @@
 import { expect, test, type Page } from "@playwright/test";
 import { hashPassword } from "../src/features/auth/password";
 import { prisma } from "../src/lib/prisma";
-import { calculateAge } from "../src/lib/dates";
+import { calculateAge, formatDateInput } from "../src/lib/dates";
 
 test.describe("person profile", () => {
   test.describe.configure({ mode: "serial" });
   const adminUsername = "t20-profile-admin";
   const leaderUsername = "t20-profile-leader";
   const personName = "Pessoa Perfil T20";
+  const promotionVisitorName = "Visitante para promoção T20";
   const ministryName = "Ministério Perfil T20";
   const meetingName = "Encontro Perfil T20";
   const birthDate = new Date("1990-08-11T00:00:00.000Z");
@@ -25,7 +26,7 @@ test.describe("person profile", () => {
       create: { username: leaderUsername, email: `${leaderUsername}@example.test`, passwordHash: await hashPassword("senha-t20-leader"), role: "LEADER", person: { create: { fullName: "Líder Perfil T20" } } },
       update: { passwordHash: await hashPassword("senha-t20-leader"), status: "ACTIVE" },
     });
-    const oldPeople = await prisma.person.findMany({ where: { fullName: personName }, select: { id: true } });
+    const oldPeople = await prisma.person.findMany({ where: { fullName: { in: [personName, promotionVisitorName] } }, select: { id: true } });
     const oldMinistries = await prisma.ministry.findMany({ where: { name: ministryName }, select: { id: true } });
     await prisma.ministryMembership.deleteMany({ where: { OR: [{ personId: { in: oldPeople.map(({ id }) => id) } }, { ministryId: { in: oldMinistries.map(({ id }) => id) } }] } });
     await prisma.timelineEvent.deleteMany({ where: { personId: { in: oldPeople.map(({ id }) => id) } } });
@@ -52,7 +53,7 @@ test.describe("person profile", () => {
   });
 
   test.afterAll(async () => {
-    const people = await prisma.person.findMany({ where: { fullName: { in: [personName, "Administrador Perfil T20", "Líder Perfil T20"] } }, select: { id: true } });
+    const people = await prisma.person.findMany({ where: { fullName: { in: [personName, promotionVisitorName, "Administrador Perfil T20", "Líder Perfil T20"] } }, select: { id: true } });
     await prisma.noteVersion.deleteMany({ where: { note: { personId: { in: people.map(({ id }) => id) } } } });
     await prisma.note.deleteMany({ where: { personId: { in: people.map(({ id }) => id) } } });
     await prisma.attendance.deleteMany({ where: { meetingId } });
@@ -111,11 +112,43 @@ test.describe("person profile", () => {
     await expect(page.getByText("Conteúdo da nota privada T30", { exact: true })).toHaveCount(0);
   });
 
+  test("promotes a visitor with required data and an editable default effective date", async ({ page }) => {
+    const visitor = await prisma.person.create({ data: { fullName: promotionVisitorName } });
+    await login(page, adminUsername, "senha-t20-admin");
+    await page.goto(`/pessoas/${visitor.id}`);
+
+    const effectiveDate = page.getByLabel("Data efetiva da promoção");
+    await expect(effectiveDate).toHaveValue(formatDateInput(new Date()));
+    await effectiveDate.fill("2024-03-12");
+    await page.getByLabel("Telefone para promoção").fill("(11) 98888-2020");
+    await page.getByLabel("Data de nascimento para promoção").fill("1998-02-22");
+    await page.getByRole("button", { name: "Promover a membro" }).click();
+
+    await expect(page).toHaveURL(new RegExp(`/pessoas/${visitor.id}\\?status=promoted$`));
+    await expect(page.getByText("Pessoa promovida a membro.")).toBeVisible();
+    await expect(page.locator("dd").nth(0)).toHaveText("(11) 98888-2020");
+    await expect(page.locator("dd").nth(1)).toContainText("22/02/1998");
+    await expect(prisma.person.findUnique({ where: { id: visitor.id } })).resolves.toMatchObject({ status: "MEMBER", phone: "(11) 98888-2020" });
+
+    await page.getByRole("link", { name: "Timeline" }).click();
+    await expect(page).toHaveURL(new RegExp(`/pessoas/${visitor.id}/timeline$`));
+    await expect(page.getByRole("heading", { name: "Pessoa promovida a membro" })).toBeVisible();
+    await expect(page.locator("time").filter({ hasText: "12/03/2024" })).toBeVisible();
+  });
+
   test("orders timeline newest first and applies category filters", async ({ page }) => {
     await login(page, adminUsername, "senha-t20-admin");
     const person = await prisma.person.findFirstOrThrow({ where: { fullName: personName } });
     await page.goto("/pessoas/" + person.id, { waitUntil: "load" });
-    await page.getByRole("link", { name: "Timeline" }).click();
+    await page.setViewportSize({ width: 390, height: 844 });
+    const timelineLink = page.getByRole("link", { name: "Timeline" });
+    const receivesTap = await timelineLink.evaluate((link) => {
+      const bounds = link.getBoundingClientRect();
+      const target = document.elementFromPoint(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2);
+      return target === link || (target instanceof Element && link.contains(target));
+    });
+    expect(receivesTap).toBe(true);
+    await timelineLink.click();
     await expect(page).toHaveURL(new RegExp("/pessoas/" + person.id + "/timeline$"));
     await expect(page.getByRole("heading", { name: `Timeline de ${personName}` })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Presença corrigida T30" })).toBeVisible();

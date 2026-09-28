@@ -151,6 +151,11 @@ export function formatDateOnly(date: Date): string {
   }).format(date);
 }
 
+export function formatDateInput(date: Date): string {
+  const { year, month, day } = calendarDateInBrazil(date);
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
 export function calculateAge(birthDate: Date | null | undefined, now = new Date()): number | null {
   if (!birthDate) {
     return null;
