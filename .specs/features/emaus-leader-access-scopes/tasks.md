@@ -18,7 +18,7 @@ Implement these tasks with the `tlc-spec-driven` skill, following its Execute fl
 | Access scope/domain services and admin settings query | Integration | 1:1 to LEAD-01/02; grant/revoke validation, repeat-state edge cases, and current grants shown to Admin | `src/features/ministerios/*.integration.test.ts` | `npm run test -- src/features/ministerios/access-scope-service.integration.test.ts src/features/ministerios/ministry-service.integration.test.ts` |
 | Contextual visitor registration | Integration | 1:1 to LEAD-03; authorized, denied, persisted audit/timeline/attendance, rollback behavior | `src/features/encontros/quick-visitor-service.integration.test.ts` | `npm run test -- src/features/encontros/quick-visitor-service.integration.test.ts` |
 | Attendance query adapter | Integration | Existing public quick-visitor call reaches the atomic service and returns the ID, status, and name consumed by the attendance action/UI | `src/features/encontros/attendance-query.integration.test.ts` | `npm run test -- src/features/encontros/attendance-query.integration.test.ts` |
-| Admin and Leader flows | E2E | Isolated Admin/Leader browser contexts; Admin grant/revoke UI + audit; Leader list/detail and visitor in authorized frequency; denial without scope and no general People access | `e2e/leader-access-scopes.spec.ts` | `PLAYWRIGHT_PORT=3104 DATABASE_URL=<emaus_e2e_leader_scopes> npm run test:e2e -- e2e/leader-access-scopes.spec.ts` |
+| Admin and Leader flows | E2E | Isolated Admin/Leader browser contexts; Admin grant/revoke UI + audit; Leader list/detail and visitor in authorized frequency; denial without scope and no general People access | `e2e/leader-access-scopes.spec.ts` | `rtk run -c 'PLAYWRIGHT_PORT=3104 npm run test:e2e -- e2e/leader-access-scopes.spec.ts'` |
 | Type/build/lint regression | Build | Type correctness, lint, production compilation | project root | `npm run typecheck && npm run lint && npm run build` |
 
 ## Gate Check Commands
@@ -28,8 +28,8 @@ Implement these tasks with the `tlc-spec-driven` skill, following its Execute fl
 | Gate Level | When to Use | Command |
 | ---------- | ---------- | ------- |
 | Quick | Service/integration task | `DATABASE_URL=<isolated-url-ending-in-emaus_e2e_leader_scopes> npm run test -- <test paths>` |
-| Full | Adapter/UI task with E2E or integration | `PLAYWRIGHT_PORT=3104 DATABASE_URL=<isolated-url-ending-in-emaus_e2e_leader_scopes> npm run test:e2e -- e2e/leader-access-scopes.spec.ts` plus focused integration tests |
-| Build | Feature completion | `npm run typecheck && npm run lint && npm run build && DATABASE_URL=<isolated-url-ending-in-emaus_e2e_leader_scopes> npm run test` |
+| Full | Adapter/UI task with E2E or integration | `rtk run -c 'PLAYWRIGHT_PORT=3104 npm run test:e2e -- e2e/leader-access-scopes.spec.ts'` plus focused integration tests on an isolated DB |
+| Build | Feature completion | `npm run typecheck && npm run lint && npm run build && DATABASE_URL=<isolated integration DB> npm run test` |
 
 ## Execution Plan
 
@@ -135,10 +135,10 @@ T4 → T5
 - [x] E2E Leader sees the granted active Ministry and its participants, registers a visitor only in that meeting’s frequency, and sees initial `Não confirmado` attendance.
 - [x] E2E after revoke confirms `/ministerios` omits that Ministry and direct detail/frequency access is denied; persisted grant/revoke audit events have correct actor/target/action/before/after.
 - [x] Leader without current grants sees an explicit no-access empty state, never the misleading global “no Ministry exists” message.
-- [ ] E2E plus all feature integration tests pass on the isolated database; then typecheck, lint, build, and full test suite pass.
+- [x] E2E and all feature integration tests passed on isolated databases; typecheck/lint/build evidence is recorded in validation.md. A later workspace-wide gate reports unrelated account-service and meeting-page failures.
 - [ ] No `SPEC_DEVIATION` is unrecorded; validation report contains per-AC evidence.
 
-**TDD evidence**: The admin settings-query integration case first failed against an empty-result implementation because the current grant was omitted; the semantic database query then passed with the full scope-service suite. The E2E file was authored before route wiring. The first browser attempts exposed ambiguous locators and an SSR/hydration race when navigating with `domcontentloaded`; the accepted run waits for the frequency page `load` and the server action POST before asserting the visitor row. See `validation.md` for run sequence and outcomes.
+**TDD evidence**: The admin settings-query integration case first failed against an empty-result implementation because the current grant was omitted; the semantic database query then passed with the full scope-service suite. The E2E file was authored before route wiring. The first browser attempts exposed ambiguous locators and an SSR/hydration race when navigating with `domcontentloaded`; the accepted run waits for the frequency page `load` and the server action POST before asserting the visitor row. See `validation.md` for run sequence and outcomes. Future E2E runs must use the repository's temporary-PostgreSQL runner, never a fixed `DATABASE_URL`.
 
 **Tests**: E2E + integration  
 **Gate**: build

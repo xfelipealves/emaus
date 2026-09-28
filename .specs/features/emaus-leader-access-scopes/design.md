@@ -1,7 +1,7 @@
 # Escopo ministerial de Líderes — Design
 
 **Spec**: `.specs/features/emaus-leader-access-scopes/spec.md`  
-**Status**: Implemented; E2E passed; production build and full regression pending
+**Status**: Implemented; feature integrations, E2E and isolated production build passed; current workspace regression has unrelated failures documented in validation.md
 
 ## Architecture Overview
 
