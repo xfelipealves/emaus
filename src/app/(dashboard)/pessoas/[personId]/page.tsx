@@ -77,7 +77,6 @@ export default async function PersonProfilePage({
       </section>
 
       {statusMessage ? <p role="status" className="mt-4 rounded-xl border border-[#b9ded5] bg-[#effaf7] px-4 py-3 text-sm text-[#155e58]">{statusMessage}</p> : null}
-      {canManage ? <PersonStatusActions personId={person.id} fullName={person.fullName} status={person.status} /> : null}
 
       <nav aria-label="Abas do perfil" className="mt-6 flex gap-2 overflow-x-auto border-b border-slate-200">
         <span aria-current="page" className="whitespace-nowrap border-b-2 border-[#26766d] px-3 py-3 text-sm font-semibold text-[#155e58]">Visão geral</span>
@@ -85,6 +84,7 @@ export default async function PersonProfilePage({
         <span className="whitespace-nowrap px-3 py-3 text-sm font-medium text-slate-400">Ministérios</span>
         <span className="whitespace-nowrap px-3 py-3 text-sm font-medium text-slate-400">Frequência</span>
       </nav>
+      {canManage ? <PersonStatusActions personId={person.id} fullName={person.fullName} status={person.status} /> : null}
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">

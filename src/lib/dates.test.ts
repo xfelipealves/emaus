@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   calculateAge,
   formatDateOnly,
+  formatDateInput,
   formatDateInBrazil,
   normalizeDateOnly,
   parseDateTimeInput,
@@ -25,6 +26,11 @@ describe("Brazil date utilities", () => {
 
     expect(formatDateInBrazil(date)).toBe("08/08/2026");
     expect(formatDateOnly(new Date("1990-08-11T00:00:00.000Z"))).toBe("11/08/1990");
+  });
+
+  it("formats a date input using today's civil date in Sao Paulo", () => {
+    expect(formatDateInput(new Date("2026-09-27T02:30:00.000Z"))).toBe("2026-09-26");
+    expect(formatDateInput(new Date("2026-09-27T03:00:00.000Z"))).toBe("2026-09-27");
   });
 
   it("normalizes date-only values to UTC midnight for timestamp-backed legacy columns", () => {

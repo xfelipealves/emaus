@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { Button, Input } from "@/components/ui";
+import { formatDateInput } from "@/lib/dates";
 import { inactivatePersonAction, promotePersonAction, type PersonStatusActionState } from "./actions";
 
 export function PersonStatusActions({ personId, fullName, status }: { personId: string; fullName: string; status: "VISITOR" | "MEMBER" | "INACTIVE" }) {
@@ -22,7 +23,7 @@ export function PersonStatusActions({ personId, fullName, status }: { personId: 
           <h3 className="font-semibold text-slate-900">Promover a membro</h3>
           <Input id="promotion-phone" name="phone" label="Telefone para promoção" type="tel" required />
           <Input id="promotion-birth-date" name="birthDate" label="Data de nascimento para promoção" type="date" required />
-          <Input id="promotion-effective-date" name="effectiveDate" label="Data efetiva da promoção" type="date" required />
+          <Input id="promotion-effective-date" name="effectiveDate" label="Data efetiva da promoção" type="date" defaultValue={formatDateInput(new Date())} required />
           {promotionState.error ? <p role="alert" className="rounded-xl bg-[#fff1f1] px-3 py-2 text-sm text-[#b54747]">{promotionState.error}</p> : null}
           <Button type="submit" disabled={isPromotionPending}>{isPromotionPending ? "Promovendo..." : "Promover a membro"}</Button>
         </form>
