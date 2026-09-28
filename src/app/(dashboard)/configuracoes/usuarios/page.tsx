@@ -2,15 +2,26 @@ import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { getSession } from "@/features/auth/session-service";
 import { listAccounts, listPeopleWithoutAccounts } from "@/features/auth/account-service";
+import { listLeaderScopeConfiguration } from "@/features/ministerios/access-scope-service";
+import { listMinistries } from "@/features/ministerios/ministry-service";
 import { SESSION_COOKIE_NAME } from "@/lib/session";
 import { CreateAccountForm, DeactivateAccountForm } from "./account-forms";
+import { MinistryAccessForm } from "./ministry-access-form";
 
 export default async function UsersPage() {
   const token = (await cookies()).get(SESSION_COOKIE_NAME)?.value;
   const session = token ? await getSession(token) : null;
   if (!session || session.role !== "ADMINISTRATOR") redirect("/");
 
-  const [accounts, people] = await Promise.all([listAccounts(session), listPeopleWithoutAccounts(session)]);
+  const [accounts, people, leaders, ministries] = await Promise.all([
+    listAccounts(session),
+    listPeopleWithoutAccounts(session),
+    listLeaderScopeConfiguration({ id: session.id, role: session.role }),
+    listMinistries({ id: session.id, role: session.role, ministryAccess: [] }),
+  ]);
+  const activeMinistries = ministries
+    .filter((ministry) => ministry.status === "ACTIVE")
+    .map((ministry) => ({ id: ministry.id, name: ministry.name }));
 
   return (
     <div className="mx-auto max-w-6xl">
@@ -37,6 +48,9 @@ export default async function UsersPage() {
             {accounts.length === 0 ? <p className="py-6 text-sm text-slate-500">Nenhuma conta cadastrada.</p> : null}
           </div>
         </section>
+      </div>
+      <div className="mt-6">
+        <MinistryAccessForm leaders={leaders} ministries={activeMinistries} />
       </div>
     </div>
   );

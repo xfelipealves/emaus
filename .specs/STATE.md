@@ -40,7 +40,7 @@
 - **Trade-off**: A interface usará iniciais até uma evolução posterior.
 - **Scope**: Pessoas e interface.
 - **Date**: 2026-07-20
-- **Status**: active
+- **Status**: superseded by AD-011
 
 ### AD-006
 - **Decision**: Séries de encontros suportarão recorrência semanal, quinzenal e mensal, com dias da semana selecionáveis e término opcional.
@@ -80,6 +80,14 @@
 - **Trade-off**: O primeiro corte não associa atividades a Pessoa, Ministério ou Encontro e usa `Amanhã` como bucket de fluxo; essas evoluções ficam para depois.
 - **Scope**: Backlog pós-MVP — atividades e subtarefas.
 - **Date**: 2026-08-20
+- **Status**: active
+
+### AD-011
+- **Decision**: Implementar foto de perfil opcional e substituível para visitante ou membro, conforme RF-PES-004; upload/armazenamento deixam de estar adiados no primeiro corte desta frente.
+- **Reason**: Decisão explícita do usuário em 2026-09-27 para cumprir o requisito formal aprovado de adicionar e atualizar foto.
+- **Trade-off**: A frente passa a incluir decisões de armazenamento, limites de arquivo, acesso e retenção, que precisam ser fechadas no design sem tornar foto obrigatória.
+- **Scope**: Pessoas, perfil, armazenamento e apresentação de imagens.
+- **Date**: 2026-09-27
 - **Status**: active
 
 ## Handoff

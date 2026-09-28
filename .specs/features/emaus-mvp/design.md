@@ -206,7 +206,7 @@ Invariantes críticos:
 | Repositório ainda não possui aplicação ou padrões reutilizáveis | Projeto inteiro | Não existe código para reaproveitar neste momento. | M1 estabelece convenções e primitives antes de módulos. |
 | Elegibilidade dinâmica de presença | Regra AD-004 | Mudança de vínculo pode alterar lista em encontro já existente. | Cobrir o comportamento explicitamente em serviço/testes e manter presenças já persistidas. |
 | Recuperação de senha, e-mail, backup e deploy ainda não decididos | Infraestrutura | Não devem bloquear avaliação local, mas bloqueiam produção. | Mantê-los fora de M1–M8 e abrir feature de operação antes do deploy. |
-| Foto sem upload | Pessoas | Interface não terá imagem real no primeiro corte. | Exibir iniciais e manter campo pronto no modelo. |
+| Upload de foto | Pessoas | A decisão AD-011 inclui upload opcional; limite, formatos, armazenamento, autorização e retenção ainda precisam ser detalhados na frente `emaus-profile-photo-upload`. | Definir controles no design da frente e manter a foto opcional, substituível e restrita a formatos/limites aprovados. |
 
 ## Tech Decisions
 

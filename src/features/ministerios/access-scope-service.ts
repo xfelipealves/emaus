@@ -1,9 +1,34 @@
 import type { AccountRole, AccountMinistryAccess } from "@prisma/client";
+import { prisma } from "../../lib/prisma";
 import { canManageAccounts, type AuthorizationAccount } from "../../server/authorization";
 import { recordAuditEvent } from "../../server/audit";
 import { withTransaction } from "../../server/transaction";
 
 export type AccessScopeActor = Pick<AuthorizationAccount, "role"> & { id: string };
+
+export async function listLeaderScopeConfiguration(actor: AccessScopeActor) {
+  assertCanManageScopes(actor);
+
+  return prisma.account.findMany({
+    where: { role: "LEADER" },
+    select: {
+      id: true,
+      username: true,
+      status: true,
+      person: { select: { fullName: true } },
+      ministryAccess: {
+        where: { revokedAt: null },
+        select: {
+          ministryId: true,
+          grantedAt: true,
+          ministry: { select: { name: true, status: true } },
+        },
+        orderBy: { grantedAt: "asc" },
+      },
+    },
+    orderBy: { username: "asc" },
+  });
+}
 
 function assertCanManageScopes(actor: AccessScopeActor) {
   if (!canManageAccounts({ role: actor.role, ministryAccess: [] })) {
@@ -54,10 +79,14 @@ export async function grantMinistryAccess(
     const existing = await transaction.accountMinistryAccess.findUnique({
       where: { accountId_ministryId: input },
     });
+    if (existing && existing.revokedAt === null) {
+      return existing;
+    }
+
     const access = existing
       ? await transaction.accountMinistryAccess.update({
           where: { id: existing.id },
-          data: { revokedAt: null },
+          data: { grantedAt: new Date(), revokedAt: null },
         })
       : await transaction.accountMinistryAccess.create({ data: input });
 
@@ -86,6 +115,9 @@ export async function revokeMinistryAccess(
     });
     if (!existing) {
       throw new Error("Escopo ministerial não encontrado.");
+    }
+    if (existing.revokedAt !== null) {
+      throw new Error("Escopo ministerial já foi revogado.");
     }
 
     const access = await transaction.accountMinistryAccess.update({

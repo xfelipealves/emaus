@@ -28,6 +28,7 @@ test.describe("person profile", () => {
     const oldPeople = await prisma.person.findMany({ where: { fullName: personName }, select: { id: true } });
     const oldMinistries = await prisma.ministry.findMany({ where: { name: ministryName }, select: { id: true } });
     await prisma.ministryMembership.deleteMany({ where: { OR: [{ personId: { in: oldPeople.map(({ id }) => id) } }, { ministryId: { in: oldMinistries.map(({ id }) => id) } }] } });
+    await prisma.timelineEvent.deleteMany({ where: { personId: { in: oldPeople.map(({ id }) => id) } } });
     await prisma.noteVersion.deleteMany({ where: { note: { personId: { in: oldPeople.map(({ id }) => id) } } } });
     await prisma.note.deleteMany({ where: { personId: { in: oldPeople.map(({ id }) => id) } } });
     await prisma.person.deleteMany({ where: { id: { in: oldPeople.map(({ id }) => id) } } });
@@ -40,8 +41,11 @@ test.describe("person profile", () => {
     meetingId = meeting.id;
     await prisma.timelineEvent.createMany({
       data: [
+        { personId: person.id, category: "REGISTRATION", title: "Pessoa cadastrada T30", occurredAt: new Date("2026-08-08T09:00:00.000Z") },
         { personId: person.id, category: "STATUS", title: "Status alterado T30", occurredAt: new Date("2026-08-08T10:00:00.000Z") },
-        { personId: person.id, category: "NOTE", title: "Nota adicionada T30", occurredAt: new Date("2026-08-08T11:00:00.000Z") },
+        { personId: person.id, category: "MINISTRY", title: "Vínculo iniciado T30", occurredAt: new Date("2026-08-08T10:30:00.000Z") },
+        { personId: person.id, category: "ATTENDANCE", title: "Presença registrada T30", occurredAt: new Date("2026-08-08T10:45:00.000Z") },
+        { personId: person.id, category: "NOTE", title: "Nota adicionada T30", description: "Conteúdo da nota privada T30", occurredAt: new Date("2026-08-08T11:00:00.000Z") },
         { personId: person.id, category: "CORRECTION", title: "Presença corrigida T30", occurredAt: new Date("2026-08-08T12:00:00.000Z") },
       ],
     });
@@ -63,7 +67,7 @@ test.describe("person profile", () => {
   });
 
   async function login(page: Page, username: string, password: string) {
-    await page.goto("/login");
+    await page.goto("/login", { waitUntil: "load" });
     await page.getByLabel("Nome de usuário").fill(username);
     await page.getByLabel("Senha").fill(password);
     await page.getByRole("button", { name: "Entrar" }).click();
@@ -73,7 +77,7 @@ test.describe("person profile", () => {
   test("shows essential data, initials, ministry and overview tabs", async ({ page }) => {
     await login(page, adminUsername, "senha-t20-admin");
     const person = await prisma.person.findFirstOrThrow({ where: { fullName: personName } });
-    await page.goto(`/pessoas/${person.id}`);
+    await page.goto(`/pessoas/${person.id}`, { waitUntil: "load" });
     await expect(page.getByRole("heading", { name: personName })).toBeVisible();
     await expect(page.getByText("Membro", { exact: true })).toBeVisible();
     await expect(page.getByText("(11) 99999-0000")).toBeVisible();
@@ -92,30 +96,97 @@ test.describe("person profile", () => {
   test("blocks a leader without a granted ministry scope", async ({ page }) => {
     await login(page, leaderUsername, "senha-t20-leader");
     const person = await prisma.person.findFirstOrThrow({ where: { fullName: personName } });
-    const response = await page.goto(`/pessoas/${person.id}`);
+    const response = await page.goto(`/pessoas/${person.id}`, { waitUntil: "load" });
     expect(response?.status()).toBe(404);
+  });
+
+  test("does not expose a timeline to a leader outside the person's scope", async ({ page }) => {
+    await login(page, leaderUsername, "senha-t20-leader");
+    const person = await prisma.person.findFirstOrThrow({ where: { fullName: personName } });
+    const response = await page.goto("/pessoas/" + person.id + "/timeline", { waitUntil: "load" });
+
+    expect(response?.status()).toBe(404);
+    await expect(page.getByRole("heading", { name: "Timeline de " + personName })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Nota adicionada T30" })).toHaveCount(0);
+    await expect(page.getByText("Conteúdo da nota privada T30", { exact: true })).toHaveCount(0);
   });
 
   test("orders timeline newest first and applies category filters", async ({ page }) => {
     await login(page, adminUsername, "senha-t20-admin");
     const person = await prisma.person.findFirstOrThrow({ where: { fullName: personName } });
-    await page.goto(`/pessoas/${person.id}/timeline`);
+    await page.goto("/pessoas/" + person.id, { waitUntil: "load" });
+    await page.getByRole("link", { name: "Timeline" }).click();
+    await expect(page).toHaveURL(new RegExp("/pessoas/" + person.id + "/timeline$"));
     await expect(page.getByRole("heading", { name: `Timeline de ${personName}` })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Presença corrigida T30" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Nota adicionada T30" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Status alterado T30" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Pessoa cadastrada T30" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Vínculo iniciado T30" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Presença registrada T30" })).toBeVisible();
+    await expect(page.locator('section[aria-label="Eventos da timeline"] h2').allTextContents()).resolves.toEqual([
+      "Presença corrigida T30",
+      "Nota adicionada T30",
+      "Presença registrada T30",
+      "Vínculo iniciado T30",
+      "Status alterado T30",
+      "Pessoa cadastrada T30",
+    ]);
+    const timelineFilters = page.getByRole("navigation", { name: "Filtros da timeline" });
+    for (const label of ["Status e cadastro", "Ministérios", "Frequência", "Notas", "Correções"]) {
+      await expect(timelineFilters.getByRole("link", { name: label })).toBeVisible();
+    }
 
-    await page.getByRole("link", { name: "Notas" }).click();
+    await timelineFilters.getByRole("link", { name: "Status e cadastro" }).click();
+    await expect(page).toHaveURL(/filter=status/);
+    await expect(page.getByRole("heading", { name: "Status alterado T30" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Pessoa cadastrada T30" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Nota adicionada T30" })).toHaveCount(0);
+    await expect(page.locator('section[aria-label="Eventos da timeline"] h2').allTextContents()).resolves.toEqual([
+      "Status alterado T30",
+      "Pessoa cadastrada T30",
+    ]);
+
+    await timelineFilters.getByRole("link", { name: "Ministérios" }).click();
+    await expect(page).toHaveURL(/filter=ministries/);
+    await expect(page.getByRole("heading", { name: "Vínculo iniciado T30" })).toBeVisible();
+    await expect(page.locator('section[aria-label="Eventos da timeline"] h2').allTextContents()).resolves.toEqual([
+      "Vínculo iniciado T30",
+    ]);
+
+    await timelineFilters.getByRole("link", { name: "Frequência" }).click();
+    await expect(page).toHaveURL(/filter=attendance/);
+    await expect(page.getByRole("heading", { name: "Presença registrada T30" })).toBeVisible();
+    await expect(page.locator('section[aria-label="Eventos da timeline"] h2').allTextContents()).resolves.toEqual([
+      "Presença registrada T30",
+    ]);
+
+    await timelineFilters.getByRole("link", { name: "Notas" }).click();
     await expect(page).toHaveURL(/filter=notes/);
     await expect(page.getByRole("heading", { name: "Nota adicionada T30" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Status alterado T30" })).toHaveCount(0);
     await expect(page.getByRole("heading", { name: "Presença corrigida T30" })).toHaveCount(0);
+    await expect(page.locator('section[aria-label="Eventos da timeline"] h2').allTextContents()).resolves.toEqual([
+      "Nota adicionada T30",
+    ]);
+
+    await timelineFilters.getByRole("link", { name: "Correções" }).click();
+    await expect(page).toHaveURL(/filter=corrections/);
+    await expect(page.getByRole("heading", { name: "Presença corrigida T30" })).toBeVisible();
+    await expect(page.locator('section[aria-label="Eventos da timeline"] h2').allTextContents()).resolves.toEqual([
+      "Presença corrigida T30",
+    ]);
+
+    await page.goto("/pessoas/" + person.id + "/timeline", { waitUntil: "load" });
+    await expect(page).toHaveURL(new RegExp("/pessoas/" + person.id + "/timeline$"));
+    await expect(page.getByRole("heading", { name: "Timeline de " + personName })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Pessoa cadastrada T30" })).toBeVisible();
   });
 
   test("creates and edits a versioned note from the profile", async ({ page }) => {
     await login(page, adminUsername, "senha-t20-admin");
     const person = await prisma.person.findFirstOrThrow({ where: { fullName: personName } });
-    await page.goto(`/pessoas/${person.id}`);
+    await page.goto(`/pessoas/${person.id}`, { waitUntil: "load" });
 
     await page.getByLabel("Nova nota").fill("Primeiro registro T31");
     await page.getByRole("button", { name: "Adicionar nota" }).click();
@@ -132,19 +203,33 @@ test.describe("person profile", () => {
   test("archives a note and reveals it only through the archived filter", async ({ page }) => {
     await login(page, adminUsername, "senha-t20-admin");
     const person = await prisma.person.findFirstOrThrow({ where: { fullName: personName } });
-    await page.goto(`/pessoas/${person.id}`);
+    await page.goto(`/pessoas/${person.id}`, { waitUntil: "load" });
     await page.getByLabel("Nova nota").fill("Registro arquivado T32");
     await page.getByRole("button", { name: "Adicionar nota" }).click();
     await expect(page.getByText("Nota adicionada.")).toBeVisible();
+
+    const noteTextarea = page.getByRole("textbox", { name: "Nota", exact: true }).first();
+    await expect(noteTextarea).toHaveValue("Registro arquivado T32");
+    await noteTextarea.fill("Registro arquivado T32 editado");
+    await page.getByRole("button", { name: "Salvar edição" }).first().click();
+    await expect(page.getByText("Nota atualizada.")).toBeVisible();
+    const note = await prisma.note.findFirstOrThrow({ where: { personId: person.id, content: "Registro arquivado T32 editado" } });
+    const admin = await prisma.account.findUniqueOrThrow({ where: { username: adminUsername }, select: { id: true } });
+    expect(note.authorId).toBe(admin.id);
+
     page.on("dialog", (dialog) => dialog.accept());
     await page.locator("textarea").first().locator("xpath=../..").getByRole("button", { name: "Arquivar" }).click();
-    await expect.poll(async () => prisma.note.findFirst({ where: { personId: person.id, content: "Registro arquivado T32" }, select: { archived: true } })).toEqual({ archived: true });
+    await expect.poll(async () => prisma.note.findUnique({ where: { id: note.id }, select: { archived: true } })).toEqual({ archived: true });
+    await expect(prisma.noteVersion.findMany({ where: { noteId: note.id }, orderBy: { sequence: "asc" }, select: { authorId: true, content: true, sequence: true } })).resolves.toEqual([
+      { authorId: admin.id, content: "Registro arquivado T32", sequence: 1 },
+      { authorId: admin.id, content: "Registro arquivado T32 editado", sequence: 2 },
+    ]);
     await page.reload();
-    await expect(page.getByText("Registro arquivado T32")).toHaveCount(0);
+    await expect(page.getByText("Registro arquivado T32 editado")).toHaveCount(0);
 
     await page.getByRole("link", { name: "Arquivadas" }).click();
     await expect(page).toHaveURL(/notes=archived/);
-    await expect(page.getByRole("textbox", { name: "Nota", exact: true })).toHaveValue("Registro arquivado T32");
-    await expect(prisma.note.count({ where: { personId: person.id, content: "Registro arquivado T32", archived: true } })).resolves.toBe(1);
+    await expect(page.getByRole("textbox", { name: "Nota", exact: true }).first()).toHaveValue("Registro arquivado T32 editado");
+    await expect(prisma.note.count({ where: { personId: person.id, content: "Registro arquivado T32 editado", archived: true } })).resolves.toBe(1);
   });
 });

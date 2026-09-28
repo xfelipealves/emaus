@@ -29,6 +29,7 @@ describe("person timeline query", () => {
 
     await prisma.timelineEvent.createMany({
       data: [
+        { personId, category: "REGISTRATION", title: "Pessoa cadastrada", occurredAt: new Date("2026-08-08T09:00:00.000Z") },
         { personId, category: "STATUS", title: "Status alterado", occurredAt: new Date("2026-08-08T10:00:00.000Z") },
         { personId, category: "MINISTRY", title: "Vínculo iniciado", occurredAt: new Date("2026-08-08T11:00:00.000Z") },
         { personId, category: "ATTENDANCE", title: "Presença atualizada", occurredAt: new Date("2026-08-08T12:00:00.000Z") },
@@ -55,21 +56,21 @@ describe("person timeline query", () => {
       "Presença atualizada",
       "Vínculo iniciado",
       "Status alterado",
+      "Pessoa cadastrada",
     ]);
     expect(events.every((event) => event.personId === personId)).toBe(true);
   });
 
   it.each([
-    ["status", "STATUS"],
-    ["ministries", "MINISTRY"],
-    ["attendance", "ATTENDANCE"],
-    ["notes", "NOTE"],
-    ["corrections", "CORRECTION"],
-  ] as const)("filters %s events by category", async (filter: TimelineFilter, category) => {
+    ["status", ["STATUS", "REGISTRATION"]],
+    ["ministries", ["MINISTRY"]],
+    ["attendance", ["ATTENDANCE"]],
+    ["notes", ["NOTE"]],
+    ["corrections", ["CORRECTION"]],
+  ] as const)("filters %s events by category", async (filter: TimelineFilter, categories) => {
     const events = await getPersonTimeline({ id: accountId, role: "ADMINISTRATOR" }, personId, filter);
 
-    expect(events).toHaveLength(1);
-    expect(events[0].category).toBe(category);
+    expect(events.map((event) => event.category)).toEqual(categories);
     expect(events[0].personId).toBe(personId);
   });
 
@@ -78,8 +79,8 @@ describe("person timeline query", () => {
     const all = await getPersonTimeline({ id: accountId, role: "ADMINISTRATOR" }, personId);
 
     expect(filtered).toHaveLength(1);
-    expect(all).toHaveLength(5);
-    await expect(prisma.timelineEvent.count({ where: { personId } })).resolves.toBe(5);
+    expect(all).toHaveLength(6);
+    await expect(prisma.timelineEvent.count({ where: { personId } })).resolves.toBe(6);
   });
 
   it("denies a leader without access to the person's ministry", async () => {

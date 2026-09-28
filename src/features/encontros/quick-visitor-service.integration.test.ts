@@ -1,0 +1,171 @@
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { prisma } from "../../lib/prisma";
+import { registerContextualVisitor } from "./quick-visitor-service";
+
+const fault = vi.hoisted(() => ({ failPersonAudit: false }));
+
+vi.mock("../../server/audit", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../server/audit")>();
+  return {
+    ...actual,
+    recordAuditEvent: (...args: Parameters<typeof actual.recordAuditEvent>) => {
+      const [, input] = args;
+      if (fault.failPersonAudit && input.targetType === "Person") {
+        throw new Error("Injected audit failure");
+      }
+      return actual.recordAuditEvent(...args);
+    },
+  };
+});
+
+describe("contextual visitor registration", () => {
+  const suffix = Date.now().toString();
+  let leaderId: string;
+  let leaderPersonId: string;
+  let ministryId: string;
+  let categoryId: string;
+  let meetingId: string;
+
+  const actor = () => ({
+    id: leaderId,
+    role: "LEADER" as const,
+    ministryAccess: [{ ministryId, revokedAt: null }],
+  });
+
+  beforeAll(async () => {
+    const leaderPerson = await prisma.person.create({ data: { fullName: `Líder visitante ${suffix}` } });
+    leaderPersonId = leaderPerson.id;
+    const leader = await prisma.account.create({
+      data: {
+        personId: leaderPersonId,
+        username: `leader-visitor-${suffix}`,
+        email: `leader-visitor-${suffix}@example.test`,
+        passwordHash: "test-hash",
+        role: "LEADER",
+      },
+    });
+    leaderId = leader.id;
+    const ministry = await prisma.ministry.create({ data: { name: `Ministério visitante ${suffix}` } });
+    ministryId = ministry.id;
+    await prisma.accountMinistryAccess.create({ data: { accountId: leaderId, ministryId } });
+    const category = await prisma.category.create({ data: { name: `Categoria visitante ${suffix}` } });
+    categoryId = category.id;
+    const meeting = await prisma.meeting.create({
+      data: {
+        categoryId,
+        title: `Encontro visitante ${suffix}`,
+        scheduledAt: new Date(),
+        status: "SCHEDULED",
+        audiences: { create: { ministryId } },
+      },
+    });
+    meetingId = meeting.id;
+  });
+
+  beforeEach(async () => {
+    fault.failPersonAudit = false;
+    const previousVisitors = await prisma.person.findMany({
+      where: { AND: [{ fullName: { startsWith: "Visitante" } }, { fullName: { contains: suffix } }] },
+      select: { id: true },
+    });
+    const previousVisitorIds = previousVisitors.map((person) => person.id);
+    await prisma.auditEvent.deleteMany({ where: { targetId: { in: previousVisitorIds } } });
+    await prisma.timelineEvent.deleteMany({ where: { personId: { in: previousVisitorIds } } });
+    await prisma.attendance.deleteMany({ where: { personId: { in: previousVisitorIds } } });
+    await prisma.person.deleteMany({ where: { id: { in: previousVisitorIds } } });
+    await prisma.account.update({ where: { id: leaderId }, data: { status: "ACTIVE" } });
+    await prisma.accountMinistryAccess.update({
+      where: { accountId_ministryId: { accountId: leaderId, ministryId } },
+      data: { revokedAt: null },
+    });
+    await prisma.ministry.update({ where: { id: ministryId }, data: { status: "ACTIVE" } });
+    await prisma.meeting.update({ where: { id: meetingId }, data: { status: "SCHEDULED" } });
+  });
+
+  afterAll(async () => {
+    const people = await prisma.person.findMany({ where: { fullName: { contains: suffix } }, select: { id: true } });
+    const personIds = people.map((person) => person.id);
+    await prisma.auditEvent.deleteMany({ where: { actorId: leaderId } });
+    await prisma.timelineEvent.deleteMany({ where: { personId: { in: personIds } } });
+    await prisma.attendance.deleteMany({ where: { meetingId } });
+    await prisma.meetingAudience.deleteMany({ where: { meetingId } });
+    await prisma.meeting.delete({ where: { id: meetingId } });
+    await prisma.accountMinistryAccess.deleteMany({ where: { accountId: leaderId } });
+    await prisma.ministry.delete({ where: { id: ministryId } });
+    await prisma.category.delete({ where: { id: categoryId } });
+    await prisma.account.delete({ where: { id: leaderId } });
+    await prisma.person.deleteMany({ where: { id: { in: personIds } } });
+    await prisma.$disconnect();
+  });
+
+  it("creates a visitor, initial attendance, timeline and audit for an authorized Leader", async () => {
+    const fullName = `Visitante contextual ${suffix}`;
+    const attendance = await registerContextualVisitor(actor(), meetingId, fullName);
+
+    expect(attendance).toMatchObject({
+      meetingId,
+      status: "NOT_CONFIRMED",
+      person: { fullName, status: "VISITOR" },
+    });
+    const person = await prisma.person.findUniqueOrThrow({ where: { id: attendance.personId } });
+    expect(person).toMatchObject({ fullName, status: "VISITOR", phone: null, birthDate: null, profilePhotoUrl: null });
+    await expect(prisma.attendance.count({ where: { meetingId, personId: person.id } })).resolves.toBe(1);
+    await expect(prisma.timelineEvent.findFirst({ where: { personId: person.id } })).resolves.toMatchObject({
+      category: "REGISTRATION",
+      title: "Pessoa cadastrada",
+      description: fullName,
+      occurredAt: person.createdAt,
+    });
+    await expect(prisma.auditEvent.findFirst({ where: { targetId: person.id, action: "CREATE" } })).resolves.toMatchObject({
+      actorId: leaderId,
+      targetType: "Person",
+      after: expect.objectContaining({ id: person.id, fullName, status: "VISITOR" }),
+    });
+  });
+
+  it("denies a revoked Leader before creating any visitor-related records", async () => {
+    await prisma.accountMinistryAccess.update({
+      where: { accountId_ministryId: { accountId: leaderId, ministryId } },
+      data: { revokedAt: new Date() },
+    });
+    const fullName = `Visitante sem escopo ${suffix}`;
+
+    await expect(registerContextualVisitor(actor(), meetingId, fullName)).rejects.toThrow("Encontro não encontrado");
+    await expect(prisma.person.findFirst({ where: { fullName } })).resolves.toBeNull();
+    await expect(prisma.attendance.count({ where: { meetingId } })).resolves.toBe(0);
+    await expect(prisma.timelineEvent.count({ where: { person: { fullName } } })).resolves.toBe(0);
+    await expect(prisma.auditEvent.count({ where: { actorId: leaderId, targetType: "Person" } })).resolves.toBe(0);
+  });
+
+  it("denies an inactive account even when the actor object carries a grant", async () => {
+    await prisma.account.update({ where: { id: leaderId }, data: { status: "INACTIVE" } });
+    const fullName = `Visitante conta inativa ${suffix}`;
+
+    await expect(registerContextualVisitor(actor(), meetingId, fullName)).rejects.toThrow("Sessão inválida");
+    await expect(prisma.person.findFirst({ where: { fullName } })).resolves.toBeNull();
+    await expect(prisma.attendance.count({ where: { meetingId } })).resolves.toBe(0);
+  });
+
+  it("requires a non-empty full name without persisting any records", async () => {
+    await expect(registerContextualVisitor(actor(), meetingId, "   ")).rejects.toThrow("Nome completo é obrigatório");
+    await expect(prisma.person.count({
+      where: { AND: [{ fullName: { startsWith: "Visitante" } }, { fullName: { contains: suffix } }] },
+    })).resolves.toBe(0);
+    await expect(prisma.attendance.count({ where: { meetingId } })).resolves.toBe(0);
+  });
+
+  it("rolls back the new Person if a later timeline/audit transaction step fails", async () => {
+    const fullName = `Visitante rollback ${suffix}`;
+    fault.failPersonAudit = true;
+    try {
+      await expect(registerContextualVisitor(actor(), meetingId, fullName)).rejects.toThrow("Injected audit failure");
+    } finally {
+      fault.failPersonAudit = false;
+    }
+
+    await expect(prisma.person.findFirst({ where: { fullName } })).resolves.toBeNull();
+    await expect(prisma.attendance.count({ where: { meetingId } })).resolves.toBe(0);
+    await expect(prisma.timelineEvent.count({ where: { person: { fullName } } })).resolves.toBe(0);
+    await expect(prisma.auditEvent.count({ where: { actorId: leaderId, targetType: "Person" } })).resolves.toBe(0);
+  });
+});

@@ -30,7 +30,7 @@ Next.js (interface + rotas de servidor)
 | ORM e migrations | Prisma ORM |
 | Autenticação | credenciais próprias: usuário/senha, Argon2 e sessão em cookie seguro |
 | Interface | Tailwind CSS e componentes próprios reutilizáveis |
-| Fotos | campo previsto no modelo, mas sem upload na primeira versão técnica |
+| Fotos | upload opcional e substituível, conforme RF-PES-004 e AD-011; detalhes técnicos definidos na frente `emaus-profile-photo-upload` |
 
 Versões exatas de dependências serão fixadas no início da implementação, usando versões estáveis compatíveis entre si.
 
@@ -67,7 +67,7 @@ Cada ação de escrita deve passar por um serviço de domínio que:
 
 ## 5. Fotos de perfil
 
-O modelo de Pessoa preserva a possibilidade de foto de perfil, mas o primeiro corte técnico não implementará upload, processamento ou armazenamento de imagem. A interface usará iniciais enquanto isso.
+**Atualização de 27/09/2026 (AD-011):** a foto de perfil é opcional e substituível, e o upload faz parte do escopo da frente `emaus-profile-photo-upload` para cumprir RF-PES-004. Formatos, tamanho máximo, dimensões, armazenamento, autorização, tratamento de falha e retenção devem ser definidos no design dessa frente antes da implementação. Até haver foto cadastrada, a interface pode exibir iniciais.
 
 ## 6. Itens a decidir antes do plano de implementação
 

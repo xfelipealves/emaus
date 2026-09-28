@@ -8,7 +8,7 @@ describe("shared UI primitives", () => {
     expect(button.props.type).toBeUndefined();
     expect(button.props.disabled).toBe(true);
     expect(button.props.children).toBe("Inativar");
-    expect(button.props.className).toContain("bg-[#b54747]");
+    expect(button.props.className).toContain("button-danger");
   });
 
   it("associates an input label and contextual error", () => {

@@ -9,7 +9,7 @@ import { SESSION_COOKIE_NAME } from "@/lib/session";
 
 const filters: Array<{ value: TimelineFilter; label: string }> = [
   { value: "all", label: "Todos" },
-  { value: "status", label: "Status" },
+  { value: "status", label: "Status e cadastro" },
   { value: "ministries", label: "Ministérios" },
   { value: "attendance", label: "Frequência" },
   { value: "notes", label: "Notas" },

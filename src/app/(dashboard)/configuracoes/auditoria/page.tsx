@@ -35,6 +35,13 @@ export default async function AuditPage() {
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#26766d]">{event.action}</p>
                     <h2 className="mt-1 text-base font-semibold text-slate-900">{event.targetType} · {event.targetId}</h2>
+                    {event.targetType === "Attendance" ? (
+                      <p className="mt-1 text-sm text-slate-600">
+                        {event.attendanceContext
+                          ? `Pessoa: ${event.attendanceContext.personName} · Encontro: ${event.attendanceContext.meetingTitle}`
+                          : "Pessoa/Encontro indisponíveis"}
+                      </p>
+                    ) : null}
                     <p className="mt-1 text-sm text-slate-500">Autor: {event.actor?.person.fullName ?? "Conta removida"}</p>
                   </div>
                   <time dateTime={event.createdAt.toISOString()} className="shrink-0 text-xs text-slate-500">{formatDateInBrazil(event.createdAt)}</time>

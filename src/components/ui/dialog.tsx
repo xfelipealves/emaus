@@ -25,19 +25,19 @@ export function Dialog({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-20 grid place-items-center bg-slate-950/30 p-5" role="presentation">
+    <div className="fixed inset-0 z-20 grid place-items-center bg-[rgb(21_79_67_/_0.38)] p-5 backdrop-blur-sm" role="presentation">
       <section
         aria-describedby={description ? "dialog-description" : undefined}
         aria-labelledby="dialog-title"
         aria-modal="true"
-        className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl"
+        className="w-full max-w-md rounded-[var(--radius-panel)] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-[var(--shadow-panel)]"
         role="dialog"
       >
-        <h2 id="dialog-title" className="text-lg font-semibold text-slate-950">
+        <h2 id="dialog-title" className="text-lg font-semibold tracking-[-0.035em] text-[var(--ink)]">
           {title}
         </h2>
         {description ? (
-          <p id="dialog-description" className="mt-2 text-sm leading-6 text-slate-500">
+          <p id="dialog-description" className="mt-2 text-sm leading-6 text-[var(--ink-soft)]">
             {description}
           </p>
         ) : null}

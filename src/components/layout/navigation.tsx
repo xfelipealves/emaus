@@ -1,19 +1,49 @@
 "use client";
 
+import { CalendarBlank, CheckSquareOffset, GearSix, House, ListChecks, SquaresFour, UsersThree } from "@phosphor-icons/react";
+import type { ElementType } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-const primaryItems = [
-  { href: "/", label: "Início", shortLabel: "Início", icon: "⌂" },
-  { href: "/pessoas", label: "Pessoas", shortLabel: "Pessoas", icon: "○" },
-  { href: "/ministerios", label: "Ministérios", shortLabel: "Ministérios", icon: "✦" },
-  { href: "/encontros", label: "Encontros", shortLabel: "Encontros", icon: "◷" },
+type NavigationItem = {
+  href: string;
+  label: string;
+  shortLabel: string;
+  icon: ElementType;
+};
+
+const primaryItems: NavigationItem[] = [
+  { href: "/", label: "Início", shortLabel: "Início", icon: House },
+  { href: "/pessoas", label: "Pessoas", shortLabel: "Pessoas", icon: UsersThree },
+  { href: "/ministerios", label: "Ministérios", shortLabel: "Ministérios", icon: SquaresFour },
+  { href: "/encontros", label: "Encontros", shortLabel: "Encontros", icon: CalendarBlank },
 ];
 
-const settingsItem = { href: "/configuracoes", label: "Configurações", shortLabel: "Mais", icon: "⋯" };
+const settingsItem: NavigationItem = { href: "/configuracoes", label: "Configurações", shortLabel: "Mais", icon: GearSix };
 
 function isActive(pathname: string, href: string) {
   return href === "/" ? pathname === href : pathname.startsWith(href);
+}
+
+function initials(name: string) {
+  return name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase();
+}
+
+export function TopbarActions({ userName }: { userName: string }) {
+  return (
+    <div className="topbar__actions">
+      <Link href="/atividades" aria-label="Atividades compartilhadas" title="Atividades compartilhadas" className="icon-button">
+        <CheckSquareOffset size={20} weight="regular" aria-hidden="true" />
+      </Link>
+      <span aria-label={`Perfil de ${userName}`} role="img" className="profile-chip">{initials(userName)}</span>
+    </div>
+  );
 }
 
 function NavigationLink({
@@ -22,25 +52,19 @@ function NavigationLink({
   icon,
   pathname,
   mobile = false,
-}: {
-  href: string;
-  label: string;
-  icon: string;
-  pathname: string;
-  mobile?: boolean;
-}) {
+}: NavigationItem & { pathname: string; mobile?: boolean }) {
   const active = isActive(pathname, href);
+  const Icon = icon;
 
   return (
     <Link
       href={href}
       aria-current={active ? "page" : undefined}
-      className={`group flex items-center gap-3 rounded-xl transition-colors ${
-        mobile ? "min-w-16 flex-col gap-1 px-2 py-2 text-[11px]" : "px-3 py-2.5 text-sm"
-      } ${active ? "bg-[#dceee9] font-semibold text-[#155e58]" : "text-slate-500 hover:bg-slate-100 hover:text-slate-900"}`}
+      className={`nav-link ${active ? "nav-link--active" : ""}`}
+      data-mobile={mobile ? "true" : undefined}
     >
-      <span aria-hidden="true" className={mobile ? "text-lg leading-none" : "text-base leading-none"}>
-        {icon}
+      <span aria-hidden="true" className="nav-link__icon">
+        <Icon size={mobile ? 20 : 19} weight={active ? "fill" : "regular"} />
       </span>
       <span>{label}</span>
     </Link>
@@ -51,18 +75,26 @@ export function DesktopNavigation() {
   const pathname = usePathname();
 
   return (
-    <nav aria-label="Navegação principal" className="hidden w-64 shrink-0 flex-col border-r border-slate-200 bg-white px-5 py-6 lg:flex">
-      <div className="mb-12 px-3">
-        <p className="text-xs font-bold uppercase tracking-[0.24em] text-[#26766d]">Emaús</p>
-        <p className="mt-2 text-sm text-slate-500">Vida comunitária, com cuidado.</p>
+    <nav aria-label="Navegação principal" className="desktop-nav">
+      <div className="brand-lockup">
+        <div className="brand-mark" aria-hidden="true">E</div>
+        <div>
+          <p className="brand-name">Emaús</p>
+          <p className="brand-caption">Caminhar juntos, com cuidado.</p>
+        </div>
       </div>
-      <div className="space-y-1">
+      <p className="nav-section-label">Espaço de trabalho</p>
+      <div className="grid gap-1">
         {primaryItems.map((item) => (
           <NavigationLink key={item.href} {...item} pathname={pathname} />
         ))}
       </div>
-      <div className="mt-auto border-t border-slate-100 pt-4">
-        <NavigationLink {...settingsItem} pathname={pathname} />
+      <div className="nav-footer">
+        <p className="nav-footer__label">Acesso comunitário</p>
+        <p className="nav-footer__value">Dados para cuidar melhor.</p>
+        <div className="mt-3">
+          <NavigationLink {...settingsItem} pathname={pathname} />
+        </div>
       </div>
     </nav>
   );
@@ -72,11 +104,13 @@ export function MobileNavigation() {
   const pathname = usePathname();
 
   return (
-    <nav aria-label="Navegação móvel" className="fixed inset-x-0 bottom-0 z-10 flex items-center justify-around border-t border-slate-200 bg-white/95 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 shadow-[0_-8px_24px_rgba(15,23,42,0.06)] backdrop-blur lg:hidden">
+    <nav aria-label="Navegação móvel" className="mobile-nav">
       {primaryItems.map((item) => (
-        <NavigationLink key={item.href} href={item.href} label={item.shortLabel} icon={item.icon} pathname={pathname} mobile />
+        <NavigationLink key={item.href} {...item} label={item.shortLabel} pathname={pathname} mobile />
       ))}
       <NavigationLink {...settingsItem} label={settingsItem.shortLabel} pathname={pathname} mobile />
     </nav>
   );
 }
+
+export { ListChecks };

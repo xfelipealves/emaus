@@ -20,7 +20,6 @@ A igreja hoje depende de planilhas, listas e anotações dispersas para saber qu
 | WhatsApp, mensagens, chatbot e automações | Não fazem parte do problema operacional inicial. |
 | Financeiro, dízimos e doações | Domínio fora do escopo. |
 | QR Code, reconhecimento facial e analytics avançado | Aumentam complexidade sem serem necessários para a operação básica. |
-| Upload de foto | Campo existe no modelo, mas o primeiro corte técnico usará iniciais. |
 | Multi-igreja e filiais | O MVP atende uma única igreja. |
 
 ---
@@ -32,7 +31,7 @@ A igreja hoje depende de planilhas, listas e anotações dispersas para saber qu
 | Idade | Calculada da data de nascimento; nunca persistida separadamente. | Evita dado desatualizado. | Sim |
 | E-mail | Obrigatório somente na Conta interna; Pessoa comum não precisa dele. | Cadastro de visitante deve ser rápido. | Sim |
 | Conta por pessoa | No máximo uma conta interna para cada Pessoa. | Mantém autoria e permissões confiáveis. | Sim |
-| Foto | Uma foto opcional e substituível; sem upload no primeiro corte técnico. | Mantém o modelo pronto e reduz escopo inicial. | Sim |
+| Foto | Uma foto opcional e substituível, com upload incluído na frente `emaus-profile-photo-upload`. | Atende RF-PES-004 conforme AD-011; restrições técnicas serão fechadas no design da frente. | Sim |
 | Lista elegível de presença | Calculada pelos vínculos ministeriais atuais ao abrir a frequência. | Decisão explícita de produto. | Sim |
 | Estado inicial de presença | Criar registro `nao_confirmado` para cada pessoa exibida. | Auditoria e resumo consistentes. | Sim |
 | Nota editada | Cada edição cria uma versão completa. | Histórico de acompanhamento preservado. | Sim |

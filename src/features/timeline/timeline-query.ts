@@ -17,12 +17,12 @@ export type TimelineEventItem = {
   occurredAt: Date;
 };
 
-const categoryMap: Record<Exclude<TimelineFilter, "all">, TimelineEventCategory> = {
-  status: "STATUS",
-  ministries: "MINISTRY",
-  attendance: "ATTENDANCE",
-  notes: "NOTE",
-  corrections: "CORRECTION",
+const categoryMap: Record<Exclude<TimelineFilter, "all">, TimelineEventCategory[]> = {
+  status: ["STATUS", "REGISTRATION"],
+  ministries: ["MINISTRY"],
+  attendance: ["ATTENDANCE"],
+  notes: ["NOTE"],
+  corrections: ["CORRECTION"],
 };
 
 export async function getPersonTimeline(
@@ -56,7 +56,7 @@ export async function getPersonTimeline(
   return prisma.timelineEvent.findMany({
     where: {
       personId,
-      ...(filter === "all" ? {} : { category: categoryMap[filter] }),
+      ...(filter === "all" ? {} : { category: { in: categoryMap[filter] } }),
     },
     orderBy: [{ occurredAt: "desc" }, { id: "desc" }],
     select: { id: true, personId: true, category: true, title: true, description: true, occurredAt: true },

@@ -23,7 +23,10 @@ export default async function MinistryProfilePage({ params }: { params: Promise<
       <header className="mt-5 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div><p className="text-sm font-medium text-[#26766d]">Perfil do Ministério</p><h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">{ministry.name}</h1><p className="mt-3 max-w-2xl text-sm leading-6 text-slate-500">{ministry.description ?? "Sem descrição"}</p></div>
-          <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${ministry.status === "ACTIVE" ? "bg-[#e3f1ed] text-[#155e58]" : "bg-slate-100 text-slate-500"}`}>{ministry.status === "ACTIVE" ? "Ativo" : "Arquivado"}</span>
+          <div className="flex flex-col items-start gap-3 sm:items-end">
+            <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${ministry.status === "ACTIVE" ? "bg-[#e3f1ed] text-[#155e58]" : "bg-slate-100 text-slate-500"}`}>{ministry.status === "ACTIVE" ? "Ativo" : "Arquivado"}</span>
+            {account.role === "ADMINISTRATOR" ? <Link href={`/ministerios/${ministry.id}/vinculos`} className="inline-flex min-h-10 items-center justify-center rounded-xl bg-[#26766d] px-4 text-sm font-semibold text-white hover:bg-[#155e58]">Gerenciar vínculos</Link> : null}
+          </div>
         </div>
         <dl className="mt-7 grid gap-4 border-t border-slate-100 pt-5 sm:grid-cols-3"><div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">Participantes atuais</dt><dd className="mt-1 text-2xl font-semibold text-slate-950">{ministry.currentParticipants.length}</dd></div><div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">Histórico</dt><dd className="mt-1 text-2xl font-semibold text-slate-950">{ministry.historicParticipants.length}</dd></div><div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">Próximos encontros</dt><dd className="mt-1 text-2xl font-semibold text-slate-950">{ministry.meetings.length}</dd></div></dl>
       </header>

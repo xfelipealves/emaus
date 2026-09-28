@@ -2,6 +2,26 @@ import { expect, test } from "@playwright/test";
 import { DEMO_PASSWORD } from "./demo-fixtures";
 import { prisma } from "../src/lib/prisma";
 
+function brazilDateOffset(days: number) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const value = Object.fromEntries(parts.filter(({ type }) => type !== "literal").map(({ type, value }) => [type, Number(value)]));
+  return new Date(Date.UTC(value.year, value.month - 1, value.day + days)).toISOString().slice(0, 10);
+}
+
+function brazilDateDisplay(date: string) {
+  return new Intl.DateTimeFormat("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(new Date(`${date}T12:00:00.000Z`));
+}
+
 test.describe("P1 Person lifecycle", () => {
   test.describe.configure({ mode: "serial" });
 
@@ -9,18 +29,24 @@ test.describe("P1 Person lifecycle", () => {
     const suffix = Date.now().toString();
     const fullName = `Pessoa ciclo T35 ${suffix}`;
     let personId: string | undefined;
+    let duplicatePersonId: string | undefined;
     let ministryId: string | undefined;
     let categoryId: string | undefined;
     let meetingId: string | undefined;
+    const noteContent = `Nota preservada ciclo T35 ${suffix}`;
+    const promotionDate = brazilDateOffset(1);
+    const inactivationDate = brazilDateOffset(2);
 
     try {
-      await page.goto("/login");
+      await page.goto("/login", { waitUntil: "load" });
       await page.getByLabel("Nome de usuário").fill("demo-admin");
       await page.getByLabel("Senha").fill(DEMO_PASSWORD);
       await page.getByRole("button", { name: "Entrar" }).click();
       await expect(page).toHaveURL(/\/$/);
 
-      await page.goto("/pessoas/nova");
+      const duplicateSeed = await prisma.person.create({ data: { fullName } });
+      duplicatePersonId = duplicateSeed.id;
+      await page.goto("/pessoas/nova", { waitUntil: "load" });
       await page.getByLabel("Nome completo").fill(fullName);
       await page.getByRole("button", { name: "Cadastrar Pessoa" }).click();
       await expect(page).not.toHaveURL(/\/pessoas\/nova$/, { timeout: 30_000 });
@@ -31,17 +57,34 @@ test.describe("P1 Person lifecycle", () => {
       personId = createdPersonId;
       await expect(page.getByRole("heading", { name: fullName })).toBeVisible();
       await expect(page.getByText("Visitante", { exact: true })).toBeVisible();
-      await expect.poll(() => prisma.person.findUnique({ where: { id: createdPersonId } })).toMatchObject({ fullName, status: "VISITOR" });
+      await expect(page.locator("dd").nth(1)).toHaveText("Não informado");
+      await expect(prisma.person.count({ where: { fullName } })).resolves.toBe(2);
+      await expect.poll(() => prisma.person.findUnique({ where: { id: createdPersonId } })).toMatchObject({ fullName, status: "VISITOR", phone: null, birthDate: null });
       await expect.poll(() => prisma.timelineEvent.findFirst({ where: { personId: createdPersonId, category: "REGISTRATION" } })).toMatchObject({ title: "Pessoa cadastrada" });
 
-      await page.getByLabel("Telefone para promoção").fill("(00) 00000-3510");
-      await page.getByLabel("Data de nascimento para promoção").fill("1995-04-12");
-      await page.getByLabel("Data efetiva da promoção").fill("2026-07-15");
+      const phoneInput = page.getByLabel("Telefone para promoção");
+      const birthDateInput = page.getByLabel("Data de nascimento para promoção");
+      const promotionDateInput = page.getByLabel("Data efetiva da promoção");
+      await expect(promotionDateInput).toHaveValue(brazilDateOffset(0));
+
+      await phoneInput.fill("");
+      await page.getByRole("button", { name: "Promover a membro" }).click();
+      await expect(phoneInput).toBeFocused();
+      await expect.poll(() => prisma.person.findUnique({ where: { id: createdPersonId }, select: { status: true, phone: true, birthDate: true } })).toEqual({ status: "VISITOR", phone: null, birthDate: null });
+
+      await phoneInput.fill("(00) 00000-3510");
+      await birthDateInput.fill("");
+      await page.getByRole("button", { name: "Promover a membro" }).click();
+      await expect(birthDateInput).toBeFocused();
+      await expect.poll(() => prisma.person.findUnique({ where: { id: createdPersonId }, select: { status: true, phone: true, birthDate: true } })).toEqual({ status: "VISITOR", phone: null, birthDate: null });
+
+      await birthDateInput.fill("1995-04-12");
+      await promotionDateInput.fill(promotionDate);
       await page.getByRole("button", { name: "Promover a membro" }).click();
       await expect(page).toHaveURL(/status=promoted/);
       await expect(page.getByRole("status")).toHaveText("Pessoa promovida a membro.");
       await expect(prisma.person.findUnique({ where: { id: createdPersonId } })).resolves.toMatchObject({ status: "MEMBER", phone: "(00) 00000-3510" });
-      await expect.poll(() => prisma.person.findUnique({ where: { id: createdPersonId }, select: { statusChangedAt: true } })).toEqual({ statusChangedAt: new Date("2026-07-15T12:00:00.000Z") });
+      await expect.poll(() => prisma.person.findUnique({ where: { id: createdPersonId }, select: { statusChangedAt: true } })).toEqual({ statusChangedAt: new Date(`${promotionDate}T12:00:00.000Z`) });
 
       await page.reload();
       await expect(page.getByText("Membro", { exact: true })).toBeVisible();
@@ -65,10 +108,22 @@ test.describe("P1 Person lifecycle", () => {
       });
       meetingId = meeting.id;
 
+      await page.getByLabel("Nova nota").fill(noteContent);
+      await page.getByRole("button", { name: "Adicionar nota" }).click();
+      await expect(page.getByRole("status")).toHaveText("Nota adicionada.");
+      const note = await prisma.note.findFirstOrThrow({ where: { personId: createdPersonId, content: noteContent } });
+      const demoAdmin = await prisma.account.findUniqueOrThrow({ where: { username: "demo-admin" }, select: { id: true } });
+      expect(note.authorId).toBe(demoAdmin.id);
+      await expect(prisma.noteVersion.findMany({ where: { noteId: note.id }, select: { authorId: true, content: true, sequence: true } })).resolves.toEqual([
+        { authorId: demoAdmin.id, content: noteContent, sequence: 1 },
+      ]);
+
       page.once("dialog", (dialog) => dialog.accept());
-      await page.getByLabel("Data efetiva da inativação").fill("2026-07-20");
+      await page.getByLabel("Data efetiva da inativação").fill(inactivationDate);
       await page.getByRole("button", { name: "Inativar Pessoa" }).click();
       await expect(page).toHaveURL(/status=inactivated/);
+      await expect(page.getByRole("status")).toHaveText("Pessoa inativada. O histórico foi preservado.");
+      await page.reload();
       await expect(page.getByRole("status")).toHaveText("Pessoa inativada. O histórico foi preservado.");
       await expect(page.getByText("Inativa", { exact: true })).toBeVisible();
       await expect(page.getByText(`Ministério ciclo T35 ${suffix}`, { exact: true })).toBeVisible();
@@ -79,19 +134,46 @@ test.describe("P1 Person lifecycle", () => {
         memberships: [{ ministryId }],
         attendances: [{ meetingId, status: "PRESENT" }],
       });
-      await expect(prisma.timelineEvent.count({ where: { personId: createdPersonId } })).resolves.toBe(3);
-      await expect.poll(() => prisma.person.findUnique({ where: { id: createdPersonId }, select: { statusChangedAt: true } })).toEqual({ statusChangedAt: new Date("2026-07-20T12:00:00.000Z") });
+      await expect(prisma.timelineEvent.count({ where: { personId: createdPersonId } })).resolves.toBe(4);
+      await expect(prisma.timelineEvent.findMany({ where: { personId: createdPersonId, category: "STATUS" }, orderBy: { occurredAt: "asc" }, select: { title: true, occurredAt: true } })).resolves.toEqual([
+        { title: "Pessoa promovida a membro", occurredAt: new Date(`${promotionDate}T12:00:00.000Z`) },
+        { title: "Pessoa inativada", occurredAt: new Date(`${inactivationDate}T12:00:00.000Z`) },
+      ]);
+      await expect.poll(() => prisma.person.findUnique({ where: { id: createdPersonId }, select: { statusChangedAt: true } })).toEqual({ statusChangedAt: new Date(`${inactivationDate}T12:00:00.000Z`) });
+      await expect(page.getByRole("textbox", { name: "Nota", exact: true })).toHaveValue(noteContent);
+      await expect(prisma.note.findUnique({ where: { id: note.id }, include: { versions: true } })).resolves.toMatchObject({
+        personId: createdPersonId,
+        authorId: demoAdmin.id,
+        content: noteContent,
+        archived: false,
+        versions: [{ authorId: demoAdmin.id, content: noteContent, sequence: 1 }],
+      });
       await expect(prisma.auditEvent.findMany({ where: { targetId: createdPersonId }, orderBy: { createdAt: "asc" }, select: { action: true } })).resolves.toEqual([
         { action: "CREATE" },
         { action: "PROMOTE_TO_MEMBER" },
         { action: "INACTIVATE" },
       ]);
+
+      await page.getByRole("link", { name: "Timeline" }).click();
+      await expect(page).toHaveURL(new RegExp(`/pessoas/${createdPersonId}/timeline$`));
+      await expect(page.getByRole("heading", { name: "Pessoa inativada" })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Pessoa promovida a membro" })).toBeVisible();
+      const inactiveEvent = page.locator('section[aria-label="Eventos da timeline"] li').filter({ has: page.getByRole("heading", { name: "Pessoa inativada" }) });
+      await expect(inactiveEvent.getByRole("time")).toHaveText(brazilDateDisplay(inactivationDate));
     } finally {
       if (personId) {
-        await prisma.auditEvent.deleteMany({ where: { targetId: personId } });
+        const notes = await prisma.note.findMany({ where: { personId }, select: { id: true } });
+        await prisma.auditEvent.deleteMany({ where: { targetId: { in: [personId, ...notes.map(({ id }) => id)] } } });
         await prisma.timelineEvent.deleteMany({ where: { personId } });
+        await prisma.noteVersion.deleteMany({ where: { note: { personId } } });
+        await prisma.note.deleteMany({ where: { personId } });
         await prisma.attendance.deleteMany({ where: { personId } });
         await prisma.ministryMembership.deleteMany({ where: { personId } });
+      }
+      if (duplicatePersonId) {
+        await prisma.auditEvent.deleteMany({ where: { targetId: duplicatePersonId } });
+        await prisma.timelineEvent.deleteMany({ where: { personId: duplicatePersonId } });
+        await prisma.person.deleteMany({ where: { id: duplicatePersonId } });
       }
       if (meetingId) {
         await prisma.meetingAudience.deleteMany({ where: { meetingId } });

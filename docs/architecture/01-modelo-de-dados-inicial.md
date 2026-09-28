@@ -200,4 +200,4 @@ Conta  1 ── N Auditoria
 - provedor de PostgreSQL, hospedagem, e-mail de recuperação, monitoramento e ambientes;
 - estratégia de testes após as primeiras telas funcionais.
 
-**Decisões já fechadas:** PostgreSQL, Prisma ORM, autenticação própria por credenciais com Argon2 e sessão em cookie seguro. A foto de perfil permanece no modelo, mas seu upload será postergado para depois do primeiro corte técnico.
+**Decisões já fechadas:** PostgreSQL, Prisma ORM e autenticação própria por credenciais com Argon2 e sessão em cookie seguro. A decisão original de postergar upload de foto foi supersedida por AD-011 (27/09/2026): foto opcional e substituível com upload fazem parte da frente `emaus-profile-photo-upload`; os detalhes de armazenamento e retenção dependem do design dessa frente.

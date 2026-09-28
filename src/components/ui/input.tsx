@@ -10,17 +10,17 @@ export function Input({ id, label, error, className = "", ...props }: InputProps
   const errorId = error ? `${inputId}-error` : undefined;
 
   return (
-    <label className="grid gap-2 text-sm font-medium text-slate-700" htmlFor={inputId}>
+    <label className="grid gap-2 text-sm font-medium text-[var(--ink-soft)]" htmlFor={inputId}>
       <span>{label}</span>
       <input
         {...props}
         id={inputId}
         aria-describedby={errorId}
         aria-invalid={error ? true : undefined}
-        className={`min-h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-950 outline-none transition focus:border-[#26766d] focus:ring-2 focus:ring-[#dceee9] ${error ? "border-[#b54747]" : ""} ${className}`}
+        className={`field-control min-h-11 w-full text-sm ${error ? "border-[var(--danger)]" : ""} ${className}`}
       />
       {error ? (
-        <span id={errorId} className="text-xs font-normal text-[#b54747]">
+        <span id={errorId} className="text-xs font-normal text-[var(--danger)]">
           {error}
         </span>
       ) : null}

@@ -1,5 +1,6 @@
 "use client";
 
+import { Archive, CheckCircle, Clock, ListChecks, Plus, Trash } from "@phosphor-icons/react";
 import { useActionState, type FormEvent } from "react";
 import {
   createActivityAction,
@@ -25,9 +26,15 @@ const bucketLabels = {
   PARKED: "Estacionado",
 } as const;
 
+const bucketIcons = {
+  TOMORROW: Clock,
+  BACKLOG: ListChecks,
+  PARKED: Archive,
+} as const;
+
 function ActionMessage({ state }: { state: ActivityActionState }) {
-  if (state.error) return <p role="alert" className="rounded-lg bg-[#fff1f1] px-3 py-2 text-xs text-[#b54747]">{state.error}</p>;
-  if (state.success) return <p role="status" className="rounded-lg bg-[#e3f1ed] px-3 py-2 text-xs text-[#155e58]">{state.success}</p>;
+  if (state.error) return <p role="alert" className="status-message status-message--error">{state.error}</p>;
+  if (state.success) return <p role="status" className="status-message status-message--success">{state.success}</p>;
   return null;
 }
 
@@ -35,13 +42,35 @@ function CreateActivityForm() {
   const [state, formAction, isPending] = useActionState<ActivityActionState, FormData>(createActivityAction, {});
 
   return (
-    <form action={formAction} className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div><h2 className="text-lg font-semibold text-slate-950">Nova atividade</h2><p className="mt-1 text-sm text-slate-500">Registre o próximo passo da equipe.</p></div>
-      <label className="grid gap-1.5 text-sm font-medium text-slate-700" htmlFor="activity-title">Título da atividade<input id="activity-title" name="title" required placeholder="Ex.: confirmar escala de domingo" className="min-h-11 rounded-xl border border-slate-200 px-3 font-normal outline-none focus:border-[#26766d] focus:ring-2 focus:ring-[#dceee9]" /></label>
-      <label className="grid gap-1.5 text-sm font-medium text-slate-700" htmlFor="activity-description">Descrição <span className="font-normal text-slate-400">(opcional)</span><textarea id="activity-description" name="description" rows={2} className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-normal outline-none focus:border-[#26766d] focus:ring-2 focus:ring-[#dceee9]" /></label>
-      <label className="grid gap-1.5 text-sm font-medium text-slate-700" htmlFor="activity-bucket">Área<select id="activity-bucket" name="bucket" defaultValue="TOMORROW" className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 font-normal outline-none focus:border-[#26766d]"><option value="TOMORROW">Amanhã</option><option value="BACKLOG">Backlog</option><option value="PARKED">Estacionado</option></select></label>
+    <form action={formAction} className="activity-form">
+      <div className="activity-form__heading">
+        <div>
+          <h2 className="activity-form__title">Nova atividade</h2>
+          <p className="activity-form__description">Registre o próximo passo da equipe.</p>
+        </div>
+        <span className="activity-form__icon"><Plus size={19} weight="bold" aria-hidden="true" /></span>
+      </div>
+      <label className="field-label" htmlFor="activity-title">
+        Título da atividade
+        <input id="activity-title" name="title" required placeholder="Ex.: confirmar escala de domingo" className="field-control min-h-11 w-full" />
+      </label>
+      <label className="field-label" htmlFor="activity-description">
+        Descrição <span className="font-normal normal-case tracking-normal opacity-75">(opcional)</span>
+        <textarea id="activity-description" name="description" rows={3} className="field-control min-h-20 w-full resize-y" />
+      </label>
+      <label className="field-label" htmlFor="activity-bucket">
+        Área
+        <select id="activity-bucket" name="bucket" defaultValue="TOMORROW" className="field-control min-h-11 w-full">
+          <option value="TOMORROW">Amanhã</option>
+          <option value="BACKLOG">Backlog</option>
+          <option value="PARKED">Estacionado</option>
+        </select>
+      </label>
       <ActionMessage state={state} />
-      <button type="submit" disabled={isPending} className="min-h-11 rounded-xl bg-[#26766d] px-4 text-sm font-semibold text-white hover:bg-[#1e5d57] disabled:opacity-60">{isPending ? "Criando..." : "Criar atividade"}</button>
+      <button type="submit" disabled={isPending} className="button-primary w-full">
+        <Plus size={16} weight="bold" aria-hidden="true" />
+        {isPending ? "Criando..." : "Criar atividade"}
+      </button>
     </form>
   );
 }
@@ -50,10 +79,16 @@ function CreateSubtaskForm({ activityId, activityTitle }: { activityId: string; 
   const [state, formAction, isPending] = useActionState<ActivityActionState, FormData>(createSubtaskAction, {});
 
   return (
-    <form action={formAction} className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-end">
+    <form action={formAction} className="subtask-create">
       <input type="hidden" name="activityId" value={activityId} />
-      <label className="grid min-w-0 flex-1 gap-1 text-xs font-semibold text-slate-500" htmlFor={`new-subtask-${activityId}`}>Nova subtask<input id={`new-subtask-${activityId}`} name="title" required aria-label={`Nova subtask para ${activityTitle}`} placeholder="Adicionar subtarefa" className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm font-normal text-slate-700 outline-none focus:border-[#26766d]" /></label>
-      <button type="submit" disabled={isPending} className="min-h-10 rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60">{isPending ? "Adicionando..." : "Adicionar"}</button>
+      <label className="field-label subtask-create__field" htmlFor={`new-subtask-${activityId}`}>
+        Nova subtask
+        <input id={`new-subtask-${activityId}`} name="title" required aria-label={`Nova subtask para ${activityTitle}`} placeholder="Adicionar subtarefa" className="field-control min-h-10 w-full" />
+      </label>
+      <button type="submit" disabled={isPending} className="button-secondary">
+        <Plus size={15} weight="bold" aria-hidden="true" />
+        {isPending ? "Adicionando..." : "Adicionar"}
+      </button>
       <ActionMessage state={state} />
     </form>
   );
@@ -64,22 +99,25 @@ function SubtaskRow({ subtask }: { subtask: ActivityView["subtasks"][number] }) 
   const [deleteState, deleteAction, isDeleting] = useActionState<ActivityActionState, FormData>(deleteSubtaskAction, {});
 
   return (
-    <li className="grid gap-2 rounded-xl bg-slate-50 p-3 sm:grid-cols-[auto_1fr_auto] sm:items-center">
+    <li className="subtask-row">
       <form action={updateAction} className="contents">
         <input type="hidden" name="subtaskId" value={subtask.id} />
-        <label className="flex items-center gap-2 text-sm text-slate-600" htmlFor={`subtask-completed-${subtask.id}`}>
-          <input id={`subtask-completed-${subtask.id}`} name="completed" value="true" type="checkbox" defaultChecked={subtask.completed} className="h-4 w-4 accent-[#26766d]" />
+        <label className="grid place-items-center" htmlFor={`subtask-completed-${subtask.id}`}>
+          <input id={`subtask-completed-${subtask.id}`} name="completed" value="true" type="checkbox" defaultChecked={subtask.completed} />
           <span className="sr-only">Concluída: {subtask.title}</span>
         </label>
         <label className="sr-only" htmlFor={`subtask-title-${subtask.id}`}>Título da subtask: {subtask.title}</label>
-        <input id={`subtask-title-${subtask.id}`} name="title" defaultValue={subtask.title} className={`min-h-9 rounded-lg border border-slate-200 bg-white px-2 text-sm outline-none focus:border-[#26766d] ${subtask.completed ? "text-slate-400 line-through" : "text-slate-700"}`} />
-        <button type="submit" disabled={isUpdating} className="min-h-9 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-60">{isUpdating ? "Salvando..." : "Salvar"}</button>
+        <input id={`subtask-title-${subtask.id}`} name="title" type="text" defaultValue={subtask.title} className={subtask.completed ? "opacity-60 line-through" : ""} />
+        <button type="submit" disabled={isUpdating} className="button-secondary min-h-9 px-2.5 text-xs">{isUpdating ? "Salvando..." : "Salvar"}</button>
       </form>
-      <form action={deleteAction} onSubmit={(event: FormEvent<HTMLFormElement>) => { if (!window.confirm(`Excluir a subtask ${subtask.title}?`)) event.preventDefault(); }} className="sm:col-start-3 sm:row-start-1">
+      <form action={deleteAction} onSubmit={(event: FormEvent<HTMLFormElement>) => { if (!window.confirm(`Excluir a subtask ${subtask.title}?`)) event.preventDefault(); }} className="col-start-3 row-start-1">
         <input type="hidden" name="subtaskId" value={subtask.id} />
-        <button type="submit" disabled={isDeleting} aria-label={`Excluir subtask ${subtask.title}`} className="min-h-9 rounded-lg px-2.5 text-xs font-semibold text-[#963b3b] hover:bg-[#fff1f1] disabled:opacity-60">Excluir</button>
+        <button type="submit" disabled={isDeleting} aria-label={`Excluir subtask ${subtask.title}`} className="button-danger min-h-9 px-2.5 text-xs">
+          <Trash size={15} weight="regular" aria-hidden="true" />
+          <span className="hidden sm:inline">Excluir</span>
+        </button>
       </form>
-      <div className="sm:col-span-3"><ActionMessage state={updateState} /><ActionMessage state={deleteState} /></div>
+      <div className="col-span-3"><ActionMessage state={updateState} /><ActionMessage state={deleteState} /></div>
     </li>
   );
 }
@@ -87,27 +125,48 @@ function SubtaskRow({ subtask }: { subtask: ActivityView["subtasks"][number] }) 
 function ActivityCard({ activity }: { activity: ActivityView }) {
   const [updateState, updateAction, isUpdating] = useActionState<ActivityActionState, FormData>(updateActivityAction, {});
   const [deleteState, deleteAction, isDeleting] = useActionState<ActivityActionState, FormData>(deleteActivityAction, {});
+  const BucketIcon = bucketIcons[activity.bucket];
+  const completedSubtasks = activity.subtasks.filter((subtask) => subtask.completed).length;
 
   return (
-    <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" data-testid={`activity-${activity.id}`}>
-      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
-        <div className="min-w-0"><p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">{bucketLabels[activity.bucket]}</p><h2 className="mt-1 text-lg font-semibold text-slate-950">{activity.title}</h2>{activity.description ? <p className="mt-1 text-sm leading-5 text-slate-500">{activity.description}</p> : null}</div>
+    <article className="activity-card" data-testid={`activity-${activity.id}`}>
+      <div className="activity-card__header">
+        <div className="min-w-0">
+          <p className="bucket-label"><BucketIcon size={14} weight="bold" aria-hidden="true" /> {bucketLabels[activity.bucket]}</p>
+          <h2 className="activity-card__title">{activity.title}</h2>
+          {activity.description ? <p className="activity-card__description">{activity.description}</p> : null}
+        </div>
         <form action={deleteAction} onSubmit={(event: FormEvent<HTMLFormElement>) => { if (!window.confirm(`Excluir a atividade ${activity.title}? As subtasks também serão excluídas.`)) event.preventDefault(); }}>
           <input type="hidden" name="activityId" value={activity.id} />
-          <button type="submit" disabled={isDeleting} aria-label={`Excluir atividade ${activity.title}`} className="rounded-lg px-2.5 py-2 text-xs font-semibold text-[#963b3b] hover:bg-[#fff1f1] disabled:opacity-60">{isDeleting ? "Excluindo..." : "Excluir"}</button>
+          <button type="submit" disabled={isDeleting} aria-label={`Excluir atividade ${activity.title}`} className="button-danger min-h-9 px-2.5 text-xs">
+            <Trash size={15} weight="regular" aria-hidden="true" />
+            <span className="hidden sm:inline">{isDeleting ? "Excluindo..." : "Excluir"}</span>
+          </button>
         </form>
       </div>
-      <form action={updateAction} className="mt-4 flex flex-wrap items-end gap-2">
+
+      <form action={updateAction} className="activity-card__move">
         <input type="hidden" name="activityId" value={activity.id} />
         <input type="hidden" name="title" value={activity.title} />
         <input type="hidden" name="description" value={activity.description ?? ""} />
-        <label className="grid gap-1 text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-400" htmlFor={`activity-area-${activity.id}`}>Mover<select id={`activity-area-${activity.id}`} name="bucket" defaultValue={activity.bucket} className="min-h-9 rounded-lg border border-slate-200 bg-white px-2 text-sm font-normal normal-case tracking-normal text-slate-700"><option value="TOMORROW">Amanhã</option><option value="BACKLOG">Backlog</option><option value="PARKED">Estacionado</option></select></label>
-        <button type="submit" disabled={isUpdating} className="min-h-9 rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60">{isUpdating ? "Salvando..." : "Salvar área"}</button>
+        <label className="field-label" htmlFor={`activity-area-${activity.id}`}>
+          Mover
+          <select id={`activity-area-${activity.id}`} name="bucket" defaultValue={activity.bucket} className="field-control">
+            <option value="TOMORROW">Amanhã</option>
+            <option value="BACKLOG">Backlog</option>
+            <option value="PARKED">Estacionado</option>
+          </select>
+        </label>
+        <button type="submit" disabled={isUpdating} className="button-secondary">{isUpdating ? "Salvando..." : "Salvar área"}</button>
         <ActionMessage state={updateState} />
       </form>
-      <section className="mt-5 border-t border-slate-100 pt-4" aria-label={`Subtasks de ${activity.title}`}>
-        <div className="flex items-center justify-between gap-3"><h3 className="text-sm font-semibold text-slate-800">Subtasks</h3><span className="text-xs text-slate-400">{activity.subtasks.filter((subtask) => subtask.completed).length}/{activity.subtasks.length}</span></div>
-        {activity.subtasks.length ? <ul className="mt-3 grid gap-2">{activity.subtasks.map((subtask) => <SubtaskRow key={subtask.id} subtask={subtask} />)}</ul> : <p className="mt-3 text-sm text-slate-400">Nenhuma subtask ainda.</p>}
+
+      <section className="subtask-section" aria-label={`Subtasks de ${activity.title}`}>
+        <div className="subtask-heading">
+          <h3 className="subtask-heading__title"><CheckCircle size={16} weight="regular" aria-hidden="true" /> Subtasks</h3>
+          <span className="subtask-heading__count">{completedSubtasks}/{activity.subtasks.length}</span>
+        </div>
+        {activity.subtasks.length ? <ul className="mt-3 list-none p-0">{activity.subtasks.map((subtask) => <SubtaskRow key={subtask.id} subtask={subtask} />)}</ul> : <p className="mt-3 text-sm text-[var(--ink-muted)]">Nenhuma subtask ainda.</p>}
         <CreateSubtaskForm activityId={activity.id} activityTitle={activity.title} />
         <ActionMessage state={deleteState} />
       </section>
@@ -117,10 +176,10 @@ function ActivityCard({ activity }: { activity: ActivityView }) {
 
 export function ActivityBoard({ activities }: { activities: ActivityView[] }) {
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(18rem,0.8fr)_minmax(0,1.2fr)]">
+    <div className="activity-layout">
       <CreateActivityForm />
-      <section className="grid gap-4" aria-live="polite">
-        {activities.length === 0 ? <p className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">Nenhuma atividade nesta visão.</p> : activities.map((activity) => <ActivityCard key={activity.id} activity={activity} />)}
+      <section className="activity-list" aria-live="polite">
+        {activities.length === 0 ? <p className="empty-panel">Nenhuma atividade nesta visão.</p> : activities.map((activity) => <ActivityCard key={activity.id} activity={activity} />)}
       </section>
     </div>
   );

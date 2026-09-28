@@ -12,5 +12,5 @@ export default async function DashboardLayout({ children }: Readonly<{ children:
     redirect("/login");
   }
 
-  return <AppShell>{children}</AppShell>;
+  return <AppShell userName={account.person.fullName}>{children}</AppShell>;
 }

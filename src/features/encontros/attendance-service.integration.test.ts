@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { prisma } from "../../lib/prisma";
-import { cycleAttendance, openAttendance } from "./attendance-service";
+import { cycleAttendance, getAttendanceBoard, openAttendance } from "./attendance-service";
 
 describe("attendance initialization", () => {
   const suffix = Date.now().toString();
@@ -52,19 +52,79 @@ describe("attendance initialization", () => {
   it("cycles attendance and records correction audit and timeline", async () => {
     const [attendance] = await openAttendance(meetingId);
     const actor = { id: accountId, role: "ADMINISTRATOR" as const, ministryAccess: [] };
-    const present = await cycleAttendance(actor, attendance.id);
-    expect(present.status).toBe("PRESENT");
-    const absent = await cycleAttendance(actor, attendance.id, "Correção após conferência");
-    expect(absent.status).toBe("ABSENT");
-    await expect(prisma.auditEvent.findFirst({ where: { targetId: attendance.id, action: "UPDATE", reason: "Correção após conferência" } })).resolves.toMatchObject({ actorId: accountId, before: { status: "PRESENT" }, after: { status: "ABSENT" }, reason: "Correção após conferência" });
-    await expect(prisma.timelineEvent.findFirst({ where: { personId: personIds[0], category: "ATTENDANCE" } })).resolves.toMatchObject({ title: "Presença atualizada" });
+    const present = await cycleAttendance(actor, attendance.id, "NOT_CONFIRMED");
+    expect(present).toEqual({ status: "PRESENT", changed: true });
+    const absent = await cycleAttendance(actor, attendance.id, present.status, "Correção após conferência");
+    expect(absent).toEqual({ status: "ABSENT", changed: true });
+    const notConfirmed = await cycleAttendance(actor, attendance.id, absent.status);
+    expect(notConfirmed).toEqual({ status: "NOT_CONFIRMED", changed: true });
+
+    const audit = await prisma.auditEvent.findFirstOrThrow({ where: { targetType: "Attendance", targetId: attendance.id, action: "UPDATE", reason: "Correção após conferência" } });
+    expect(audit).toMatchObject({ actorId: accountId, targetType: "Attendance", targetId: attendance.id, action: "UPDATE", before: { status: "PRESENT" }, after: { status: "ABSENT" }, reason: "Correção após conferência" });
+    expect(audit.createdAt).toBeInstanceOf(Date);
+    const optionalReasonAudit = (await prisma.auditEvent.findMany({ where: { targetType: "Attendance", targetId: attendance.id, action: "UPDATE", reason: null } })).find(({ before, after }) => JSON.stringify(before) === JSON.stringify({ status: "NOT_CONFIRMED" }) && JSON.stringify(after) === JSON.stringify({ status: "PRESENT" }));
+    expect(optionalReasonAudit).toMatchObject({ actorId: accountId, before: { status: "NOT_CONFIRMED" }, after: { status: "PRESENT" }, reason: null });
+    const timeline = await prisma.timelineEvent.findFirstOrThrow({ where: { personId: personIds[0], category: "ATTENDANCE", description: { contains: "PRESENT → ABSENT" } } });
+    expect(timeline).toMatchObject({ personId: personIds[0], title: "Presença atualizada", description: `Ministério T27 ${suffix}: PRESENT → ABSENT` });
+  });
+
+  it("does not apply or record a second transition when a retry carries an old expected state", async () => {
+    const [attendance] = await openAttendance(meetingId);
+    const actor = { id: accountId, role: "ADMINISTRATOR" as const, ministryAccess: [] };
+
+    await expect(cycleAttendance(actor, attendance.id, "NOT_CONFIRMED")).resolves.toEqual({ status: "PRESENT", changed: true });
+    await expect(cycleAttendance(actor, attendance.id, "NOT_CONFIRMED")).resolves.toEqual({ status: "PRESENT", changed: false });
+    await expect(prisma.attendance.findUnique({ where: { id: attendance.id } })).resolves.toMatchObject({ status: "PRESENT" });
+    await expect(prisma.auditEvent.count({ where: { targetType: "Attendance", targetId: attendance.id } })).resolves.toBe(1);
+    await expect(prisma.timelineEvent.count({ where: { personId: attendance.personId, category: "ATTENDANCE" } })).resolves.toBe(1);
+  });
+
+  it("applies only one transition for simultaneous requests with the same expected state", async () => {
+    const [attendance] = await openAttendance(meetingId);
+    const actor = { id: accountId, role: "ADMINISTRATOR" as const, ministryAccess: [] };
+
+    const results = await Promise.all([
+      cycleAttendance(actor, attendance.id, "NOT_CONFIRMED"),
+      cycleAttendance(actor, attendance.id, "NOT_CONFIRMED"),
+    ]);
+
+    expect(results.map(({ status }) => status)).toEqual(["PRESENT", "PRESENT"]);
+    expect(results.filter(({ changed }) => changed)).toHaveLength(1);
+    expect(results.filter(({ changed }) => !changed)).toHaveLength(1);
+    await expect(prisma.attendance.findUnique({ where: { id: attendance.id } })).resolves.toMatchObject({ status: "PRESENT" });
+    await expect(prisma.auditEvent.count({ where: { targetId: attendance.id, targetType: "Attendance" } })).resolves.toBe(1);
+    await expect(prisma.timelineEvent.count({ where: { personId: attendance.personId, category: "ATTENDANCE" } })).resolves.toBe(1);
+  });
+
+  it("rolls back attendance and timeline when audit persistence fails", async () => {
+    const [attendance] = await openAttendance(meetingId);
+    const failedActor = await prisma.account.create({ data: { username: `deleted-audit-actor-${suffix}`, email: `deleted-audit-actor-${suffix}@example.test`, passwordHash: "test-hash", role: "ADMINISTRATOR", person: { create: { fullName: `Deleted audit actor ${suffix}` } } } });
+    await prisma.account.delete({ where: { id: failedActor.id } });
+
+    try {
+      await expect(cycleAttendance({ id: failedActor.id, role: "ADMINISTRATOR", ministryAccess: [] }, attendance.id, "NOT_CONFIRMED")).rejects.toThrow();
+      await expect(prisma.attendance.findUnique({ where: { id: attendance.id } })).resolves.toMatchObject({ status: "NOT_CONFIRMED" });
+      await expect(prisma.auditEvent.count({ where: { targetId: attendance.id } })).resolves.toBe(0);
+      await expect(prisma.timelineEvent.count({ where: { personId: attendance.personId, category: "ATTENDANCE" } })).resolves.toBe(0);
+    } finally {
+      await prisma.person.deleteMany({ where: { id: failedActor.personId } });
+    }
+  });
+
+  it("denies listing and cycling attendance outside the meeting scope", async () => {
+    const [attendance] = await openAttendance(meetingId);
+    const outOfScopeLeader = { id: accountId, role: "LEADER" as const, ministryAccess: [] };
+
+    await expect(getAttendanceBoard(outOfScopeLeader, meetingId)).rejects.toThrow("Encontro não encontrado.");
+    await expect(cycleAttendance(outOfScopeLeader, attendance.id, "NOT_CONFIRMED")).rejects.toThrow("Presença não encontrada.");
+    await expect(prisma.attendance.findUnique({ where: { id: attendance.id } })).resolves.toMatchObject({ status: "NOT_CONFIRMED" });
   });
 
   it("rejects attendance changes for a cancelled meeting", async () => {
     const [attendance] = await openAttendance(meetingId);
     await prisma.meeting.update({ where: { id: meetingId }, data: { status: "CANCELLED" } });
     const actor = { id: accountId, role: "ADMINISTRATOR" as const, ministryAccess: [] };
-    await expect(cycleAttendance(actor, attendance.id)).rejects.toThrow("Encontro cancelado não aceita lançamentos de presença.");
+    await expect(cycleAttendance(actor, attendance.id, "NOT_CONFIRMED")).rejects.toThrow("Encontro cancelado não aceita lançamentos de presença.");
     await expect(prisma.attendance.findUnique({ where: { id: attendance.id } })).resolves.toMatchObject({ status: "NOT_CONFIRMED" });
     await prisma.meeting.update({ where: { id: meetingId }, data: { status: "SCHEDULED" } });
   });
@@ -81,7 +141,7 @@ describe("attendance initialization", () => {
     await prisma.ministry.update({ where: { id: ministryId }, data: { status: "ARCHIVED" } });
     const actor = { id: accountId, role: "ADMINISTRATOR" as const, ministryAccess: [] };
 
-    await expect(cycleAttendance(actor, attendance.id)).rejects.toThrow("Ministério arquivado não aceita novos lançamentos de presença.");
+    await expect(cycleAttendance(actor, attendance.id, "NOT_CONFIRMED")).rejects.toThrow("Ministério arquivado não aceita novos lançamentos de presença.");
     await expect(prisma.attendance.findUnique({ where: { id: attendance.id } })).resolves.toMatchObject({ status: "NOT_CONFIRMED" });
     await prisma.ministry.update({ where: { id: ministryId }, data: { status: "ACTIVE" } });
   });
@@ -89,12 +149,12 @@ describe("attendance initialization", () => {
   it("keeps historical attendance available after the audience ministry is archived", async () => {
     const [attendance] = await openAttendance(meetingId);
     const actor = { id: accountId, role: "ADMINISTRATOR" as const, ministryAccess: [] };
-    await cycleAttendance(actor, attendance.id);
+    await cycleAttendance(actor, attendance.id, "NOT_CONFIRMED");
     await prisma.ministry.update({ where: { id: ministryId }, data: { status: "ARCHIVED" } });
 
     try {
       await expect(openAttendance(meetingId)).resolves.toMatchObject([{ id: attendance.id, status: "PRESENT" }]);
-      await expect(cycleAttendance(actor, attendance.id, "Correção histórica após arquivamento")).resolves.toMatchObject({ status: "ABSENT" });
+      await expect(cycleAttendance(actor, attendance.id, "PRESENT", "Correção histórica após arquivamento")).resolves.toEqual({ status: "ABSENT", changed: true });
       await expect(prisma.attendance.count({ where: { meetingId } })).resolves.toBe(1);
     } finally {
       await prisma.ministry.update({ where: { id: ministryId }, data: { status: "ACTIVE" } });

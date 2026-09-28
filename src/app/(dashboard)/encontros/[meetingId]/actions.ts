@@ -6,8 +6,22 @@ import { cycleAttendance } from "@/features/encontros/attendance-service";
 import { addPersonToAttendance, addQuickVisitor, searchAttendancePeople, type AttendanceSearchItem } from "@/features/encontros/attendance-query";
 import { getMeetingActor } from "@/features/encontros/meeting-service";
 import { SESSION_COOKIE_NAME } from "@/lib/session";
+import type { AttendanceStatus } from "@prisma/client";
 
-export type AttendanceActionState = { status?: "NOT_CONFIRMED" | "PRESENT" | "ABSENT"; error?: string; attendanceId?: string; personName?: string };
+export type AttendanceActionState = { status?: AttendanceStatus; error?: string; conflict?: boolean; attendanceId?: string; personName?: string };
+
+const attendanceErrors = new Set([
+  "Sessão inválida.",
+  "Presença não encontrada.",
+  "Encontro não encontrado.",
+  "Encontro cancelado não aceita lançamentos de presença.",
+  "Ministério arquivado não aceita novos lançamentos de presença.",
+]);
+
+function attendanceActionError(error: unknown) {
+  if (error instanceof Error && attendanceErrors.has(error.message)) return error.message;
+  return "Não foi possível salvar a presença. Tente novamente.";
+}
 
 async function requireActor() {
   const token = (await cookies()).get(SESSION_COOKIE_NAME)?.value;
@@ -17,12 +31,12 @@ async function requireActor() {
   return actor;
 }
 
-export async function cycleAttendanceAction(attendanceId: string, reason?: string): Promise<AttendanceActionState> {
+export async function cycleAttendanceAction(attendanceId: string, expectedStatus: AttendanceStatus, reason?: string): Promise<AttendanceActionState> {
   try {
-    const attendance = await cycleAttendance(await requireActor(), attendanceId, reason);
-    return { status: attendance.status };
+    const result = await cycleAttendance(await requireActor(), attendanceId, expectedStatus, reason);
+    return { status: result.status, conflict: !result.changed };
   } catch (error) {
-    return { error: error instanceof Error ? error.message : "Não foi possível salvar a presença." };
+    return { error: attendanceActionError(error) };
   }
 }
 
