@@ -3,6 +3,7 @@
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { getSession } from "@/features/auth/session-service";
+import { grantMinistryAccess, revokeMinistryAccess } from "@/features/ministerios/access-scope-service";
 import { SESSION_COOKIE_NAME } from "@/lib/session";
 import { createAccount, deactivateAccount } from "@/features/auth/account-service";
 import { grantMinistryAccess, revokeMinistryAccess } from "@/features/ministerios/access-scope-service";

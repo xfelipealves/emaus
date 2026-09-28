@@ -18,6 +18,7 @@ test.describe("Leader ministry access scopes", () => {
   let historicPersonId: string;
   let outsidePersonId: string;
   let meetingId: string;
+  let outsideMeetingId: string;
   let categoryId: string;
   let leaderBrowserPage: Page | undefined;
 
@@ -89,16 +90,28 @@ test.describe("Leader ministry access scopes", () => {
 
     const category = await prisma.category.create({ data: { name: `E2E categoria escopo ${suffix}` } });
     categoryId = category.id;
-    const meeting = await prisma.meeting.create({
-      data: {
-        categoryId,
-        title: `E2E encontro escopo ${suffix}`,
-        scheduledAt: new Date(Date.now() + 60 * 60 * 1000),
-        status: "SCHEDULED",
-        audiences: { create: { ministryId } },
-      },
-    });
+    const [meeting, outsideMeeting] = await Promise.all([
+      prisma.meeting.create({
+        data: {
+          categoryId,
+          title: `E2E encontro escopo ${suffix}`,
+          scheduledAt: new Date(Date.now() + 60 * 60 * 1000),
+          status: "SCHEDULED",
+          audiences: { create: { ministryId } },
+        },
+      }),
+      prisma.meeting.create({
+        data: {
+          categoryId,
+          title: `E2E encontro fora do escopo ${suffix}`,
+          scheduledAt: new Date(Date.now() + 60 * 60 * 1000),
+          status: "SCHEDULED",
+          audiences: { create: { ministryId: otherMinistryId } },
+        },
+      }),
+    ]);
     meetingId = meeting.id;
+    outsideMeetingId = outsideMeeting.id;
   });
 
 test("Admin grants and revokes; Leader stays within the granted Ministry and meeting", async ({ page, browser }) => {
@@ -129,6 +142,10 @@ test("Admin grants and revokes; Leader stays within the granted Ministry and mee
     await gotoPage(leaderPage, "/ministerios");
     await expect(leaderPage.getByRole("link", { name: ministryName })).toBeVisible();
     await expect(leaderPage.getByRole("link", { name: `E2E Ministério fora do escopo ${suffix}` })).toHaveCount(0);
+    const outsideMinistryResponse = await gotoPage(leaderPage, `/ministerios/${otherMinistryId}`);
+    expect(outsideMinistryResponse?.status()).toBe(404);
+    await gotoPage(leaderPage, `/encontros/${outsideMeetingId}`);
+    await expect(leaderPage).toHaveURL(/\/encontros$/);
     const profileResponse = await gotoPage(leaderPage, `/ministerios/${ministryId}`);
     expect(profileResponse?.status()).toBe(200);
     await expect(leaderPage.getByRole("heading", { name: "Participantes atuais" })).toBeVisible();
@@ -143,6 +160,7 @@ test("Admin grants and revokes; Leader stays within the granted Ministry and mee
 
     await leaderPage.goto(`/encontros/${meetingId}`);
     await expect(leaderPage.getByRole("heading", { name: `E2E encontro escopo ${suffix}` })).toBeVisible();
+    await leaderPage.waitForLoadState("networkidle");
     await leaderPage.getByLabel("Nome do visitante rápido").fill(visitorName);
     const visitorActionResponse = leaderPage.waitForResponse(
       (response) => response.request().method() === "POST" && response.url().includes(`/encontros/${meetingId}`),
@@ -206,9 +224,9 @@ test("Admin grants and revokes; Leader stays within the granted Ministry and mee
       where: { OR: [{ actorId: { in: [adminId, leaderId] } }, ...(access ? [{ targetId: access.id }] : []), { targetId: { in: personIds } }] },
     });
     await prisma.timelineEvent.deleteMany({ where: { personId: { in: personIds } } });
-    await prisma.attendance.deleteMany({ where: { meetingId } });
-    await prisma.meetingAudience.deleteMany({ where: { meetingId } });
-    await prisma.meeting.delete({ where: { id: meetingId } });
+    await prisma.attendance.deleteMany({ where: { meetingId: { in: [meetingId, outsideMeetingId] } } });
+    await prisma.meetingAudience.deleteMany({ where: { meetingId: { in: [meetingId, outsideMeetingId] } } });
+    await prisma.meeting.deleteMany({ where: { id: { in: [meetingId, outsideMeetingId] } } });
     await prisma.ministryMembership.deleteMany({ where: { ministryId: { in: [ministryId, otherMinistryId] } } });
     await prisma.accountMinistryAccess.deleteMany({ where: { accountId: leaderId } });
     await prisma.account.deleteMany({ where: { id: { in: [adminId, leaderId] } } });

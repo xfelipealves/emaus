@@ -123,15 +123,17 @@ describe("Ministry administration", () => {
     expect(events[2]?.after).toMatchObject({ status: "ARCHIVED" });
   });
 
-  it("lists only active ministries with persisted current leader grants", async () => {
+  it("lists active ministries from persisted Leader grants and isolates other scopes", async () => {
     const ministries = await listMinistries({ id: leaderId, role: "LEADER", ministryAccess: [] });
     expect(ministries.map((ministry) => ({ id: ministry.id, status: ministry.status }))).toEqual([
       { id: scopedMinistryId, status: "ACTIVE" },
     ]);
     await expect(getMinistryProfile({ id: leaderId, role: "LEADER" }, scopedMinistryId)).resolves.toMatchObject({ id: scopedMinistryId });
+    await expect(getMinistryProfile({ id: leaderId, role: "LEADER" }, unscopedMinistryId)).resolves.toBeNull();
+    await expect(listMinistries({ id: leaderId, role: "ADMINISTRATOR", ministryAccess: [] })).resolves.toEqual([]);
   });
 
-  it("denies future listing and profile queries after a leader grant is revoked", async () => {
+  it("stops listing and viewing a Ministry after its Leader grant is revoked", async () => {
     await prisma.accountMinistryAccess.updateMany({
       where: { accountId: leaderId, ministryId: scopedMinistryId },
       data: { revokedAt: new Date() },
@@ -141,7 +143,7 @@ describe("Ministry administration", () => {
     await expect(getMinistryProfile({ id: leaderId, role: "LEADER" }, scopedMinistryId)).resolves.toBeNull();
   });
 
-  it("does not return scoped ministries to an inactive account", async () => {
+  it("does not return scoped ministries for an inactive Leader account", async () => {
     await prisma.accountMinistryAccess.updateMany({
       where: { accountId: leaderId, ministryId: scopedMinistryId },
       data: { revokedAt: null },

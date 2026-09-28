@@ -23,8 +23,10 @@ describe("contextual visitor registration", () => {
   let leaderId: string;
   let leaderPersonId: string;
   let ministryId: string;
+  let outsideMinistryId: string;
   let categoryId: string;
   let meetingId: string;
+  let outsideMeetingId: string;
 
   const actor = () => ({
     id: leaderId,
@@ -45,21 +47,37 @@ describe("contextual visitor registration", () => {
       },
     });
     leaderId = leader.id;
-    const ministry = await prisma.ministry.create({ data: { name: `Ministério visitante ${suffix}` } });
+    const [ministry, outsideMinistry] = await Promise.all([
+      prisma.ministry.create({ data: { name: `Ministério visitante ${suffix}` } }),
+      prisma.ministry.create({ data: { name: `Ministério fora do escopo visitante ${suffix}` } }),
+    ]);
     ministryId = ministry.id;
+    outsideMinistryId = outsideMinistry.id;
     await prisma.accountMinistryAccess.create({ data: { accountId: leaderId, ministryId } });
     const category = await prisma.category.create({ data: { name: `Categoria visitante ${suffix}` } });
     categoryId = category.id;
-    const meeting = await prisma.meeting.create({
-      data: {
-        categoryId,
-        title: `Encontro visitante ${suffix}`,
-        scheduledAt: new Date(),
-        status: "SCHEDULED",
-        audiences: { create: { ministryId } },
-      },
-    });
+    const [meeting, outsideMeeting] = await Promise.all([
+      prisma.meeting.create({
+        data: {
+          categoryId,
+          title: `Encontro visitante ${suffix}`,
+          scheduledAt: new Date(),
+          status: "SCHEDULED",
+          audiences: { create: { ministryId } },
+        },
+      }),
+      prisma.meeting.create({
+        data: {
+          categoryId,
+          title: `Encontro fora do escopo visitante ${suffix}`,
+          scheduledAt: new Date(),
+          status: "SCHEDULED",
+          audiences: { create: { ministryId: outsideMinistryId } },
+        },
+      }),
+    ]);
     meetingId = meeting.id;
+    outsideMeetingId = outsideMeeting.id;
   });
 
   beforeEach(async () => {
@@ -78,8 +96,8 @@ describe("contextual visitor registration", () => {
       where: { accountId_ministryId: { accountId: leaderId, ministryId } },
       data: { revokedAt: null },
     });
-    await prisma.ministry.update({ where: { id: ministryId }, data: { status: "ACTIVE" } });
-    await prisma.meeting.update({ where: { id: meetingId }, data: { status: "SCHEDULED" } });
+    await prisma.ministry.updateMany({ where: { id: { in: [ministryId, outsideMinistryId] } }, data: { status: "ACTIVE" } });
+    await prisma.meeting.updateMany({ where: { id: { in: [meetingId, outsideMeetingId] } }, data: { status: "SCHEDULED" } });
   });
 
   afterAll(async () => {
@@ -87,11 +105,11 @@ describe("contextual visitor registration", () => {
     const personIds = people.map((person) => person.id);
     await prisma.auditEvent.deleteMany({ where: { actorId: leaderId } });
     await prisma.timelineEvent.deleteMany({ where: { personId: { in: personIds } } });
-    await prisma.attendance.deleteMany({ where: { meetingId } });
-    await prisma.meetingAudience.deleteMany({ where: { meetingId } });
-    await prisma.meeting.delete({ where: { id: meetingId } });
+    await prisma.attendance.deleteMany({ where: { meetingId: { in: [meetingId, outsideMeetingId] } } });
+    await prisma.meetingAudience.deleteMany({ where: { meetingId: { in: [meetingId, outsideMeetingId] } } });
+    await prisma.meeting.deleteMany({ where: { id: { in: [meetingId, outsideMeetingId] } } });
     await prisma.accountMinistryAccess.deleteMany({ where: { accountId: leaderId } });
-    await prisma.ministry.delete({ where: { id: ministryId } });
+    await prisma.ministry.deleteMany({ where: { id: { in: [ministryId, outsideMinistryId] } } });
     await prisma.category.delete({ where: { id: categoryId } });
     await prisma.account.delete({ where: { id: leaderId } });
     await prisma.person.deleteMany({ where: { id: { in: personIds } } });
@@ -133,6 +151,16 @@ describe("contextual visitor registration", () => {
     await expect(registerContextualVisitor(actor(), meetingId, fullName)).rejects.toThrow("Encontro não encontrado");
     await expect(prisma.person.findFirst({ where: { fullName } })).resolves.toBeNull();
     await expect(prisma.attendance.count({ where: { meetingId } })).resolves.toBe(0);
+    await expect(prisma.timelineEvent.count({ where: { person: { fullName } } })).resolves.toBe(0);
+    await expect(prisma.auditEvent.count({ where: { actorId: leaderId, targetType: "Person" } })).resolves.toBe(0);
+  });
+
+  it("denies a meeting outside the granted Ministry before creating records", async () => {
+    const fullName = `Visitante fora do escopo ${suffix}`;
+
+    await expect(registerContextualVisitor(actor(), outsideMeetingId, fullName)).rejects.toThrow("Encontro não encontrado");
+    await expect(prisma.person.findFirst({ where: { fullName } })).resolves.toBeNull();
+    await expect(prisma.attendance.count({ where: { meetingId: outsideMeetingId } })).resolves.toBe(0);
     await expect(prisma.timelineEvent.count({ where: { person: { fullName } } })).resolves.toBe(0);
     await expect(prisma.auditEvent.count({ where: { actorId: leaderId, targetType: "Person" } })).resolves.toBe(0);
   });

@@ -44,7 +44,7 @@ export async function listMinistries(actor: MinistryActor) {
       ministryAccess: { where: { revokedAt: null }, select: { ministryId: true } },
     },
   });
-  if (!account || account.status !== "ACTIVE") return [];
+  if (!account || account.status !== "ACTIVE" || account.role !== actor.role) return [];
 
   const where = account.role === "LEADER"
     ? { status: "ACTIVE" as const, id: { in: account.ministryAccess.map((access) => access.ministryId) } }
