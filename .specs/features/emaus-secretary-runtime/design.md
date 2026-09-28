@@ -1,7 +1,7 @@
 # Estabilidade dos módulos para Secretaria — design
 
 **Spec**: `.specs/features/emaus-secretary-runtime/spec.md`  
-**Status**: Implementado; validação E2E bloqueada por alvo incorreto no Prisma CLI
+**Status**: Implementado; cinco casos E2E passaram no Postgres temporário do runner do projeto
 
 ---
 
@@ -41,7 +41,7 @@ O boundary seguirá a convenção `error.tsx` do Next.js 15: Client Component qu
 | Next.js App Router | `src/app/(dashboard)/error.tsx` captura exceções de páginas protegidas e permite `reset()`. |
 | Autorização de Ministério | Manter o comportamento atual de leitura da Secretaria; não adicionar dados nem controles administrativos. |
 | Autorização de atividades | `getActivityActor` valida conta ativa; as ações existentes retornam confirmação/erro contextual. |
-| Playwright e PostgreSQL | Playwright usa `PLAYWRIGHT_PORT=3102` e somente o DB descartável `emaus_e2e_secretary`, validado antes de qualquer `migrate reset`. |
+| Playwright e PostgreSQL | `npm run test:e2e` inicia um Postgres temporário, em tmpfs e loopback, valida a URL gerada e a passa para Prisma, servidor web e Playwright; esta frente reserva a porta `3102`. |
 
 ## Components
 
@@ -58,7 +58,7 @@ O boundary seguirá a convenção `error.tsx` do Next.js 15: Client Component qu
 - **Purpose**: Confirmar, em sessão ativa, renderização após recarga, limites administrativos e uso compartilhado de atividades/subtarefas.
 - **Location**: `e2e/secretary-runtime.spec.ts`.
 - **Interfaces**: Playwright `Page`; conta seed `demo-secretary`; queries Prisma somente para comprovar persistência e limpeza de registros QA.
-- **Dependencies**: `e2e/global-setup.ts`, Playwright e DB E2E dedicado.
+- **Dependencies**: `scripts/e2e/run.mjs`, `scripts/e2e/database-safety.mjs`, `e2e/global-setup.mjs` e Playwright.
 - **Reuses**: Padrões de `e2e/activities.spec.ts` e `e2e/permissions.spec.ts`.
 
 ## Data Models
@@ -78,10 +78,10 @@ Não há alteração de schema. O cenário E2E usa as entidades atuais `Account`
 
 | Concern | Location | Impact | Mitigation |
 | --- | --- | --- | --- |
-| A causa raiz da exceção relatada ainda requer reprodução automatizada. | `docs/2026-09-25-levantamento-e2e-perfis.md` | Um boundary não corrige uma falha determinística no layout ou em dados específicos. | Reproduzir as quatro URLs em browser real, registrar `pageerror`/rota/heading e localizar a stack antes de implementar; se o erro estiver no layout, parar e reportar o path necessário. |
-| Ainda não há boundaries na árvore `src/app`. | `src/app/(dashboard)` | Exceções não tratadas podem substituir a página por uma tela genérica de aplicação. | Adicionar boundary de segmento com mensagem segura, retry e digest técnico. |
+| O contexto exato da exceção originalmente relatada não foi reproduzido. | `docs/2026-09-25-levantamento-e2e-perfis.md` | Fixtures cobrem os fluxos atuais, mas podem não reproduzir dados ou sessão que dispararam o relato. | Os cinco fluxos passaram sem `pageerror`; manter o boundary seguro. Se o erro reaparecer com os dados originais, registrar rota e `digest` para diagnóstico. |
+| O boundary `(dashboard)` captura falhas das páginas descendentes, não falhas do próprio layout no mesmo segmento. | `src/app/(dashboard)/error.tsx`, `src/app/(dashboard)/layout.tsx` | Uma exceção em `DashboardLayout` pode precisar de boundary em segmento superior. | Validar as rotas atuais por E2E; investigar a stack e o escopo da árvore caso o layout falhe. |
 | A regra de leitura da lista de Ministérios para Secretaria não tem detalhe de produto. | `.specs/features/emaus-secretary-runtime/spec.md` | Mudar visibilidade aqui ampliaria ou reduziria permissão sem decisão. | Preservar a leitura atualmente implementada e não expor novos dados; testar somente renderização válida e ausência dos formulários de gestão. |
-| O setup Playwright executa `prisma migrate reset --force`. | `e2e/global-setup.ts` | Apontar a suíte ao banco local apagaria dados de trabalho. | Executar somente com `DATABASE_URL` direcionada ao banco exclusivo `emaus_e2e_secretary`, validar ownership e ausência de outras sessões antes do reset, e usar a porta 3102. |
+| O setup Playwright executa `prisma migrate reset --force`. | `scripts/e2e/run.mjs`, `scripts/e2e/database-safety.mjs` | Uma invocação direta de Playwright pode carregar `.env` e apagar dados de trabalho. | Usar somente `npm run test:e2e`; o runner cria um Postgres temporário em tmpfs, valida o endpoint loopback e o remove ao final. |
 | A skill inclui um comando de leitura de lessons que alterou o estado global de lessons nesta sessão. | `.specs/LESSONS.md`, `.specs/lessons.json` | O resultado da leitura deixou de representar com segurança o estado confirmado anterior. | Não executar novamente o comando nem editar esses arquivos; o orquestrador restaurará os dois arquivos. Nenhuma lesson foi aplicada ao design. |
 
 ## Tech Decisions
@@ -90,7 +90,7 @@ Não há alteração de schema. O cenário E2E usa as entidades atuais `Account`
 | --- | --- | --- |
 | Resposta da Secretaria em `/ministerios` | Preservar leitura atual da listagem, sem controles de gestão. | A especificação permite leitura autorizada ou negação e não autoriza uma nova política; esta escolha mantém a navegação e serviço já existentes sem expandir dados visíveis. |
 | Diagnóstico no fallback | Registrar rota e `digest`; incluir mensagem técnica somente em desenvolvimento. | O `digest` permite correlação com logs do servidor e evita expor mensagens internas na interface/produção. |
-| Execução E2E | DB `emaus_e2e_secretary` e `PLAYWRIGHT_PORT=3102`. | Isola o `migrate reset` e o servidor desta frente dos dados e processos de outras sessões. |
+| Execução E2E | Runner `npm run test:e2e`, Postgres temporário e `PLAYWRIGHT_PORT=3102`. | O container efêmero isola reset e dados; a porta dedicada serializa o servidor compartilhado. |
 
 > **Project-level decisions:** Nenhuma nova convenção global é criada.
 
@@ -103,5 +103,6 @@ O código atual já valida sessões no layout, oculta formulários de Ministéri
 ## Validation Status
 
 - O teste unitário do boundary teve RED comportamental: fallback sem mensagem genérica, passagem isolada de `reset` não suportada e log com o objeto `Error` completo sem escopo estruturado.
-- O boundary seguro e os três testes unitários estão implementados; a validação unitária e os gates de TypeScript/ESLint passaram (detalhes em `tasks.md`).
-- O cenário E2E cobre cinco testes, incluindo sessão realmente expirada. Uma tentativa serial foi interrompida após o Prisma CLI revelar que carregou `.env` e selecionou `emaus`; um caso terminou contra esse alvo e não vale como evidência. O reset incorreto e a interrupção estão detalhados em `validation.md`; não houve nova operação de banco depois do incidente.
+- O boundary seguro e os três testes unitários estão implementados. A suíte unitária sem integração passou com 33 testes. Um typecheck inicial passou; o typecheck atual do workspace falha em teste de integração de outra frente, conforme `tasks.md`.
+- Os cinco casos E2E passaram pelo runner em `emaus_e2e_0c67e8467267`, com container descartável removido e porta 3102 liberada. A tentativa direta anterior selecionou `emaus`; o incidente e a distinção entre execução inválida e evidência válida estão em `validation.md`.
+- Build e testes de integração não foram executados nesta rodada.

@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page, type Request } from "@playwright/test";
 import { prisma } from "../src/lib/prisma";
 import { hashSessionToken, SESSION_COOKIE_NAME } from "../src/lib/session";
 import { DEMO_PASSWORD, DEMO_SCENARIO_IDS } from "./demo-fixtures";
@@ -83,14 +83,16 @@ test("SEC-RUN-02 — secretary can recover from invalid input and persist activi
   await expect.poll(async () => prisma.activity.count()).toBe(0);
   await loginAsSecretary(page);
   await page.goto("/atividades", { waitUntil: "domcontentloaded" });
+  await page.waitForLoadState("load");
   await expect(page.getByRole("heading", { name: "Atividades" })).toBeVisible();
   await expect(page.getByText("Nenhuma atividade nesta visão.", { exact: true })).toBeVisible();
   await page.reload({ waitUntil: "domcontentloaded" });
+  await page.waitForLoadState("load");
   await expect(page.getByText("Nenhuma atividade nesta visão.", { exact: true })).toBeVisible();
 
   await page.getByLabel("Título da atividade").fill("   ");
   await page.getByRole("button", { name: "Criar atividade" }).click();
-  await expect(page.getByRole("alert")).toHaveText("Título da atividade é obrigatório.");
+  await expect(page.locator('p[role="alert"]')).toHaveText("Título da atividade é obrigatório.");
   await expect.poll(async () => prisma.activity.count()).toBe(0);
   await expect(page.getByRole("heading", { name: "Nova atividade" })).toBeVisible();
 
@@ -104,14 +106,32 @@ test("SEC-RUN-02 — secretary can recover from invalid input and persist activi
   await page.reload({ waitUntil: "domcontentloaded" });
   const activity = page.getByRole("article").filter({ hasText: activityTitle });
   await expect(activity).toBeVisible();
+  await expect(activity.getByRole("button", { name: `Excluir atividade ${activityTitle}` })).toBeEnabled();
   await activity.getByLabel(`Nova subtask para ${activityTitle}`).fill(subtaskTitle);
+
+  const subtaskActionPosts: string[] = [];
+  const trackSubtaskAction = (request: Request) => {
+    const requestUrl = new URL(request.url());
+    if (request.method() === "POST" && requestUrl.pathname === "/atividades") {
+      subtaskActionPosts.push(requestUrl.pathname);
+    }
+  };
+  page.on("request", trackSubtaskAction);
   await activity.getByRole("button", { name: "Adicionar" }).click();
+  await expect(page.getByRole("status")).toHaveText("Subtask criada.");
   await expect.poll(async () => prisma.activitySubtask.count({ where: { title: subtaskTitle } })).toBe(1);
+  await page.waitForLoadState("networkidle");
+  page.off("request", trackSubtaskAction);
+  expect(subtaskActionPosts).toHaveLength(1);
 
   await page.reload({ waitUntil: "domcontentloaded" });
+  await page.waitForLoadState("load");
   const persistedActivity = page.getByRole("article").filter({ hasText: activityTitle });
-  const subtask = persistedActivity.getByRole("listitem").filter({ hasText: subtaskTitle });
+  const subtask = persistedActivity.locator("li.subtask-row");
+  await expect.poll(async () => prisma.activitySubtask.count({ where: { title: subtaskTitle } })).toBe(1);
+  await expect(subtask).toHaveCount(1);
   await expect(subtask).toBeVisible();
+  await expect(subtask.getByRole("button", { name: `Excluir subtask ${subtaskTitle}` })).toBeEnabled();
   await subtask.getByRole("checkbox").check();
   await subtask.getByRole("button", { name: "Salvar" }).click();
   await expect.poll(async () => prisma.activitySubtask.findFirst({
@@ -120,9 +140,9 @@ test("SEC-RUN-02 — secretary can recover from invalid input and persist activi
   })).toEqual({ completed: true });
 
   await page.reload({ waitUntil: "domcontentloaded" });
-  await expect(page.getByRole("article").filter({ hasText: activityTitle })
-    .getByRole("listitem").filter({ hasText: subtaskTitle }).getByRole("checkbox"))
-    .toBeChecked();
+  await page.waitForLoadState("load");
+  await expect(page.getByLabel(`Concluída: ${subtaskTitle}`)).toHaveCount(1);
+  await expect(page.getByLabel(`Concluída: ${subtaskTitle}`)).toBeChecked();
 
   expect(pageErrors).toEqual([]);
 });
@@ -156,7 +176,7 @@ test("SEC-RUN-04 — an expired session redirects all protected routes safely", 
 
     await page.goto(route, { waitUntil: "domcontentloaded" });
     await expect(page).toHaveURL(/\/login(?:\?.*)?$/);
-    await expect(page.getByRole("heading", { name: "A comunidade em um só lugar." })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Bem-vindo de volta." })).toBeVisible();
   }
 
   expect(pageErrors).toEqual([]);
