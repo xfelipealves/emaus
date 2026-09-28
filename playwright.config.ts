@@ -8,15 +8,27 @@ export default defineConfig({
   fullyParallel: true,
   workers: 1,
   reporter: "list",
-  globalSetup: "./e2e/global-setup.ts",
+  globalSetup: "./e2e/global-setup.mjs",
   use: {
     baseURL,
     trace: "on-first-retry",
   },
   webServer: {
-    command: `npm run dev -- --port ${port}`,
+    command: "node scripts/e2e/web-server.mjs",
     url: baseURL,
     reuseExistingServer: false,
+    timeout: 120_000,
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  projects: [
+    {
+      name: "chromium",
+      testIgnore: "**/*.mobile.spec.ts",
+      use: { ...devices["Desktop Chrome"] },
+    },
+    {
+      name: "mobile-chromium",
+      testMatch: "**/*.mobile.spec.ts",
+      use: { ...devices["Pixel 7"] },
+    },
+  ],
 });
