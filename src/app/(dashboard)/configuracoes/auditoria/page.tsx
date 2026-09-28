@@ -49,11 +49,11 @@ export default async function AuditPage() {
                 {event.reason ? <p className="mt-4 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900"><strong>Motivo:</strong> {event.reason}</p> : null}
                 <div className="mt-4 grid gap-4 lg:grid-cols-2">
                   <div>
-                    <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400">Antes</h3>
+                    <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400">{event.targetType === "Attendance" ? "Estado anterior" : "Antes"}</h3>
                     <pre className="mt-2 overflow-x-auto rounded-lg bg-slate-50 p-3 text-xs leading-5 text-slate-700">{formatPayload(event.before)}</pre>
                   </div>
                   <div>
-                    <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400">Depois</h3>
+                    <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400">{event.targetType === "Attendance" ? "Estado novo" : "Depois"}</h3>
                     <pre className="mt-2 overflow-x-auto rounded-lg bg-slate-50 p-3 text-xs leading-5 text-slate-700">{formatPayload(event.after)}</pre>
                   </div>
                 </div>

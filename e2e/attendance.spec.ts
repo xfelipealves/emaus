@@ -358,3 +358,59 @@ test("searches and adds a person, quick visitor, and attendance summary", async 
     await prisma.person.deleteMany({ where: { id: { in: people.map((item) => item.id) } } });
   }
 });
+
+test("recovers from an interrupted attendance action without showing a false presence", async ({ page }) => {
+  const suffix = Date.now().toString();
+  const account = await prisma.account.create({ data: { username: `t31-secretary-retry-${suffix}`, email: `t31-secretary-retry-${suffix}@example.test`, passwordHash: await hashPassword("senha-t31-secretaria"), role: "SECRETARY", person: { create: { fullName: `Secretária T31 ${suffix}` } } } });
+  const category = await prisma.category.create({ data: { name: `Categoria T31 ${suffix}` } });
+  const ministry = await prisma.ministry.create({ data: { name: `Ministério T31 ${suffix}` } });
+  const person = await prisma.person.create({ data: { fullName: `Pessoa T31 ${suffix}` } });
+  await prisma.ministryMembership.create({ data: { personId: person.id, ministryId: ministry.id, startDate: new Date("2026-01-01T00:00:00.000Z") } });
+  const meeting = await prisma.meeting.create({ data: { categoryId: category.id, title: `Encontro QA T31 ${suffix}`, scheduledAt: new Date("2026-10-10T22:00:00.000Z"), status: "SCHEDULED", audiences: { create: { ministryId: ministry.id } } } });
+
+  try {
+    const session = await createSession(account.id);
+    const cookie = createSessionCookie(session.token, session.expiresAt);
+    await page.context().addCookies([{ name: cookie.name, value: cookie.value, domain: "127.0.0.1", path: "/", httpOnly: true, sameSite: "Lax", expires: cookie.options.expires.getTime() / 1000 }]);
+    await page.goto(`/encontros/${meeting.id}`);
+    const row = page.getByRole("button", { name: `Marcar ${person.fullName}` });
+    await expect(row).toContainText("Não confirmado");
+
+    let interruptNextPost = true;
+    await page.route(`**/encontros/${meeting.id}`, async (route) => {
+      if (route.request().method() === "POST" && interruptNextPost) {
+        interruptNextPost = false;
+        await route.abort();
+        return;
+      }
+      await route.continue();
+    });
+
+    await row.click();
+    await expect(row).toContainText("Não confirmado");
+    await expect(page.getByRole("status")).toHaveText("Não foi possível salvar a presença. Tente novamente.");
+    await expect(page.getByRole("button", { name: "Tentar novamente" })).toBeEnabled();
+    await expect(row).toBeEnabled();
+    await expect(prisma.attendance.findUnique({ where: { meetingId_personId: { meetingId: meeting.id, personId: person.id } } })).resolves.toMatchObject({ status: "NOT_CONFIRMED" });
+
+    await page.getByRole("button", { name: "Tentar novamente" }).click();
+    await expect(row).toContainText("Presente");
+    await expect(page.getByRole("status")).toHaveText("Presença salva.");
+    await expect.poll(() => prisma.attendance.findUnique({ where: { meetingId_personId: { meetingId: meeting.id, personId: person.id } } })).toMatchObject({ status: "PRESENT" });
+
+    await page.reload();
+    await expect(page.getByRole("button", { name: `Marcar ${person.fullName}` })).toContainText("Presente");
+  } finally {
+    const personIds = [account.personId, person.id];
+    await prisma.auditEvent.deleteMany({ where: { actorId: account.id } });
+    await prisma.attendance.deleteMany({ where: { meetingId: meeting.id } });
+    await prisma.timelineEvent.deleteMany({ where: { personId: { in: personIds } } });
+    await prisma.ministryMembership.deleteMany({ where: { personId: person.id } });
+    await prisma.meetingAudience.deleteMany({ where: { meetingId: meeting.id } });
+    await prisma.meeting.delete({ where: { id: meeting.id } });
+    await prisma.category.delete({ where: { id: category.id } });
+    await prisma.ministry.delete({ where: { id: ministry.id } });
+    await prisma.account.delete({ where: { id: account.id } });
+    await prisma.person.deleteMany({ where: { id: { in: personIds } } });
+  }
+});
