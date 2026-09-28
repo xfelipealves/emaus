@@ -36,8 +36,18 @@ function ministrySnapshot(ministry: { id: string; name: string; description: str
 }
 
 export async function listMinistries(actor: MinistryActor) {
-  const where = actor.role === "LEADER"
-    ? { id: { in: actor.ministryAccess.filter((access) => access.revokedAt === null).map((access) => access.ministryId) } }
+  const account = await prisma.account.findUnique({
+    where: { id: actor.id },
+    select: {
+      role: true,
+      status: true,
+      ministryAccess: { where: { revokedAt: null }, select: { ministryId: true } },
+    },
+  });
+  if (!account || account.status !== "ACTIVE" || account.role !== actor.role) return [];
+
+  const where = account.role === "LEADER"
+    ? { status: "ACTIVE" as const, id: { in: account.ministryAccess.map((access) => access.ministryId) } }
     : undefined;
 
   return prisma.ministry.findMany({ where, orderBy: [{ status: "asc" }, { name: "asc" }] });

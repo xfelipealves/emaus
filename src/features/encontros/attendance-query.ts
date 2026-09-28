@@ -1,9 +1,9 @@
 import type { AttendanceStatus } from "@prisma/client";
-import { createPerson } from "../pessoas/person-service";
 import { prisma } from "../../lib/prisma";
 import { canManageMeeting } from "../../server/authorization";
 import { withTransaction } from "../../server/transaction";
 import type { MeetingActor } from "./meeting-service";
+import { registerContextualVisitor } from "./quick-visitor-service";
 
 export type AttendanceSearchItem = {
   id: string;
@@ -70,10 +70,7 @@ export async function addPersonToAttendance(actor: MeetingActor, meetingId: stri
 }
 
 export async function addQuickVisitor(actor: MeetingActor, meetingId: string, fullName: string) {
-  const meeting = await getMeetingForQuery(meetingId);
-  assertMeetingAccess(actor, meeting);
-  const person = await createPerson(actor, { fullName, status: "VISITOR" });
-  return addPersonToAttendance(actor, meetingId, person.id);
+  return registerContextualVisitor(actor, meetingId, fullName);
 }
 
 export function summarizeAttendance(rows: ReadonlyArray<{ status: AttendanceStatus }>) {
