@@ -23,10 +23,10 @@ O banco fica disponível em `localhost:5432`. A aplicação e o Prisma devem obt
 
 ## Cenário demo local
 
-Para começar de um banco limpo, aplique as migrations e execute o seed:
+Para aplicar migrations pendentes sem zerar o banco e carregar o cenário demo:
 
 ```bash
-npx prisma migrate reset --force
+npm run db:migrate:deploy
 npm run db:seed
 ```
 
@@ -48,6 +48,7 @@ Contas demo (senha comum `emaus-demo`):
 - [Requisitos funcionais — Acessos e Permissões](docs/product/06-requisitos-funcionais-acessos-permissoes.md)
 - [Requisitos funcionais — Timeline e Notas](docs/product/07-requisitos-funcionais-timeline-notas.md)
 - [Requisitos não funcionais](docs/product/08-requisitos-nao-funcionais.md)
+- [Validação operacional dos requisitos não funcionais](docs/operations/rnf-validation.md)
 - [Arquitetura da informação e navegação](docs/design/01-arquitetura-da-informacao-e-navegacao.md)
 - [Fluxos essenciais](docs/design/02-fluxos-essenciais.md)
 - [Modelo de dados inicial](docs/architecture/01-modelo-de-dados-inicial.md)

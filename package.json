@@ -10,10 +10,14 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:integration": "vitest run --passWithNoTests",
-    "test:e2e": "playwright test",
+    "test:e2e": "node scripts/e2e/run.mjs",
+    "test:e2e:safety": "node --test scripts/e2e/database-safety.test.mjs",
+    "test:capacity": "node scripts/e2e/run.mjs --capacity",
+    "test:restore-smoke": "node scripts/e2e/run.mjs --restore-smoke",
     "db:validate": "prisma validate",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
+    "db:migrate:deploy": "prisma migrate deploy",
     "db:seed": "node --experimental-strip-types --experimental-specifier-resolution=node prisma/seed.ts"
   },
   "prisma": {
