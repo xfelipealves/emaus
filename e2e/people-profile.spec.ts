@@ -115,7 +115,7 @@ test.describe("person profile", () => {
   test("promotes a visitor with required data and an editable default effective date", async ({ page }) => {
     const visitor = await prisma.person.create({ data: { fullName: promotionVisitorName } });
     await login(page, adminUsername, "senha-t20-admin");
-    await page.goto(`/pessoas/${visitor.id}`);
+    await page.goto(`/pessoas/${visitor.id}`, { waitUntil: "load" });
 
     const effectiveDate = page.getByLabel("Data efetiva da promoção");
     await expect(effectiveDate).toHaveValue(formatDateInput(new Date()));

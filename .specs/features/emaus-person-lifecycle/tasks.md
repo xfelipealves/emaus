@@ -7,7 +7,7 @@ Implementar com `tlc-spec-driven`: um slice por vez, testes derivados dos ACs e 
 **Design**: `.specs/features/emaus-person-lifecycle/design.md`  
 **Status**: In Progress
 
-**Execução nesta rodada**: unit/integration (25 testes no banco descartável), lint dos paths da feature e validação Prisma concluídos. A suíte E2E foi ampliada, mas está pausada até a coordenação corrigir o isolamento do `globalSetup`; E2E e build completo permanecem pendentes. O typecheck do workspace tem uma falha registrada em arquivo reservado à frente de frequência.
+**Execução nesta rodada**: unit/integration focal (25 testes em `emaus_e2e_people`), lint direcionado, `db:validate`, `diff-check` e E2E via runner isolado concluídos. Os E2E passaram 8/8, em 1 worker, na porta 3103; o container efêmero foi removido. Full unit-only reportado pela coordenação: 51/52, com falha externa em `encontros/page.test.tsx`; typecheck falha por import ausente `resetAccountPassword` em `account-service.integration.test.ts`. Build e integração consolidada não rodaram após o incidente de isolamento.
 
 ## Test Coverage Matrix
 
@@ -18,10 +18,10 @@ Implementar com `tlc-spec-driven`: um slice por vez, testes derivados dos ACs e 
 | Serviço e consulta de Pessoas | Integration | Visitante sem dados obrigatórios e evento de cadastro; idade ausente permanece nula; filtros de status/lista e perfil existente. | `src/features/pessoas/{person-service,person-query}.integration.test.ts` | `npm run test -- src/features/pessoas/person-service.integration.test.ts src/features/pessoas/person-query.integration.test.ts` |
 | Serviço de domínio de status | Unit + integration | Validação de telefone/nascimento; persistência de status, telefone, nascimento e data; histórico/auditoria; falha transacional; conservação dos dados. Mapear ACs de PERS-02/03 e casos de borda diretamente. | `src/features/pessoas/status-service.{test,integration.test}.ts` | `npm run test -- src/features/pessoas/status-service.test.ts src/features/pessoas/status-service.integration.test.ts` |
 | Query/serviço de timeline | Integration | Pessoa correta, ordem decrescente, cada filtro e negação sem escopo; filtro Status contém cadastro e status. Nota arquivada some da lista padrão e mantém versões/autoria. | `src/features/timeline/{timeline-query,note-service}.integration.test.ts` | `npm run test -- src/features/timeline/timeline-query.integration.test.ts src/features/timeline/note-service.integration.test.ts` |
-| Formulários e rotas de perfil/timeline | E2E | Cada fluxo alterado: sucesso, campos obrigatórios/data editada, perfil e relações após reload, navegação pela aba, filtro, acesso sem escopo e notas arquivadas. | `e2e/people.spec.ts`, `e2e/people-profile.spec.ts` | `PLAYWRIGHT_PORT=3103 npm run test:e2e -- e2e/people.spec.ts e2e/people-profile.spec.ts` |
+| Formulários e rotas de perfil/timeline | E2E | Cada fluxo alterado: sucesso, campos obrigatórios/data editada, perfil e relações após reload, navegação pela aba, filtro, acesso sem escopo e notas arquivadas. | `e2e/people.spec.ts`, `e2e/people-profile.spec.ts` | `rtk run -c 'PLAYWRIGHT_PORT=3103 npm run test:e2e -- e2e/people.spec.ts e2e/people-profile.spec.ts'` |
 | Schema/configuração | Build gate | Sem mudança de schema prevista; validar Prisma, tipos, lint e build. | `prisma/schema.prisma`, configs do projeto | `npm run db:validate`; `npm run typecheck`; `npm run lint`; `npm run build` |
 
-Os gates E2E só podem rodar quando `DATABASE_URL` apontar para a base descartável exclusiva `emaus_e2e_people` já validada. O `global-setup` executa `prisma migrate reset --force`; não rodar contra o valor de `DATABASE_URL` já presente no ambiente. Usar `PLAYWRIGHT_PORT=3103`.
+Vitest de integração usa a configuração protegida da base descartável exclusiva `emaus_e2e_people`. Para E2E, executar somente pelo wrapper `rtk run -c ...`: ele cria PostgreSQL memory-backed temporário e valida que o alvo é um loopback gerado, rejeitando bases compartilhadas/remotas. O `globalSetup` reseta apenas esse alvo efêmero, removido pelo runner ao final. Não invocar Playwright diretamente nem passar uma URL de banco manual. Usar `PLAYWRIGHT_PORT=3103`.
 
 ## Gate Check Commands
 
@@ -30,10 +30,10 @@ Os gates E2E só podem rodar quando `DATABASE_URL` apontar para a base descartá
 | Gate Level | When to Use | Command |
 |---|---|---|
 | Quick | Teste unitário isolado de serviço | `npm run test -- src/features/pessoas/status-service.test.ts` |
-| Full | Slice com integração e E2E | `npm run test -- src/features/pessoas/person-service.integration.test.ts src/features/pessoas/person-query.integration.test.ts src/features/pessoas/status-service.test.ts src/features/pessoas/status-service.integration.test.ts src/features/timeline/timeline-query.integration.test.ts src/features/timeline/note-service.integration.test.ts` e `PLAYWRIGHT_PORT=3103 npm run test:e2e -- e2e/people.spec.ts e2e/people-profile.spec.ts` |
-| Build | Fechamento da fase final | `npm run db:validate`; `npm run typecheck`; `npm run lint`; `npm run test`; `PLAYWRIGHT_PORT=3103 npm run test:e2e -- e2e/people.spec.ts e2e/people-profile.spec.ts`; `npm run build` |
+| Full | Slice com integração e E2E | `npm run test -- src/features/pessoas/person-service.integration.test.ts src/features/pessoas/person-query.integration.test.ts src/features/pessoas/status-service.test.ts src/features/pessoas/status-service.integration.test.ts src/features/timeline/timeline-query.integration.test.ts src/features/timeline/note-service.integration.test.ts` e `rtk run -c 'PLAYWRIGHT_PORT=3103 npm run test:e2e -- e2e/people.spec.ts e2e/people-profile.spec.ts'` |
+| Build | Fechamento da fase final | `npm run db:validate`; `npm run typecheck`; `npm run lint`; `npm run test`; `rtk run -c 'PLAYWRIGHT_PORT=3103 npm run test:e2e -- e2e/people.spec.ts e2e/people-profile.spec.ts'`; `npm run build` |
 
-Nas gates Full/Build, os testes de integração e E2E recebem a configuração da base descartável `emaus_e2e_people`; o alvo não fica registrado no arquivo nem nos logs.
+Nas gates Full/Build, Vitest de integração usa `emaus_e2e_people`; Playwright recebe seu próprio PostgreSQL efêmero. URLs e credenciais não são registradas nos arquivos ou handoffs.
 
 ## Plano de execução
 
@@ -66,15 +66,15 @@ Phase 2: T1 ──→ T2
 
 **Done when**:
 
-- [ ] Formulário de promoção apresenta o dia de hoje em `America/Sao_Paulo` ao abrir e aceita edição.
+- [x] Formulário de promoção apresenta o dia de hoje em `America/Sao_Paulo` ao abrir e aceita edição.
 - [x] Testes de domínio verificam campo telefone/nascimento ausente com mensagens específicas e data de nascimento normalizada.
 - [x] Integração comprova promoção com telefone/nascimento e data efetiva escolhida, com evento/auditoria coerentes.
 - [x] Integração comprova que ausência de cada campo preserva status, dados anteriores e eventos existentes.
 - [x] Integração comprova rollback de status/evento quando a gravação transacional falha.
-- [ ] E2E cadastra visitante sem telefone/nascimento, verifica o padrão local e edição da data, bloqueia cada campo ausente, promove com data editada e confere o dia exibido após reload.
-- [ ] E2E cria nota antes de inativar com data editada e, após reload, confirma status/data, perfil, vínculo, presença, nota/autoria/versão e histórico preservados.
+- [x] E2E cadastra visitante sem telefone/nascimento, verifica o padrão local e edição da data, bloqueia cada campo ausente, promove com data editada e confere o dia exibido após reload.
+- [x] E2E cria nota antes de inativar com data editada e, após reload, confirma status/data, perfil, vínculo, presença, nota/autoria/versão e histórico preservados.
 - [x] Nenhum teste foi removido/ignorado; teste count não diminui.
-- [ ] Full gate passa com Vitest do slice e E2E da lifecycle route usando a base descartável exclusiva.
+- [x] Full gate passa com Vitest do slice e E2E da lifecycle route usando bases descartáveis isoladas.
 
 **Tests**: unit, integration, E2E, co-localizados nos quatro paths acima.  
 **Gate**: full.
@@ -102,17 +102,18 @@ Phase 2: T1 ──→ T2
 **Done when**:
 
 - [x] Query devolve cadastro e mudanças de status no filtro `status`, além de manter as categorias restantes isoladas.
-- [ ] Ordem decrescente e filtros de ministérios, frequência, notas e correções continuam cobertos.
-- [ ] E2E abre perfil, ativa a aba Timeline e chega à rota da mesma Pessoa; filtro `Status e cadastro` mostra os dois eventos relevantes.
-- [ ] E2E de usuário fora do escopo tenta a rota direta e recebe acesso negado sem título, evento ou conteúdo de nota.
-- [ ] E2E de nota arquivada comprova que filtro padrão a oculta e `Arquivadas` a revela com autoria e versões preservadas.
+- [x] Ordem decrescente e filtros de ministérios, frequência, notas e correções continuam cobertos.
+- [x] E2E abre perfil, ativa a aba Timeline e chega à rota da mesma Pessoa; filtro `Status e cadastro` mostra os dois eventos relevantes.
+- [x] E2E de usuário fora do escopo tenta a rota direta e recebe acesso negado sem título, evento ou conteúdo de nota.
+- [x] E2E de nota arquivada comprova que filtro padrão a oculta e `Arquivadas` a revela com autoria e versões preservadas.
 - [x] Todos os critérios e casos de borda do spec têm `file:line` e asserção correspondente; os testes novos mapeiam apenas para PERS-01–05.
-- [ ] Gate Build passa e não há redução na quantidade de testes.
+- [x] Não houve redução na quantidade de testes.
+- [ ] Gate Build passa.
 
 **Tests**: integration e E2E, co-localizados nos quatro paths acima.  
 **Gate**: build.
 
-**Pendência de execução**: cenários de formulário, navegação, filtros pela interface, autorização direta, arquivo de nota e build aguardam a janela serial. As assertions foram preservadas/adicionadas em `e2e/people.spec.ts` e `e2e/people-profile.spec.ts`; a escrita do teste não é tratada como resultado de execução.
+**Resultado de execução**: os cenários E2E listados passaram via runner isolado (8/8; 1 worker). Só o fechamento Build permanece pendente.
 
 ## Validação da decomposição
 

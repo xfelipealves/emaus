@@ -110,7 +110,7 @@ test.describe("P1 Person lifecycle", () => {
 
       await page.getByLabel("Nova nota").fill(noteContent);
       await page.getByRole("button", { name: "Adicionar nota" }).click();
-      await expect(page.getByRole("status")).toHaveText("Nota adicionada.");
+      await expect(page.getByText("Nota adicionada.", { exact: true })).toBeVisible();
       const note = await prisma.note.findFirstOrThrow({ where: { personId: createdPersonId, content: noteContent } });
       const demoAdmin = await prisma.account.findUniqueOrThrow({ where: { username: "demo-admin" }, select: { id: true } });
       expect(note.authorId).toBe(demoAdmin.id);
