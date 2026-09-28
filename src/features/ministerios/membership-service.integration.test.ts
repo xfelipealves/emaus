@@ -1,12 +1,15 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "../../lib/prisma";
-import { createMembership, endMembership, updateMembershipRole } from "./membership-service";
+import { createMembership, endMembership, getMinistryMembershipManagement, updateMembershipRole } from "./membership-service";
+import { getPersonTimeline } from "../timeline/timeline-query";
 
 describe("Ministry membership history service", () => {
   const suffix = Date.now().toString();
   const personIds: string[] = [];
   let actorId: string;
+  let actorName: string;
   let ministryId: string;
+  let ministryName: string;
   let membershipId: string;
 
   const administrator = () => ({ id: actorId, role: "ADMINISTRATOR" as const });
@@ -15,7 +18,8 @@ describe("Ministry membership history service", () => {
   const endDate = new Date("2026-06-30T00:00:00.000Z");
 
   beforeAll(async () => {
-    const actorPerson = await prisma.person.create({ data: { fullName: `Autor T22 ${suffix}` } });
+    actorName = `Autor T22 ${suffix}`;
+    const actorPerson = await prisma.person.create({ data: { fullName: actorName } });
     personIds.push(actorPerson.id);
     const account = await prisma.account.create({
       data: {
@@ -27,7 +31,8 @@ describe("Ministry membership history service", () => {
       },
     });
     actorId = account.id;
-    const ministry = await prisma.ministry.create({ data: { name: `Ministério T22 ${suffix}` } });
+    ministryName = `Ministério T22 ${suffix}`;
+    const ministry = await prisma.ministry.create({ data: { name: ministryName } });
     ministryId = ministry.id;
   });
 
@@ -47,7 +52,7 @@ describe("Ministry membership history service", () => {
 
     await expect(createMembership(
       { id: actorId, role: "SECRETARY" },
-      { personId: person.id, ministryId, startDate },
+      { personId: person.id, ministryId, role: "MEMBER", startDate },
     )).rejects.toThrow("Apenas administradores");
   });
 
@@ -97,5 +102,51 @@ describe("Ministry membership history service", () => {
       before: expect.objectContaining({ endDate: null }),
       after: expect.objectContaining({ endDate: endDate.toISOString() }),
     });
+  });
+
+  it("keeps person, ministry, actor, role changes, and entry and exit dates in history queries", async () => {
+    const person = await prisma.person.create({ data: { fullName: `Histórico T22 ${suffix}` } });
+    personIds.push(person.id);
+    const membership = await createMembership(administrator(), {
+      personId: person.id,
+      ministryId,
+      role: "MEMBER",
+      startDate,
+    });
+
+    const creationEvents = await getPersonTimeline(administrator(), person.id, "ministries");
+    expect(creationEvents).toHaveLength(1);
+    expect(creationEvents[0]).toMatchObject({
+      personId: person.id,
+      title: "Pessoa vinculada ao Ministério",
+      actor: { id: actorId, fullName: actorName },
+    });
+    expect(creationEvents[0]?.description).toContain(person.fullName);
+    expect(creationEvents[0]?.description).toContain(ministryName);
+    expect(creationEvents[0]?.description).toContain("Membro");
+
+    await updateMembershipRole(administrator(), membership.id, { role: "LEADER", effectiveDate: roleDate });
+    await endMembership(administrator(), membership.id, { endDate });
+
+    const history = await getMinistryMembershipManagement(administrator(), ministryId);
+    expect(history?.currentMemberships).toEqual([]);
+    expect(history?.historicMemberships.find(({ id }) => id === membership.id)).toMatchObject({
+      id: membership.id,
+      role: "LEADER",
+      startDate,
+      endDate,
+      person: expect.objectContaining({ id: person.id, fullName: person.fullName }),
+    });
+
+    const events = await getPersonTimeline(administrator(), person.id, "ministries");
+    expect(events.map(({ title }) => title)).toEqual([
+      "Vínculo ministerial encerrado",
+      "Cargo no Ministério alterado",
+      "Pessoa vinculada ao Ministério",
+    ]);
+    expect(events.every((event) => event.actor?.fullName === actorName)).toBe(true);
+    expect(events.every((event) => event.description?.includes(ministryName))).toBe(true);
+    expect(events[1]?.description).toContain("Membro");
+    expect(events[1]?.description).toContain("Líder");
   });
 });
