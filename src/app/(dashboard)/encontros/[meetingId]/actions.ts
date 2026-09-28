@@ -1,5 +1,6 @@
 "use server";
 
+import type { AttendanceStatus } from "@prisma/client";
 import { cookies } from "next/headers";
 import { getSession } from "@/features/auth/session-service";
 import { cycleAttendance } from "@/features/encontros/attendance-service";
@@ -7,7 +8,7 @@ import { addPersonToAttendance, addQuickVisitor, searchAttendancePeople, type At
 import { getMeetingActor } from "@/features/encontros/meeting-service";
 import { SESSION_COOKIE_NAME } from "@/lib/session";
 
-export type AttendanceActionState = { status?: "NOT_CONFIRMED" | "PRESENT" | "ABSENT"; error?: string; attendanceId?: string; personName?: string };
+export type AttendanceActionState = { status?: AttendanceStatus; error?: string; conflict?: boolean; attendanceId?: string; personName?: string };
 
 async function requireActor() {
   const token = (await cookies()).get(SESSION_COOKIE_NAME)?.value;
@@ -17,10 +18,10 @@ async function requireActor() {
   return actor;
 }
 
-export async function cycleAttendanceAction(attendanceId: string, reason?: string): Promise<AttendanceActionState> {
+export async function cycleAttendanceAction(attendanceId: string, expectedStatus: AttendanceStatus, reason?: string): Promise<AttendanceActionState> {
   try {
-    const attendance = await cycleAttendance(await requireActor(), attendanceId, reason);
-    return { status: attendance.status };
+    const result = await cycleAttendance(await requireActor(), attendanceId, expectedStatus, reason);
+    return { status: result.status, conflict: !result.changed };
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Não foi possível salvar a presença." };
   }

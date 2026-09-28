@@ -10,6 +10,11 @@ export type EligibilityMembership = {
   ministryId: string;
 };
 
+export type CycleAttendanceResult = {
+  status: AttendanceStatus;
+  changed: boolean;
+};
+
 export function projectEligiblePersonIds(
   memberships: readonly EligibilityMembership[],
   audienceMinistryIds: readonly string[],
@@ -110,7 +115,12 @@ export async function getAttendanceBoard(actor: MeetingActor, meetingId: string)
   return meeting;
 }
 
-export async function cycleAttendance(actor: MeetingActor, attendanceId: string, reason?: string) {
+export async function cycleAttendance(
+  actor: MeetingActor,
+  attendanceId: string,
+  expectedStatus: AttendanceStatus,
+  reason?: string,
+): Promise<CycleAttendanceResult> {
   return withTransaction(async (transaction) => {
     const attendance = await transaction.attendance.findUnique({
       where: { id: attendanceId },
@@ -125,9 +135,24 @@ export async function cycleAttendance(actor: MeetingActor, attendanceId: string,
     if (attendance.status === "NOT_CONFIRMED" && hasArchivedAudience(attendance.meeting)) {
       throw new Error("Ministério arquivado não aceita novos lançamentos de presença.");
     }
+    if (attendance.status !== expectedStatus) {
+      return { status: attendance.status, changed: false };
+    }
 
     const nextStatus = nextAttendanceStatus(attendance.status);
-    const updated = await transaction.attendance.update({ where: { id: attendanceId }, data: { status: nextStatus } });
+    const updateResult = await transaction.attendance.updateMany({
+      where: { id: attendanceId, status: expectedStatus },
+      data: { status: nextStatus },
+    });
+    if (updateResult.count === 0) {
+      const current = await transaction.attendance.findUnique({
+        where: { id: attendanceId },
+        select: { status: true },
+      });
+      if (!current) throw new Error("Presença não encontrada.");
+      return { status: current.status, changed: false };
+    }
+
     await recordTimelineEvent(transaction, {
       personId: attendance.personId,
       category: "ATTENDANCE",
@@ -139,10 +164,10 @@ export async function cycleAttendance(actor: MeetingActor, attendanceId: string,
       targetType: "Attendance",
       targetId: attendance.id,
       action: "UPDATE",
-      before: { status: attendance.status },
-      after: { status: updated.status },
+      before: { status: expectedStatus },
+      after: { status: nextStatus },
       reason: reason?.trim() || undefined,
     });
-    return updated;
+    return { status: nextStatus, changed: true };
   });
 }
