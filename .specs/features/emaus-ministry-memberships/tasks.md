@@ -5,18 +5,18 @@
 
 ## Protocolo desta execução
 
-Aplicar testes antes da implementação. Para cada tarefa, registrar a evidência do teste RED por ausência da regra e executar novamente após a correção (GREEN), antes de marcar a tarefa como concluída. O Playwright roda somente na base descartável `emaus_e2e_memberships`, com `PLAYWRIGHT_PORT=3105`; `e2e/global-setup.ts` executa `prisma migrate reset`, portanto validar o nome do banco antes de cada primeira execução.
+Aplicar testes antes da implementação. Para cada tarefa, registrar a evidência do teste RED por ausência da regra e executar novamente após a correção (GREEN), antes de marcar a tarefa como concluída. Para E2E, usar somente `npm run test:e2e`: o wrapper cria PostgreSQL temporário memory-backed e valida o destino antes de resetar. Usar `PLAYWRIGHT_PORT=3105`; não invocar Playwright diretamente nem apontar para um DB fixo.
 
 O repositório está compartilhado por cinco workers. Não executar `git add` nem `git commit`; o coordenador fará o staging seletivo e commits depois de integrar e revisar os cinco conjuntos de paths. Não alterar branches, índice ou arquivos fora da reserva da frente.
 
 ## Matriz de cobertura de testes
 
-> Proveniência: instruções `AGENTS.md` fornecidas para o workspace, `package.json`, `vitest.config.ts`, `playwright.config.ts`, `e2e/global-setup.ts` e amostras de testes de integração/E2E de serviços, Ministérios, Pessoas e permissões. Nenhum limiar de cobertura adicional foi encontrado; o alvo abaixo segue os critérios e casos de borda desta especificação.
+> Proveniência: instruções `AGENTS.md` fornecidas para o workspace, `package.json`, `vitest.config.ts`, `playwright.config.ts`, `scripts/e2e/run.mjs`, `scripts/e2e/database-safety.mjs`, e amostras de testes de integração/E2E de serviços, Ministérios, Pessoas e permissões. Nenhum limiar de cobertura adicional foi encontrado; o alvo abaixo segue os critérios e casos de borda desta especificação.
 
 | Camada | Tipo exigido | Expectativa de cobertura | Localização | Comando |
 |---|---|---|---|---|
 | Serviço/regras de negócio | Integração | Cada critério MEM-01–03 aplicável; autorização, duplicidade/reentrada, Ministério arquivado, datas incompatíveis, concorrência e rollback transacional com estado persistido conferido | `src/features/ministerios/membership-service.integration.test.ts` | `npm test -- src/features/ministerios/membership-service.integration.test.ts` |
-| Rota, Server Actions e interface | E2E | Fluxo Admin completo (criar, consultar, mudar cargo, encerrar, timeline e auditoria), validação de falha, acesso direto negado para Secretaria/Líder e ausência dos controles | `e2e/ministry-memberships.spec.ts` | `PLAYWRIGHT_PORT=3105 npm run test:e2e -- e2e/ministry-memberships.spec.ts` |
+| Rota, Server Actions e interface | E2E | Fluxo Admin completo (criar, consultar, mudar cargo, encerrar, timeline e auditoria), validação de falha, acesso direto negado para Secretaria/Líder e ausência dos controles | `e2e/ministry-memberships.spec.ts` | `rtk run -c 'PLAYWRIGHT_PORT=3105 npm run test:e2e -- e2e/ministry-memberships.spec.ts'` |
 | Schema/configuração | Nenhum | Não há alteração de schema nesta frente; gates existentes de banco/build | — | `npm run db:validate`, `npm run typecheck` |
 
 ## Comandos de gate
@@ -24,8 +24,8 @@ O repositório está compartilhado por cinco workers. Não executar `git add` ne
 | Nível | Quando | Comando |
 |---|---|---|
 | Rápido | Tarefas 1–2 | `npm test -- src/features/ministerios/membership-service.integration.test.ts` |
-| Completo | Tarefas 3–5 | `npm test -- src/features/ministerios/membership-service.integration.test.ts && PLAYWRIGHT_PORT=3105 npm run test:e2e -- e2e/ministry-memberships.spec.ts` |
-| Build | Após T5 | `npm run db:validate && npm run typecheck && npm run lint && npm test && PLAYWRIGHT_PORT=3105 npm run test:e2e -- e2e/ministry-memberships.spec.ts && npm run build` |
+| Completo | Tarefas 3–5 | `npm test -- src/features/ministerios/membership-service.integration.test.ts && rtk run -c 'PLAYWRIGHT_PORT=3105 npm run test:e2e -- e2e/ministry-memberships.spec.ts'` |
+| Build | Após T5 | `npm run db:validate && npm run typecheck && npm run lint && npm test && rtk run -c 'PLAYWRIGHT_PORT=3105 npm run test:e2e -- e2e/ministry-memberships.spec.ts' && npm run build` |
 
 ## Plano de execução
 

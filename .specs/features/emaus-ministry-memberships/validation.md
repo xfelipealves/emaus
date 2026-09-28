@@ -1,7 +1,7 @@
 # Validação — gestão de vínculos ministeriais
 
 **Spec**: `.specs/features/emaus-ministry-memberships/spec.md`  
-**Estado**: Parcial; validação de domínio, gates estáticos e E2E (4/4) passaram. Build aguarda o gate consolidado do coordenador.
+**Estado**: Implementada; validação focal de domínio e E2E (4/4) passaram. Build de produção passou no gate consolidado; typecheck/unit-only globais têm falhas fora desta frente.
 
 ## Evidência por critério
 
@@ -30,7 +30,11 @@ Os testes de integração e a suíte completa foram executados com `DATABASE_URL
 | `npm run db:validate` | Passou; schema válido, sem migration nova nesta frente. |
 | `npm run lint` | Passou, 0 erros. Um warning existente de `<img>` em `src/app/(dashboard)/pessoas/[personId]/page.tsx`, fora dos paths desta frente. |
 | `PLAYWRIGHT_PORT=3105 npm run test:e2e -- e2e/ministry-memberships.spec.ts` | Versão final verde: Chromium, 4/4 cenários, 51,4s. A tentativa posterior de `load` foi revertida para exatamente esta configuração já aprovada. Banco resetado e semeado exclusivamente em `emaus_e2e_memberships`; servidor encerrou e porta liberada. |
-| `npm run build` | Pendente para o gate consolidado do coordenador. |
+| `npm run build` | Passou no gate consolidado de 2026-09-28: Next compilou, validou tipos e gerou as páginas com PostgreSQL temporário em tmpfs. |
+
+## Resultado combinado do workspace
+
+Na verificação posterior das cinco frentes, `npm run typecheck` falhou em `src/features/auth/account-service.integration.test.ts` porque importa `resetAccountPassword`, que não existe no serviço de contas; a falha é externa a esta frente. A suíte unit-only ficou 51/52 por ausência de link de categorias em `src/app/(dashboard)/encontros/page.test.tsx`, também externa. Os 154 testes Vitest e o typecheck registrados acima passaram no gate isolado anterior desta frente. O build consolidado passou em 2026-09-28. O teste adicional de capacidade `e2e/capacity.spec.ts`, executado depois do build pelo modo de capacidade, excedeu 180 s e falhou no teardown do trace; o container temporário foi removido. Essa falha não pertence aos quatro cenários funcionais desta frente.
 
 ## Cenários E2E executados
 
@@ -40,4 +44,6 @@ Execução serial no banco descartável `emaus_e2e_memberships`, porta `3105`:
 2. Secretaria e Líder recebem 404 ao abrir a rota administrativa diretamente.
 3. Data de entrada futura mostra alerta sem gravar vínculo/timeline.
 4. Admin altera cargo e encerra o vínculo; conferir mudança para histórico, datas, auditoria e eventos da timeline.
-5. Build pendente no gate consolidado.
+5. Build de produção passou no gate consolidado de 2026-09-28.
+
+As próximas execuções E2E devem passar pelo runner atual, que cria Postgres temporário em tmpfs: `rtk run -c 'PLAYWRIGHT_PORT=3105 npm run test:e2e -- e2e/ministry-memberships.spec.ts'`. O resultado acima é da execução serial anterior em DB descartável dedicado; não use Playwright direto nem aponte E2E futuro a um banco fixo. Lint final passou sem erros, com um warning existente de `<img>`; `db:validate` e `git diff --check` passaram.
