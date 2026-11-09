@@ -8,10 +8,8 @@ Type=simple
 User=felipe
 WorkingDirectory=/home/felipe/services/emaus
 Environment=NODE_ENV=production
-Environment=PORT=3100
-Environment=HOSTNAME=127.0.0.1
-ExecStartPre=/usr/bin/env npm run db:migrate
-ExecStart=/usr/bin/env npx next start -H 127.0.0.1 -p 3100
+ExecStartPre=/usr/bin/npm run db:migrate
+ExecStart=/home/felipe/services/emaus/node_modules/.bin/next start -H 127.0.0.1 -p 3100
 Restart=always
 RestartSec=5
 
