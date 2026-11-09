@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "../../lib/prisma";
+import { inactivatePerson, promoteToMember } from "../pessoas/status-service";
 import { grantMinistryAccess, listLeaderScopeConfiguration, revokeMinistryAccess } from "./access-scope-service";
 
 describe("leader ministry access scopes", () => {
@@ -41,8 +42,10 @@ describe("leader ministry access scopes", () => {
   });
 
   afterAll(async () => {
-    await prisma.auditEvent.deleteMany({ where: { actorId } });
+    await prisma.auditEvent.deleteMany({ where: { OR: [{ actorId: { in: accountIds } }, { targetId: { in: personIds } }] } });
+    await prisma.timelineEvent.deleteMany({ where: { personId: { in: personIds } } });
     await prisma.accountMinistryAccess.deleteMany({ where: { accountId: { in: accountIds } } });
+    await prisma.ministryMembership.deleteMany({ where: { ministryId: { in: [ministryId, archivedMinistryId] } } });
     await prisma.ministry.deleteMany({ where: { id: { in: [ministryId, archivedMinistryId] } } });
     await prisma.account.deleteMany({ where: { id: { in: accountIds } } });
     await prisma.person.deleteMany({ where: { id: { in: personIds } } });
@@ -70,8 +73,16 @@ describe("leader ministry access scopes", () => {
     await expect(prisma.auditEvent.findFirst({ where: { targetId: access.id, action: "GRANT" } })).resolves.toMatchObject({
       actorId,
       targetType: "AccountMinistryAccess",
-      after: expect.objectContaining({ accountId: leaderId, ministryId, revokedAt: null }),
+      after: expect.objectContaining({
+        accountId: leaderId,
+        ministryId,
+        grantedAt: access.grantedAt.toISOString(),
+        revokedAt: null,
+      }),
     });
+    const grantEvent = await prisma.auditEvent.findFirst({ where: { targetId: access.id, action: "GRANT" } });
+    expect(grantEvent?.createdAt).toBeInstanceOf(Date);
+    expect(grantEvent?.createdAt.getTime()).toBeGreaterThanOrEqual(access.createdAt.getTime());
   });
 
   it("revokes access without deleting the grant and records before and after values", async () => {
@@ -107,6 +118,22 @@ describe("leader ministry access scopes", () => {
     expect(granted.grantedAt.getTime()).toBeGreaterThan(previousGrantDate.getTime());
     expect(granted.revokedAt).toBeNull();
     await expect(prisma.auditEvent.count({ where: { targetId: accessId, action: "GRANT" } })).resolves.toBe(2);
+    const regrantEvent = await prisma.auditEvent.findFirst({
+      where: { targetId: accessId, action: "GRANT" },
+      orderBy: { createdAt: "desc" },
+    });
+    expect(regrantEvent).toMatchObject({
+      actorId,
+      targetType: "AccountMinistryAccess",
+      before: expect.objectContaining({ grantedAt: previousGrantDate.toISOString(), revokedAt: expect.any(String) }),
+      after: expect.objectContaining({
+        accountId: leaderId,
+        ministryId,
+        grantedAt: granted.grantedAt.toISOString(),
+        revokedAt: null,
+      }),
+    });
+    expect(regrantEvent?.createdAt).toBeInstanceOf(Date);
   });
 
   it("shows administrators only current leader grants, excluding revoked history", async () => {
@@ -147,9 +174,61 @@ describe("leader ministry access scopes", () => {
     await expect(grantMinistryAccess(admin, { accountId: secretaryId, ministryId })).rejects.toThrow("só podem ser concedidos a líderes");
     await expect(grantMinistryAccess(admin, { accountId: leaderId, ministryId: archivedMinistryId })).rejects.toThrow("Ministério arquivado");
     await expect(grantMinistryAccess(admin, { accountId: leaderId, ministryId: "ministry-does-not-exist" })).rejects.toThrow("Ministério não encontrado");
+    const missingAccountId = "account-does-not-exist-t23";
+    await expect(grantMinistryAccess(admin, { accountId: missingAccountId, ministryId })).rejects.toThrow("Conta não encontrada");
 
     await expect(prisma.accountMinistryAccess.count({ where: { accountId: secretaryId } })).resolves.toBe(0);
     await expect(prisma.accountMinistryAccess.count({ where: { accountId: leaderId, ministryId: archivedMinistryId, revokedAt: null } })).resolves.toBe(0);
     await expect(prisma.accountMinistryAccess.count({ where: { accountId: leaderId, ministryId: "ministry-does-not-exist" } })).resolves.toBe(0);
+    await expect(prisma.accountMinistryAccess.count({ where: { accountId: missingAccountId } })).resolves.toBe(0);
+  });
+
+  it("denies a scoped Leader generic Person status changes without persistence", async () => {
+    const admin = { id: actorId, role: "ADMINISTRATOR" as const };
+    const leader = { id: leaderId, role: "LEADER" as const };
+    const access = await grantMinistryAccess(admin, { accountId: leaderId, ministryId });
+    expect(access.revokedAt).toBeNull();
+
+    const visitor = await prisma.person.create({
+      data: {
+        fullName: `Visitante protegido T23 ${suffix}`,
+        phone: "Telefone existente",
+        birthDate: new Date("1995-04-12T00:00:00.000Z"),
+      },
+    });
+    const member = await prisma.person.create({
+      data: {
+        fullName: `Membro protegido T23 ${suffix}`,
+        status: "MEMBER",
+        memberships: { create: { ministryId, role: "MEMBER", startDate: new Date("2026-01-01T00:00:00.000Z") } },
+      },
+    });
+    personIds.push(visitor.id, member.id);
+    const visitorStatusChangedAt = visitor.statusChangedAt;
+    const memberStatusChangedAt = member.statusChangedAt;
+
+    await expect(
+      promoteToMember(leader, visitor.id, {
+        phone: "(11) 99999-2323",
+        birthDate: new Date("1995-04-12T00:00:00.000Z"),
+        effectiveDate: new Date("2026-07-15T12:00:00.000Z"),
+      }),
+    ).rejects.toThrow("Você não tem permissão para gerenciar Pessoas.");
+    await expect(
+      inactivatePerson(leader, member.id, { effectiveDate: new Date("2026-07-15T12:00:00.000Z") }),
+    ).rejects.toThrow("Você não tem permissão para gerenciar Pessoas.");
+
+    await expect(prisma.person.findUnique({ where: { id: visitor.id } })).resolves.toMatchObject({
+      status: "VISITOR",
+      phone: "Telefone existente",
+      birthDate: new Date("1995-04-12T00:00:00.000Z"),
+      statusChangedAt: visitorStatusChangedAt,
+    });
+    await expect(prisma.person.findUnique({ where: { id: member.id } })).resolves.toMatchObject({
+      status: "MEMBER",
+      statusChangedAt: memberStatusChangedAt,
+    });
+    await expect(prisma.timelineEvent.count({ where: { personId: { in: [visitor.id, member.id] } } })).resolves.toBe(0);
+    await expect(prisma.auditEvent.count({ where: { actorId: leaderId, targetId: { in: [visitor.id, member.id] } } })).resolves.toBe(0);
   });
 });

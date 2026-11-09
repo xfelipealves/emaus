@@ -3,7 +3,7 @@
 **Data:** 27/09/2026  
 **Branch observada:** `dev`  
 **Banco de teste:** `emaus_e2e_leader_scopes` (isolado; nenhum teste desta frente apontou para o banco de desenvolvimento)  
-**Status:** Integrações, E2E e build isolado aprovados nas execuções históricas abaixo. A verificação independente de 28/09/2026 encontrou 3 lacunas de evidência de aceite e um sensor inconclusivo. O build consolidado mais recente passou; o timeout da suíte de capacidade é um resultado separado.
+**Status:** A spec E2E estendida passou 1/1 isoladamente e novamente na rodada integrada final 31/31. As assertions para as lacunas independentes passaram em browser. Os testes de integração adicionados para conta ausente, snapshot de regrant e bloqueio de alteração de Pessoa continuam sem execução DB-backed; o cenário de múltiplos Ministérios ativos permanece sem assertion. O build consolidado histórico passou.
 
 ## Evidências TDD
 
@@ -68,16 +68,16 @@ Lint final passou sem erros, com um warning existente de `<img>`; `db:validate` 
 | LEAD-02.1 — concessão | Grant é persistido e passa a permitir a visualização do Líder. | `src/features/ministerios/access-scope-service.integration.test.ts:52-74` — `accountId`, `ministryId`, `revokedAt: null`, idempotência; `e2e/leader-access-scopes.spec.ts:134-145` — controles Admin e link do Líder. | ✅ PASS |
 | LEAD-02.2 — revogação | Novas consultas/operações são bloqueadas sem apagar o registro anterior. | `src/features/ministerios/access-scope-service.integration.test.ts:77-96` — mesmo `accessId`, data de revoke preservada em tentativa repetida e evento `REVOKE`; `e2e/leader-access-scopes.spec.ts:188-211` — revoke e bloqueios posteriores. | ✅ PASS |
 | LEAD-02.3 — ator não Administrador | Grant e revoke são negados no serviço servidor. | `src/features/ministerios/access-scope-service.integration.test.ts:129-143` — ambos rejeitam com `Apenas administradores` e grant continua vigente; `e2e/leader-access-scopes.spec.ts:214-216` — acesso à tela redirecionado. | ✅ PASS |
-| LEAD-02.4 — entradas inválidas | Conta ausente/não Líder ou Ministério arquivado/ausente são rejeitados sem grant parcial. | `src/features/ministerios/access-scope-service.integration.test.ts:145-153` — cobre não Líder, Ministério arquivado e inexistente com contagens zero; **não chama grant com conta inexistente**. | ⚠️ GAP parcial — falta assertion para conta inexistente |
-| LEAD-02.5 — auditoria | Registrar autor, alvo, Ministério, ação, data/hora e valores anteriores/posteriores aplicáveis. | `src/features/ministerios/access-scope-service.integration.test.ts:70-74,85-90` e `e2e/leader-access-scopes.spec.ts:192-204` — verificam autor, alvo, ação/Ministério e `revokedAt` antes/depois; não verificam `AuditEvent.createdAt` nem `grantedAt` nos snapshots de grant/regrant. | ⚠️ GAP parcial — timestamp e snapshot de grant não têm assertion |
+| LEAD-02.4 — entradas inválidas | Conta ausente/não Líder ou Ministério arquivado/ausente são rejeitados sem grant parcial. | `src/features/ministerios/access-scope-service.integration.test.ts:145-153,177-183` — cobre conta inexistente com rejeição `Conta não encontrada` e contagem de grants zero (integração pendente); `e2e/leader-access-scopes.spec.ts:136-140` repete o caso e passou no runner isolado. | ✅ E2E passou; integração pendente |
+| LEAD-02.5 — auditoria | Registrar autor, alvo, Ministério, ação, data/hora e valores anteriores/posteriores aplicáveis. | `e2e/leader-access-scopes.spec.ts:228-235` — confirma `AuditEvent.createdAt` e `grantedAt` no grant inicial; E2E passou. `src/features/ministerios/access-scope-service.integration.test.ts:70-85,112-136` inclui assertions para grant/regrant, mas a suíte DB-backed ainda não foi executada. | 🟨 Grant inicial passou; snapshot de regrant pendente |
 | LEAD-02.6 — configuração Admin | Mostrar concessões vigentes; identificar revogadas se histórico for exibido. | `src/features/ministerios/access-scope-service.integration.test.ts:112-126` — lista exata de concessões vigentes e exclui registro revogado; `e2e/leader-access-scopes.spec.ts:138-140,188-192` — concessão visível e controle de revoke removido após revogação. A tela atual não exibe histórico de revogadas. | ✅ PASS |
 | LEAD-03.1 — cadastro contextual | Com somente nome completo, criar Pessoa `VISITOR` e presença `NOT_CONFIRMED` no encontro permitido. | `src/features/encontros/quick-visitor-service.integration.test.ts:119-130` — chamada só com `fullName`, `meetingId`, status e campos opcionais nulos; `e2e/leader-access-scopes.spec.ts:164-175` — formulário, status visível e presença ligada ao encontro. | ✅ PASS |
 | LEAD-03.2 — presença, timeline e auditoria | Mostrar visitante na lista e persistir presença inicial, timeline e auditoria de criação da Pessoa. | `src/features/encontros/quick-visitor-service.integration.test.ts:130-141` — uma presença, evento `REGISTRATION` e evento `CREATE`; `e2e/leader-access-scopes.spec.ts:169-180` — feedback/lista após reload, `NOT_CONFIRMED` e contagem de presença `1`. | ✅ PASS |
-| LEAD-03.3 — fora do fluxo/alteração de Pessoa | Negar cadastro fora da frequência e alteração de cadastro fora do escopo, sem conceder gestão geral de Pessoas. | `e2e/leader-access-scopes.spec.ts:182-186` — cadastro genérico negado sem criar Pessoa; `src/server/authorization.test.ts:39-52` — `canManagePeople(leader) === false`. Não há teste de Líder tentando `promoteToMember` ou `inactivatePerson`. | ⚠️ GAP parcial — falta assertion da operação de alteração no serviço |
+| LEAD-03.3 — fora do fluxo/alteração de Pessoa | Negar cadastro fora da frequência e alteração de cadastro fora do escopo, sem conceder gestão geral de Pessoas. | `src/features/ministerios/access-scope-service.integration.test.ts:186-233` — Líder com grant ativo recebe negação em `promoteToMember` e `inactivatePerson`, preservando status/timeline/auditoria (integração pendente); `e2e/leader-access-scopes.spec.ts:165-177,196-211,218-222` passou com as duas negações, ausência das ações na UI e cadastro genérico negado. | ✅ E2E passou; integração pendente |
 | LEAD-03.4 — encontro sem escopo vigente | Negar antes de criar Pessoa, presença, timeline ou auditoria. | `src/features/encontros/quick-visitor-service.integration.test.ts:144-165` — escopo revogado ou outro Ministério rejeita e as quatro contagens/consultas ficam vazias; `:168-175` — conta inativa também não cria Pessoa/presença. | ✅ PASS |
 | LEAD-03.5 — falha transacional | Falha após criar Pessoa não deixa Pessoa, presença, timeline ou auditoria órfãs. | `src/features/encontros/quick-visitor-service.integration.test.ts:185-197` — falha de auditoria injetada e as quatro verificações retornam zero/nulo. | ✅ PASS |
 
-**Cobertura:** 13/16 critérios cobertos integralmente; 3/16 têm lacuna parcial. **Lacunas de precisão da especificação:** nenhuma; os resultados esperados são verificáveis.
+**Cobertura independente inicial:** 13/16 critérios cobertos integralmente; os três gaps dessa revisão agora têm assertions escritas. A spec E2E confirmou os novos casos de conta ausente e alteração de status; falta executar as integrações que cobrem os snapshots de regrant. **Lacunas de precisão da especificação:** nenhuma; os resultados esperados são verificáveis.
 
 ### Casos de borda
 
@@ -92,11 +92,13 @@ Lint final passou sem erros, com um warning existente de `<img>`; `db:validate` 
 
 ### Gate e integridade de testes
 
-- **E2E funcional Admin/Líder:** 1/1 passou, conforme execução atual informada pelo coordenador; os critérios funcionais abaixo não se confundem com o timeout de capacidade.
+- **E2E funcional Admin/Líder:** a spec estendida passou 1/1 em 2026-09-28 pelo runner `rtk run -c 'PLAYWRIGHT_PORT=3112 npm run test:e2e -- e2e/leader-access-scopes.spec.ts'`, com PostgreSQL temporário em tmpfs (`emaus_e2e_ab75b025c044`), removido pelo runner ao final. Uma tentativa anterior foi interrompida antes da spec para evitar concorrência e não entra como resultado.
 - **Build consolidado:** `next build` passou na execução consolidada mais recente em 2026-09-28, conforme coordenador. O build isolado anterior também consta acima como aprovado.
 - **Capacidade:** a execução separada de `e2e/capacity.spec.ts` expirou em 180 s no teardown do trace; é resultado de outra suíte, não falha do E2E Admin/Líder.
-- **Integrações:** a evidência histórica registra 23 testes aprovados em quatro arquivos. A inspeção atual encontra 24 declarações `it()` nos quatro arquivos; esta verificação não reexecutou os testes DB-backed diretamente e não afirma que os 24 passaram na mesma execução. Não encontrei evidência de teste removido.
-- **Typecheck/lint/regressão anterior:** permanecem os resultados históricos acima; a falha de typecheck e a falha unitária foram atribuídas a arquivos fora desta frente. O `next build` consolidado é reportado separadamente.
+- **Integrações:** a evidência histórica registra 23 testes aprovados em quatro arquivos. A inspeção contou 24 declarações `it()` antes das novas alterações e 25 agora; o grupo DB-backed não foi reexecutado após as novas assertions. Não afirmar que os 25 passaram. O E2E passou os novos casos de grant para conta ausente e de negação das operações de status.
+- **Unitários focados:** `rtk run -c 'npm test -- src/features/pessoas/status-service.test.ts src/server/authorization.test.ts'` passou, 9/9. Os dois novos casos provam que promotion e inactivation negam Leader antes de consultar uma Pessoa.
+- **Lint focado atual:** ESLint dos dois testes de serviço e da spec E2E passou, sem warnings.
+- **Typecheck atual:** `npm run typecheck` falha somente no import preexistente de `resetAccountPassword` em `src/features/auth/account-service.integration.test.ts:3`; fora das alterações desta frente. O `next build` consolidado anterior é reportado separadamente.
 
 ### Sensor de discriminação
 
@@ -111,20 +113,20 @@ Lint final passou sem erros, com um warning existente de `<img>`; `db:validate` 
 | Verificação | Estado |
 |---|---|
 | Código usa os helpers existentes de autorização, transação e auditoria; sem abstração ou expansão evidente além do escopo. | ✅ |
-| Alterações de verificação limitaram-se a este relatório; nenhum source/teste compartilhado foi modificado. | ✅ |
+| Novas assertions permanecem no escopo da frente: testes de escopo/status, UI E2E do Líder e este relatório. | ✅ |
 | Padrões documentados consultados: `AGENTS.md`, `package.json`, `playwright.config.ts` e `.agents/skills/tlc-spec-driven/references/coding-principles.md`. | ✅ |
-| Testes por camada cobrem cada critério e edge case sem lacunas. | ❌ — 3 lacunas de AC e 1 caso de múltiplos grants ativos sem assertion. |
+| Testes por camada cobrem cada critério e edge case sem lacunas. | 🟨 — as 3 lacunas de AC receberam assertions; a E2E passou os casos de conta ausente, timestamps do grant inicial e status do Líder. O snapshot de regrant precisa da suíte de integração. O edge case de múltiplos grants ativos continua sem assertion. |
 
 **Planos de correção sugeridos:**
 
-1. Em `src/features/ministerios/access-scope-service.integration.test.ts`, tentar grant para um `accountId` inexistente e verificar rejeição e ausência de grant parcial.
-2. Na mesma suíte, afirmar `createdAt` como data no evento e conferir `grantedAt` nos snapshots before/after de grant e regrant.
-3. Em `src/features/pessoas/status-service.integration.test.ts`, tentar promoção/inativação como Líder com escopo e provar rejeição sem alteração de Pessoa/timeline/auditoria.
+1. **Integração pendente:** executar em banco descartável o caso de grant para `accountId` inexistente e verificar rejeição/ausência de concessão parcial; o E2E equivalente passou.
+2. **Integração pendente:** executar os asserts `createdAt` e snapshots before/after de grant e regrant; o E2E verifica o grant inicial, não o regrant.
+3. **Integração pendente:** executar as negações de promoção/inativação com assertions de Pessoa/timeline/auditoria. Os testes unitários passaram e o E2E final verificou as negações e ausência de ações na UI.
 4. Em `src/features/ministerios/ministry-service.integration.test.ts`, conceder dois Ministérios ativos à mesma conta e afirmar que ambos são listados, preservando a exclusão do não concedido/arquivado.
 
 ## Resumo do Verificador
 
-**Veredito:** ❌ FAIL — lacunas de evidência; não foi observada falha funcional nos 13 critérios cobertos.
+**Veredito da revisão independente inicial:** ❌ FAIL — havia lacunas de evidência; não foi observada falha funcional nos 13 critérios então cobertos. O reteste E2E e o estado atual estão registrados no fechamento abaixo.
 
 **Critérios:** 13/16 cobertos integralmente; 3 parciais. **Gate:** E2E Admin/Líder 1/1 e build consolidado aprovados; timeout de capacidade separado. **Sensor:** 1 tentativa inconclusiva, sem conclusão de morto/sobrevivente.
 
@@ -132,4 +134,18 @@ Lint final passou sem erros, com um warning existente de `<img>`; `db:validate` 
 
 **Lacunas:** conta inexistente, timestamp/snapshot de grant na auditoria, operação de alteração de Pessoa por Líder e cenário de múltiplos grants ativos.
 
-**Próximo passo:** adicionar as assertions listadas nos planos e repetir o sensor em uma execução sem contenção de browser.
+**Próximo passo:** executar em base descartável as integrações atualizadas e a spec E2E estendida; depois repetir o sensor em uma execução sem contenção de browser.
+
+## Fechamento das lacunas — 2026-09-28
+
+- LEAD-02.4 agora cobre explicitamente grant para conta inexistente e zero concessões parciais em teste de integração e E2E.
+- LEAD-02.5 agora valida `AuditEvent.createdAt` e `grantedAt` nos snapshots de grant e regrant; o teste E2E também confere timestamp e snapshot do grant inicial.
+- LEAD-03.3 agora verifica que um Líder com escopo ministerial não pode promover Visitante nem inativar Membro pela camada de serviço, mantendo status/timeline/auditoria intactos; a UI do perfil concedido também não apresenta a seção “Ações de status”.
+- O teste unitário focado de status e autorização passou 9/9. A primeira tentativa E2E foi interrompida antes da spec para evitar concorrência; após liberação do runner, a execução completa passou 1/1 no DB tmpfs descartável, cobrindo conta inexistente, snapshot do grant inicial e as duas alterações de status negadas sem persistência.
+- As novas assertions E2E foram verificadas. A suíte de integração permanece pendente, em especial o timestamp/snapshot before/after do regrant. O cenário de dois Ministérios ativos continua como edge case sem cobertura.
+
+## Rodada integrada final — 2026-09-28
+
+`e2e/leader-access-scopes.spec.ts` passou dentro da execução serial de sete specs: **31/31 E2E em 3,8 min**, incluindo grant com conta inexistente, timestamp/snapshot do grant inicial, negações de promoção/inativação e ausência de mutação no perfil do Líder. O runner usou o banco PostgreSQL temporário tmpfs `emaus_e2e_fc00faf5c5da` e o removeu ao final.
+
+Depois da rodada, unit-only passou **80/80 em 22 arquivos**, lint passou sem erros (um warning existente de `<img>`), `db:validate`, `git diff --check` e `test:e2e:safety` (2/2) passaram. Typecheck segue bloqueado apenas pelo import ausente `resetAccountPassword` em teste de integração de Contas. As integrações DB-backed adicionadas não foram executadas; não declarar os snapshots de regrant como aprovados. Continua faltando cenário de múltiplos grants ativos. O build de produção passou no estado atual pelo runner temporário com `rtk run -c 'npm run test:capacity -- --list'`; o cenário de capacidade foi apenas listado, não executado, e o banco tmpfs foi removido.

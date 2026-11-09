@@ -41,13 +41,12 @@ export async function listMinistries(actor: MinistryActor) {
     select: {
       role: true,
       status: true,
-      ministryAccess: { where: { revokedAt: null }, select: { ministryId: true } },
     },
   });
   if (!account || account.status !== "ACTIVE" || account.role !== actor.role) return [];
 
   const where = account.role === "LEADER"
-    ? { status: "ACTIVE" as const, id: { in: account.ministryAccess.map((access) => access.ministryId) } }
+    ? { status: "ACTIVE" as const, accountAccess: { some: { accountId: actor.id, revokedAt: null } } }
     : undefined;
 
   return prisma.ministry.findMany({ where, orderBy: [{ status: "asc" }, { name: "asc" }] });

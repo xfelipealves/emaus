@@ -1,5 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { hashPassword } from "../src/features/auth/password";
+import { inactivatePerson, promoteToMember } from "../src/features/pessoas/status-service";
+import { grantMinistryAccess } from "../src/features/ministerios/access-scope-service";
 import { prisma } from "../src/lib/prisma";
 
 test.describe("Leader ministry access scopes", () => {
@@ -131,6 +133,11 @@ test("Admin grants and revokes; Leader stays within the granted Ministry and mee
     await gotoPage(page, "/configuracoes/usuarios");
     await expect(page.getByRole("heading", { name: "Usuários e acessos" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Escopos ministeriais" })).toBeVisible();
+    const missingAccountId = `missing-e2e-scope-account-${suffix}`;
+    await expect(
+      grantMinistryAccess({ id: adminId, role: "ADMINISTRATOR" }, { accountId: missingAccountId, ministryId }),
+    ).rejects.toThrow("Conta não encontrada");
+    await expect(prisma.accountMinistryAccess.count({ where: { accountId: missingAccountId } })).resolves.toBe(0);
     await page.locator("#scope-leader").selectOption(leaderId);
     await page.locator("#scope-ministry").selectOption(ministryId);
     await page.getByRole("button", { name: "Conceder acesso" }).click();
@@ -155,6 +162,17 @@ test("Admin grants and revokes; Leader stays within the granted Ministry and mee
 
     const allowedPersonResponse = await gotoPage(leaderPage, `/pessoas/${currentPersonId}`);
     expect(allowedPersonResponse?.status()).toBe(200);
+    await expect(leaderPage.getByRole("region", { name: "Ações de status" })).toHaveCount(0);
+    const currentPersonBefore = await prisma.person.findUniqueOrThrow({ where: { id: currentPersonId } });
+    await expect(
+      inactivatePerson({ id: leaderId, role: "LEADER" }, currentPersonId, { effectiveDate: new Date("2026-07-15T12:00:00.000Z") }),
+    ).rejects.toThrow("Você não tem permissão para gerenciar Pessoas.");
+    await expect(prisma.person.findUnique({ where: { id: currentPersonId } })).resolves.toMatchObject({
+      status: "MEMBER",
+      statusChangedAt: currentPersonBefore.statusChangedAt,
+    });
+    await expect(prisma.timelineEvent.count({ where: { personId: currentPersonId, category: "STATUS" } })).resolves.toBe(0);
+    await expect(prisma.auditEvent.count({ where: { actorId: leaderId, targetId: currentPersonId, action: "INACTIVATE" } })).resolves.toBe(0);
     const outsidePersonResponse = await gotoPage(leaderPage, `/pessoas/${outsidePersonId}`);
     expect(outsidePersonResponse?.status()).toBe(404);
 
@@ -175,6 +193,22 @@ test("Admin grants and revokes; Leader stays within the granted Ministry and mee
     await expect(prisma.attendance.findUnique({ where: { meetingId_personId: { meetingId, personId: visitor.id } } })).resolves.toMatchObject({ status: "NOT_CONFIRMED" });
     await expect(prisma.timelineEvent.findFirst({ where: { personId: visitor.id } })).resolves.toMatchObject({ category: "REGISTRATION", title: "Pessoa cadastrada" });
     await expect(prisma.auditEvent.findFirst({ where: { actorId: leaderId, targetId: visitor.id, action: "CREATE" } })).resolves.toMatchObject({ targetType: "Person" });
+    const visitorBeforePromotion = await prisma.person.findUniqueOrThrow({ where: { id: visitor.id } });
+    await expect(
+      promoteToMember({ id: leaderId, role: "LEADER" }, visitor.id, {
+        phone: "(11) 99999-2323",
+        birthDate: new Date("1995-04-12T00:00:00.000Z"),
+        effectiveDate: new Date("2026-07-15T12:00:00.000Z"),
+      }),
+    ).rejects.toThrow("Você não tem permissão para gerenciar Pessoas.");
+    await expect(prisma.person.findUnique({ where: { id: visitor.id } })).resolves.toMatchObject({
+      status: "VISITOR",
+      phone: visitorBeforePromotion.phone,
+      birthDate: visitorBeforePromotion.birthDate,
+      statusChangedAt: visitorBeforePromotion.statusChangedAt,
+    });
+    await expect(prisma.timelineEvent.count({ where: { personId: visitor.id, category: "STATUS" } })).resolves.toBe(0);
+    await expect(prisma.auditEvent.count({ where: { actorId: leaderId, targetId: visitor.id, action: "PROMOTE_TO_MEMBER" } })).resolves.toBe(0);
     await leaderPage.reload();
     await expect(leaderPage.getByRole("button", { name: `Marcar ${visitorName}` })).toContainText("Não confirmado", { timeout: 15_000 });
     await expect(prisma.attendance.count({ where: { meetingId, personId: visitor.id } })).resolves.toBe(1);
@@ -194,8 +228,11 @@ test("Admin grants and revokes; Leader stays within the granted Ministry and mee
     await expect(prisma.auditEvent.findFirst({ where: { targetId: access.id, action: "GRANT" } })).resolves.toMatchObject({
       actorId: adminId,
       targetType: "AccountMinistryAccess",
-      after: expect.objectContaining({ accountId: leaderId, ministryId, revokedAt: null }),
+      after: expect.objectContaining({ accountId: leaderId, ministryId, grantedAt: access.grantedAt.toISOString(), revokedAt: null }),
     });
+    const grantEvent = await prisma.auditEvent.findFirst({ where: { targetId: access.id, action: "GRANT" } });
+    expect(grantEvent?.createdAt).toBeInstanceOf(Date);
+    expect(grantEvent?.createdAt.getTime()).toBeGreaterThanOrEqual(access.createdAt.getTime());
     await expect(prisma.auditEvent.findFirst({ where: { targetId: access.id, action: "REVOKE" } })).resolves.toMatchObject({
       actorId: adminId,
       targetType: "AccountMinistryAccess",
