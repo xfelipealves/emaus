@@ -16,6 +16,7 @@ export const metadata: Metadata = {
   title: { default: "Emaús", template: "%s · Emaús" },
   description: "Acompanhamento de pessoas e vida comunitária da igreja.",
   applicationName: "Emaús",
+  robots: { index: false, follow: false },
   appleWebApp: { capable: true, title: "Emaús", statusBarStyle: "default" },
   icons: {
     icon: [{ url: "/icon.svg", type: "image/svg+xml" }],
