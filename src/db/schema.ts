@@ -3,6 +3,7 @@ import {
   index,
   integer,
   primaryKey,
+  real,
   sqliteTable,
   text,
   uniqueIndex,
@@ -528,4 +529,52 @@ export const timelineEventRelations = relations(timelineEvent, ({ one }) => ({
 
 export const auditLogRelations = relations(auditLog, ({ one }) => ({
   actor: one(user, { fields: [auditLog.actorId], references: [user.id] }),
+}));
+
+/* ───────────────────────── Assistente (IA) ───────────────────────── */
+
+export const aiConversation = sqliteTable(
+  "ai_conversation",
+  {
+    id: id(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    title: text("title").notNull().default("Nova conversa"),
+    /** Histórico no formato da API (MessageParam[]), incluindo blocos de ferramenta. */
+    messages: text("messages", { mode: "json" }).$type<unknown[]>().notNull().default(sql`'[]'`),
+    ...timestamps,
+  },
+  (t) => [index("ai_conversation_user_idx").on(t.userId, t.updatedAt)],
+);
+
+/** Uma execução do agente (uma pergunta do usuário até a resposta final): base do LLMOps. */
+export const aiRun = sqliteTable(
+  "ai_run",
+  {
+    id: id(),
+    conversationId: text("conversation_id").references(() => aiConversation.id, { onDelete: "set null" }),
+    userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
+    model: text("model").notNull(),
+    prompt: text("prompt").notNull(),
+    iterations: integer("iterations").notNull().default(0),
+    inputTokens: integer("input_tokens").notNull().default(0),
+    outputTokens: integer("output_tokens").notNull().default(0),
+    cacheReadTokens: integer("cache_read_tokens").notNull().default(0),
+    cacheWriteTokens: integer("cache_write_tokens").notNull().default(0),
+    costUsd: real("cost_usd").notNull().default(0),
+    latencyMs: integer("latency_ms").notNull().default(0),
+    toolCalls: text("tool_calls", { mode: "json" }).$type<{ name: string; ok: boolean; write: boolean }[]>().notNull().default(sql`'[]'`),
+    stopReason: text("stop_reason"),
+    error: text("error"),
+    /** 1 = útil, -1 = não ajudou */
+    rating: integer("rating"),
+    createdAt: timestamps.createdAt,
+  },
+  (t) => [index("ai_run_created_idx").on(t.createdAt), index("ai_run_user_idx").on(t.userId)],
+);
+
+export const aiRunRelations = relations(aiRun, ({ one }) => ({
+  user: one(user, { fields: [aiRun.userId], references: [user.id] }),
+  conversation: one(aiConversation, { fields: [aiRun.conversationId], references: [aiConversation.id] }),
 }));
