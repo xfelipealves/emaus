@@ -2,7 +2,7 @@ import "server-only";
 import { and, eq, gte, inArray, lt, sql } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { addDaysIso, daysUntilBirthday, startOfDayUtc, todayIso } from "@/lib/dates";
-import { weeklyUnique } from "./ministries";
+import { weekBuckets } from "./ministries";
 import { listPeople, peopleNeedingCare } from "./people";
 import { type CurrentUser, visiblePersonIds } from "./session";
 import { getSettings } from "./settings";
@@ -31,17 +31,10 @@ export async function dashboardData(user: CurrentUser) {
     );
 
   const statusById = new Map(people.map((p) => [p.id, p.status]));
-  const trend = weeklyUnique(presence, today, weeks, tz).map((point, i, all) => {
-    const start = point.week;
-    const end = all[i + 1]?.week;
-    const rows = presence.filter((r) => {
-      const t = r.startsAt.getTime();
-      return t >= startOfDayUtc(start, tz).getTime() && (!end || t < startOfDayUtc(end, tz).getTime());
-    });
-    const unique = new Set(rows.map((r) => r.personId));
+  const trend = weekBuckets(presence, today, weeks, tz).map(({ week, people }) => {
     let visitors = 0;
-    for (const id of unique) if (statusById.get(id) === "visitor") visitors++;
-    return { week: start, members: point.present - visitors, visitors, total: point.present };
+    for (const id of people) if (statusById.get(id) === "visitor") visitors++;
+    return { week, members: people.size - visitors, visitors, total: people.size };
   });
 
   const last4 = trend.slice(-4);

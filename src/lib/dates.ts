@@ -3,8 +3,20 @@ import { ptBR } from "date-fns/locale";
 
 export const DEFAULT_TZ = "America/Sao_Paulo";
 
+// Criar Intl.DateTimeFormat é caro (ms no Raspberry): um formatador por fuso/opções.
+const formatters = new Map<string, Intl.DateTimeFormat>();
+function formatter(locale: string, opts: Intl.DateTimeFormatOptions) {
+  const key = locale + JSON.stringify(opts);
+  let fmt = formatters.get(key);
+  if (!fmt) {
+    fmt = new Intl.DateTimeFormat(locale, opts);
+    formatters.set(key, fmt);
+  }
+  return fmt;
+}
+
 function parts(date: Date, timeZone: string) {
-  const fmt = new Intl.DateTimeFormat("en-CA", {
+  const fmt = formatter("en-CA", {
     timeZone,
     year: "numeric",
     month: "2-digit",
@@ -109,7 +121,7 @@ export function daysUntilBirthday(birthDate: string, today: string) {
 }
 
 const dateFmt = (timeZone: string, opts: Intl.DateTimeFormatOptions) =>
-  new Intl.DateTimeFormat("pt-BR", { timeZone, ...opts });
+  formatter("pt-BR", { timeZone, ...opts });
 
 export function formatDate(
   value: Date | string | null | undefined,

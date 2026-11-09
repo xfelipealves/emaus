@@ -81,29 +81,37 @@ export async function ministryAttendanceTrend(ministryId: string, weeks = 12) {
 }
 
 /** Agrupa presenças por semana (pessoas únicas por semana). */
+/** Pessoas únicas com presença em cada uma das últimas N semanas (a mais recente termina hoje). */
+export function weekBuckets(
+  rows: { startsAt: Date; personId: string }[],
+  today: string,
+  weeks: number,
+  timeZone: string,
+) {
+  // Limites calculados uma vez: conversão de fuso é cara no Raspberry.
+  const buckets = Array.from({ length: weeks }, (_, k) => {
+    const week = addDaysIso(today, -(weeks - 1 - k) * 7 - 6);
+    return { week, from: startOfDayUtc(week, timeZone).getTime(), people: new Set<string>() };
+  });
+  for (const r of rows) {
+    const t = r.startsAt.getTime();
+    for (let i = buckets.length - 1; i >= 0; i--) {
+      if (t >= buckets[i].from) {
+        buckets[i].people.add(r.personId);
+        break;
+      }
+    }
+  }
+  return buckets;
+}
+
 export function weeklyUnique(
   rows: { startsAt: Date; personId: string }[],
   today: string,
   weeks: number,
   timeZone: string,
 ) {
-  const buckets = new Map<string, Set<string>>();
-  const starts: string[] = [];
-  for (let i = weeks - 1; i >= 0; i--) {
-    const start = addDaysIso(today, -i * 7 - 6);
-    starts.push(start);
-    buckets.set(start, new Set());
-  }
-  for (const r of rows) {
-    const t = r.startsAt.getTime();
-    for (let i = starts.length - 1; i >= 0; i--) {
-      if (t >= startOfDayUtc(starts[i], timeZone).getTime()) {
-        buckets.get(starts[i])!.add(r.personId);
-        break;
-      }
-    }
-  }
-  return starts.map((s) => ({ week: s, present: buckets.get(s)!.size }));
+  return weekBuckets(rows, today, weeks, timeZone).map((b) => ({ week: b.week, present: b.people.size }));
 }
 
 export async function createMinistry(user: CurrentUser, raw: unknown) {

@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db, schema } from "@/db";
@@ -54,7 +55,15 @@ export type PeopleFilter = {
   householdId?: string;
 };
 
+/** Lista completa memoizada por request: layout, painel e cuidado usam a mesma. */
+const listAllPeople = cache((user: CurrentUser) => queryPeople(user, {}));
+
 export async function listPeople(user: CurrentUser, filter: PeopleFilter = {}) {
+  const hasFilter = Object.values(filter).some((v) => v !== undefined && v !== "all" && v !== "");
+  return hasFilter ? queryPeople(user, filter) : listAllPeople(user);
+}
+
+async function queryPeople(user: CurrentUser, filter: PeopleFilter) {
   const settings = await getSettings();
   const today = todayIso(settings.timezone);
   const visible = await visiblePersonIds(user);
