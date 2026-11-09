@@ -15,7 +15,7 @@ const MAX_ITERATIONS = 12;
 type Price = { input: number; output: number; cacheRead: number; cacheWrite: number };
 export type AiProvider = {
   /** Formato de API usado pelo loop do agente e salvo no histórico. */
-  kind: "anthropic" | "openai";
+  kind: "anthropic" | "openai" | "openai-responses";
   label: string;
   model: string;
   baseURL?: string;
@@ -24,6 +24,8 @@ export type AiProvider = {
   price: Price;
   /** Plano gratuito com poucos tokens por minuto: envia menos histórico e resultados menores. */
   lean?: boolean;
+  /** Esforço de raciocínio (Responses API). */
+  effort?: "none" | "low" | "medium" | "high";
 };
 
 const LEAN_HISTORY_TURNS = 2;
@@ -31,6 +33,7 @@ const LEAN_RESULT_CHARS = 4000;
 
 /**
  * Provedor de IA escolhido pelo .env:
+ * - EMAUS_AI_PROVIDER=openai (padrão quando há OPENAI_API_KEY): gpt-6-luna pela Responses API.
  * - EMAUS_AI_PROVIDER=groq | cerebras | gemini: planos gratuitos (GROQ_API_KEY, CEREBRAS_API_KEY, GEMINI_API_KEY).
  * - EMAUS_AI_PROVIDER=anthropic (padrão quando há ANTHROPIC_API_KEY): Claude.
  * - EMAUS_AI_PROVIDER=openai-compatible: qualquer API no formato OpenAI
@@ -40,9 +43,25 @@ export function aiProvider(): AiProvider | null {
   const env = process.env;
   const choice =
     env.EMAUS_AI_PROVIDER ??
-    (env.GROQ_API_KEY ? "groq" : env.CEREBRAS_API_KEY ? "cerebras" : env.GEMINI_API_KEY ? "gemini" : env.ANTHROPIC_API_KEY || env.ANTHROPIC_AUTH_TOKEN ? "anthropic" : null);
+    (env.OPENAI_API_KEY ? "openai" : env.GROQ_API_KEY ? "groq" : env.CEREBRAS_API_KEY ? "cerebras" : env.GEMINI_API_KEY ? "gemini" : env.ANTHROPIC_API_KEY || env.ANTHROPIC_AUTH_TOKEN ? "anthropic" : null);
   const free = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
   switch (choice) {
+    case "openai":
+      if (!env.OPENAI_API_KEY) return null;
+      // gpt-6-luna: US$ 0,10 entrada / 0,01 cache / 0,50 saída por milhão de tokens.
+      return {
+        kind: "openai-responses",
+        label: "OpenAI",
+        model: env.EMAUS_AI_MODEL ?? "gpt-6-luna",
+        apiKey: env.OPENAI_API_KEY,
+        price: {
+          input: Number(env.EMAUS_AI_PRICE_IN ?? 0.1),
+          output: Number(env.EMAUS_AI_PRICE_OUT ?? 0.5),
+          cacheRead: Number(env.EMAUS_AI_PRICE_CACHE ?? 0.01),
+          cacheWrite: 0,
+        },
+        effort: (env.EMAUS_AI_EFFORT as AiProvider["effort"]) ?? "low",
+      };
     case "groq":
       if (!env.GROQ_API_KEY) return null;
       return { kind: "openai", label: "Groq (gratuito)", model: env.EMAUS_AI_MODEL ?? "qwen/qwen3.8-27b", baseURL: "https://api.groq.com/openai/v1", apiKey: env.GROQ_API_KEY, price: free, lean: true };
@@ -326,7 +345,15 @@ async function openaiLoop(
   while (state.iterations < MAX_ITERATIONS) {
     state.iterations++;
     const stream = await client.chat.completions.create(
-      { model: provider.model, messages: [system, ...(provider.lean ? recentTurns(messages) : messages)], tools, stream: true, stream_options: { include_usage: true } },
+      {
+        model: provider.model,
+        messages: [system, ...(provider.lean ? recentTurns(messages) : messages)],
+        tools,
+        stream: true,
+        stream_options: { include_usage: true },
+        // Planos gratuitos limitam tokens de saída por minuto.
+        ...(provider.lean ? { max_tokens: 900 } : {}),
+      },
       { signal },
     );
     const filter = thinkFilter();
@@ -391,6 +418,80 @@ async function openaiLoop(
   }
 }
 
+/* ───────────── Loop na Responses API (OpenAI) ───────────── */
+
+async function responsesLoop(
+  provider: AiProvider,
+  items: OpenAI.Responses.ResponseInputItem[],
+  context: string,
+  ctx: ToolContext,
+  state: TurnState,
+  emit: (e: AgentEvent) => void,
+  signal?: AbortSignal,
+) {
+  const client = new OpenAI({ apiKey: provider.apiKey, baseURL: provider.baseURL, maxRetries: 3 });
+  const tools: OpenAI.Responses.FunctionTool[] = toolSchemas().map((t) => ({
+    type: "function",
+    name: t.name,
+    description: t.description,
+    parameters: t.parameters,
+    strict: false,
+  }));
+
+  while (state.iterations < MAX_ITERATIONS) {
+    state.iterations++;
+    const stream = await client.responses.create(
+      {
+        model: provider.model,
+        // Instruções fixas primeiro: o prefixo estável aproveita o cache automático da OpenAI.
+        instructions: `${SYSTEM_PROMPT}\n\n${context}`,
+        input: items,
+        tools,
+        reasoning: { effort: provider.effort ?? "low" },
+        // Sem armazenar na OpenAI; o raciocínio volta criptografado para seguir entre chamadas.
+        store: false,
+        include: ["reasoning.encrypted_content"],
+        stream: true,
+      },
+      { signal },
+    );
+
+    let response: OpenAI.Responses.Response | null = null;
+    for await (const event of stream) {
+      if (event.type === "response.output_text.delta") emit({ type: "text", delta: event.delta });
+      else if (event.type === "response.completed" || event.type === "response.incomplete") response = event.response;
+      else if (event.type === "response.failed") throw new Error(event.response.error?.message ?? "Falha na resposta da IA.");
+    }
+    if (!response) throw new Error("Resposta da IA incompleta.");
+
+    const usage = response.usage;
+    if (usage) {
+      const cached = usage.input_tokens_details?.cached_tokens ?? 0;
+      state.usage.input += usage.input_tokens - cached;
+      state.usage.cacheRead += cached;
+      state.usage.output += usage.output_tokens;
+    }
+    state.stopReason = response.status ?? null;
+    items.push(...(response.output as OpenAI.Responses.ResponseInputItem[]));
+
+    const calls = response.output.filter((o): o is OpenAI.Responses.ResponseFunctionToolCall => o.type === "function_call");
+    if (!calls.length) return;
+    if (response.status === "incomplete") throw new Error("Resposta cortada no meio de uma ferramenta.");
+
+    for (const call of calls) {
+      let input: unknown;
+      try {
+        input = JSON.parse(call.arguments || "{}");
+      } catch {
+        items.push({ type: "function_call_output", call_id: call.call_id, output: "Erro: argumentos não são JSON válido." });
+        continue;
+      }
+      const r = await runTool({ id: call.call_id, name: call.name, input }, ctx, state, emit);
+      items.push({ type: "function_call_output", call_id: call.call_id, output: r.isError ? `Erro: ${r.content}` : r.content });
+    }
+  }
+}
+
 /* ───────────── Execução ───────────── */
 
 function friendlyError(err: unknown, aborted: boolean) {
@@ -417,7 +518,11 @@ export async function runAgent(opts: {
   const conv = await loadConversation(user, opts.conversationId, prompt, provider);
   emit({ type: "conversation", id: conv.id, title: conv.title });
 
-  const messages = conv.messages as (Anthropic.Beta.BetaMessageParam | OpenAI.Chat.ChatCompletionMessageParam)[];
+  const messages = conv.messages as (
+    | Anthropic.Beta.BetaMessageParam
+    | OpenAI.Chat.ChatCompletionMessageParam
+    | OpenAI.Responses.ResponseInputItem
+  )[];
   const turnStart = messages.length;
   messages.push({ role: "user", content: prompt });
 
@@ -429,10 +534,12 @@ export async function runAgent(opts: {
   try {
     if (provider.kind === "anthropic") {
       await anthropicLoop(provider, messages as Anthropic.Beta.BetaMessageParam[], context, ctx, state, emit, opts.signal);
+    } else if (provider.kind === "openai-responses") {
+      await responsesLoop(provider, messages as OpenAI.Responses.ResponseInputItem[], context, ctx, state, emit, opts.signal);
     } else {
       await openaiLoop(provider, messages as OpenAI.Chat.ChatCompletionMessageParam[], context, ctx, state, emit, opts.signal);
     }
-    if (state.iterations >= MAX_ITERATIONS && (state.stopReason === "tool_use" || state.stopReason === "tool_calls")) {
+    if (state.iterations >= MAX_ITERATIONS && ["tool_use", "tool_calls", "completed"].includes(state.stopReason ?? "")) {
       emit({ type: "text", delta: "\n\n_Parei aqui para não entrar em loop. Pode refinar o pedido?_" });
     }
   } catch (err) {

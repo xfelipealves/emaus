@@ -11,13 +11,18 @@ import { Chat, type ChatTurn } from "./chat";
 export const metadata: Metadata = { title: "Assistente" };
 
 type Stored = {
-  role: string;
+  role?: string;
+  type?: string;
+  call_id?: string;
+  name?: string;
+  arguments?: string;
+  output?: string;
   content?: unknown;
   tool_calls?: { id: string; function: { name: string; arguments: string } }[];
   tool_call_id?: string;
 };
 
-/** Converte o histórico salvo (formato Anthropic ou OpenAI) em turnos para exibir. */
+/** Converte o histórico salvo (Anthropic, OpenAI Chat ou OpenAI Responses) em turnos para exibir. */
 function toTurns(messages: Stored[], runs: { id: string; rating: number | null }[]): ChatTurn[] {
   const turns: ChatTurn[] = [];
   const tools = new Map<string, Extract<ChatTurn["parts"][number], { kind: "tool" }>>();
@@ -47,7 +52,22 @@ function toTurns(messages: Stored[], runs: { id: string; rating: number | null }
     }
     const turn = turns[turns.length - 1];
     if (!turn) continue;
-    // OpenAI: resultado de ferramenta em mensagem própria.
+    // OpenAI Responses: chamadas e resultados são itens próprios.
+    if (m.type === "function_call" && m.call_id && m.name) {
+      let input: unknown = {};
+      try {
+        input = JSON.parse(m.arguments || "{}");
+      } catch {
+        // argumentos inválidos: mostra o chip sem detalhes
+      }
+      addTool(turn, m.call_id, m.name, input);
+      continue;
+    }
+    if (m.type === "function_call_output" && m.call_id) {
+      settle(m.call_id, typeof m.output === "string" && m.output.startsWith("Erro:"), m.output);
+      continue;
+    }
+    // OpenAI Chat: resultado de ferramenta em mensagem própria.
     if (m.role === "tool" && m.tool_call_id) {
       settle(m.tool_call_id, typeof m.content === "string" && m.content.startsWith("Erro:"), m.content);
       continue;
@@ -65,7 +85,7 @@ function toTurns(messages: Stored[], runs: { id: string; rating: number | null }
     // Anthropic: blocos de conteúdo.
     if (Array.isArray(m.content)) {
       for (const block of m.content as { type: string; [k: string]: unknown }[]) {
-        if (block.type === "text" && typeof block.text === "string" && block.text) addText(turn, block.text);
+        if ((block.type === "text" || block.type === "output_text") && typeof block.text === "string" && block.text) addText(turn, block.text);
         else if (block.type === "tool_use") addTool(turn, block.id as string, block.name as string, block.input);
         else if (block.type === "tool_result") settle(block.tool_use_id as string, Boolean(block.is_error), block.content);
       }
