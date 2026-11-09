@@ -6,6 +6,18 @@
 O Emaús reúne em um só lugar quem caminha com a igreja: cadastro de pessoas e famílias,
 ministérios, encontros com presença e o cuidado pastoral de quem se afastou.
 
+## Para quem é
+
+O Emaús é uma ferramenta **da liderança**, não um app para toda a igreja. Só pastores,
+secretaria e líderes têm conta, criadas por um administrador. A congregação só interage pelo
+check-in por QR Code (e, se a igreja permitir, pelo autocadastro de visitantes).
+
+- Contas nascem com **senha provisória**: a troca é obrigatória no primeiro acesso.
+- **Líderes** veem apenas as pessoas dos ministérios liberados para eles.
+- **Anotações confidenciais** ficam visíveis só para administradores (pastores).
+- Administradores veem o último acesso de cada conta e podem encerrar sessões.
+- Login com limite de tentativas; o app fica fora de buscadores (`noindex`).
+
 ## O que tem
 
 - **Painel pastoral** — pessoas ativas, média semanal de presença com tendência, gráfico de
