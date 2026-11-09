@@ -48,6 +48,8 @@ export const user = sqliteTable("user", {
   displayUsername: text("display_username"),
   role: text("role", { enum: ROLES }).notNull().default("secretary"),
   active: integer("active", { mode: "boolean" }).notNull().default(true),
+  /** Senha definida por um administrador: precisa ser trocada no próximo acesso. */
+  mustChangePassword: integer("must_change_password", { mode: "boolean" }).notNull().default(false),
   personId: text("person_id").references(() => person.id, {
     onDelete: "set null",
   }),
@@ -111,6 +113,8 @@ export const churchSettings = sqliteTable("church_settings", {
   timezone: text("timezone").notNull().default("America/Sao_Paulo"),
   /** Dias sem presença para alguém entrar em "precisa de cuidado". */
   careThresholdDays: integer("care_threshold_days").notNull().default(21),
+  /** Visitante pode se cadastrar sozinho pelo QR de check-in. */
+  allowSelfRegistration: integer("allow_self_registration", { mode: "boolean" }).notNull().default(true),
   ...timestamps,
 });
 
@@ -340,6 +344,8 @@ export const note = sqliteTable(
       onDelete: "set null",
     }),
     content: text("content").notNull(),
+    /** team = quem acompanha a pessoa; pastoral = só administradores (pastores). */
+    visibility: text("visibility", { enum: ["team", "pastoral"] }).notNull().default("team"),
     pinned: integer("pinned", { mode: "boolean" }).notNull().default(false),
     editedAt: integer("edited_at", { mode: "timestamp_ms" }),
     ...timestamps,
