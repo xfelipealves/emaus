@@ -11,7 +11,21 @@ import { useAction } from "@/hooks/use-action";
 import { cn } from "@/lib/utils";
 import { saveAiSettingsAction } from "../actions";
 
-type Option = { id: string; label: string; defaultModel: string; note: string; configured: boolean; keyEnv: string };
+type Price = { input: number; output: number };
+type Option = {
+  id: string;
+  label: string;
+  note: string;
+  configured: boolean;
+  keyEnv: string;
+  models: { id: string; label: string; price: Price }[];
+};
+
+function priceLabel(price: Price) {
+  if (!price.input && !price.output) return "grátis";
+  const f = (v: number) => v.toLocaleString("pt-BR", { maximumFractionDigits: 2 });
+  return `US$ ${f(price.input)} / ${f(price.output)} por milhão de tokens`;
+}
 const EFFORT_LABEL = { none: "Nenhum (mais rápido)", low: "Baixo (recomendado)", medium: "Médio", high: "Alto (mais lento)" } as const;
 
 export function AiSelector({
@@ -26,7 +40,8 @@ export function AiSelector({
   effort: string | null;
 }) {
   const [provider, setProvider] = useState(active ?? options.find((o) => o.configured)?.id ?? "openai");
-  const [modelValue, setModelValue] = useState(provider === active ? (model ?? "") : "");
+  const firstModel = (id: string) => options.find((o) => o.id === id)?.models[0]?.id ?? "";
+  const [modelValue, setModelValue] = useState((provider === active && model) || firstModel(provider));
   const [effortValue, setEffortValue] = useState(effort ?? "low");
   const save = useAction(saveAiSettingsAction);
   const current = options.find((o) => o.id === provider);
@@ -46,7 +61,7 @@ export function AiSelector({
             disabled={!o.configured}
             onClick={() => {
               setProvider(o.id);
-              setModelValue("");
+              setModelValue(firstModel(o.id));
             }}
             className={cn(
               "relative rounded-xl border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50",
@@ -60,8 +75,22 @@ export function AiSelector({
         ))}
       </div>
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
-        <FormField label="Modelo" htmlFor="ai-model" hint={`Vazio = padrão (${current?.defaultModel || "defina um"})`}>
-          <Input id="ai-model" value={modelValue} onChange={(e) => setModelValue(e.target.value)} placeholder={current?.defaultModel} />
+        <FormField
+          label="Modelo"
+          htmlFor="ai-model"
+          hint={current?.models.find((m) => m.id === modelValue) ? priceLabel(current.models.find((m) => m.id === modelValue)!.price) : undefined}
+        >
+          {current?.models.length ? (
+            <NativeSelect id="ai-model" value={modelValue} onChange={(e) => setModelValue(e.target.value)}>
+              {/* Mantém um modelo salvo que não está mais na lista. */}
+              {!current.models.some((m) => m.id === modelValue) && modelValue && <option value={modelValue}>{modelValue}</option>}
+              {current.models.map((m) => (
+                <option key={m.id} value={m.id}>{m.label}</option>
+              ))}
+            </NativeSelect>
+          ) : (
+            <Input id="ai-model" value={modelValue} onChange={(e) => setModelValue(e.target.value)} placeholder="nome-do-modelo" />
+          )}
         </FormField>
         {provider === "openai" && (
           <FormField label="Esforço de raciocínio" htmlFor="ai-effort">
