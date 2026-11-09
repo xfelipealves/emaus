@@ -52,4 +52,21 @@ describe("frequency report view", () => {
     expect(markup).toContain("Não confirmados");
     expect(markup).toContain(">2</dd>");
   });
+
+  it("shows zero totals for each Ministry alongside the empty-period message", () => {
+    const markup = renderToStaticMarkup(<FrequencyReportView
+      from="2026-05-01"
+      to="2026-05-31"
+      period={{ kind: "valid", start: new Date("2026-05-01T03:00:00.000Z"), endExclusive: new Date("2026-06-01T03:00:00.000Z") }}
+      summaries={[
+        { ministryId: "music", ministryName: "Música", totals: { NOT_CONFIRMED: 0, PRESENT: 0, ABSENT: 0 } },
+        { ministryId: "youth", ministryName: "Jovens", totals: { NOT_CONFIRMED: 0, PRESENT: 0, ABSENT: 0 } },
+      ]}
+    />);
+
+    expect(markup).toContain("Nenhuma frequência encontrada neste período.");
+    expect(markup).toContain("Música");
+    expect(markup).toContain("Jovens");
+    expect(markup.match(/>0<\/dd>/g)).toHaveLength(6);
+  });
 });

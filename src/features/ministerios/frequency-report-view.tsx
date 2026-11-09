@@ -47,7 +47,7 @@ export function FrequencyReportView({
         {period.kind === "invalid" ? <p role="alert" className="rounded-xl bg-[#fff1f1] px-4 py-3 text-sm text-[#b54747]">{period.message}</p> : null}
         {period.kind === "valid" && summaries.length === 0 ? <p role="status" className="rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-500">Nenhum Ministério disponível para seu perfil.</p> : null}
         {period.kind === "valid" && summaries.length > 0 && !hasCounts ? <p role="status" className="rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-500">Nenhuma frequência encontrada neste período.</p> : null}
-        {period.kind === "valid" && hasCounts ? <div className="grid gap-4 lg:grid-cols-2">{summaries.map((summary) => <article key={summary.ministryId} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        {period.kind === "valid" && summaries.length > 0 ? <div className="grid gap-4 lg:grid-cols-2">{summaries.map((summary) => <article key={summary.ministryId} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <h2 className="font-semibold text-slate-950">{summary.ministryName}</h2>
           <dl className="mt-4 grid grid-cols-3 gap-3">
             {(["PRESENT", "ABSENT", "NOT_CONFIRMED"] as const).map((status) => <div key={status} className="rounded-xl bg-slate-50 p-3">
