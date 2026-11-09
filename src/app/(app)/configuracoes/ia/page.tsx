@@ -5,7 +5,7 @@ import { Section, StatCard } from "@/components/app/page-header";
 import { ToneBadge } from "@/components/app/tone";
 import { db, schema } from "@/db";
 import { daysAgo, formatDateTime } from "@/lib/dates";
-import { AI_MODEL, isAiConfigured } from "@/server/ai/agent";
+import { aiProvider } from "@/server/ai/agent";
 import { TOOL_BY_NAME } from "@/server/ai/tools";
 import { getSettings } from "@/server/settings";
 
@@ -15,6 +15,7 @@ const usd = (v: number) => `US$ ${v < 1 ? v.toFixed(3) : v.toFixed(2)}`;
 
 export default async function AiOpsPage() {
   const settings = await getSettings();
+  const provider = aiProvider();
   const since = daysAgo(30);
   const runs = await db.query.aiRun.findMany({
     where: gte(schema.aiRun.createdAt, since),
@@ -57,8 +58,15 @@ export default async function AiOpsPage() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-        Modelo <code className="rounded bg-muted px-1.5 py-0.5 text-foreground">{AI_MODEL}</code>
-        {isAiConfigured() ? <ToneBadge tone="sage">chave configurada</ToneBadge> : <ToneBadge tone="rose">sem chave de API</ToneBadge>}
+        {provider ? (
+          <>
+            {provider.label} · <code className="rounded bg-muted px-1.5 py-0.5 text-foreground">{provider.model}</code>
+            <ToneBadge tone="sage">chave configurada</ToneBadge>
+            {provider.price.input === 0 && <ToneBadge tone="gold">sem custo</ToneBadge>}
+          </>
+        ) : (
+          <ToneBadge tone="rose">IA não configurada</ToneBadge>
+        )}
         <span>· últimos 30 dias</span>
       </div>
 

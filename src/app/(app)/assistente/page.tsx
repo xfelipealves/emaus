@@ -1,4 +1,3 @@
-import type Anthropic from "@anthropic-ai/sdk";
 import { and, asc, desc, eq, isNull } from "drizzle-orm";
 import { KeyRound, Sparkles } from "lucide-react";
 import type { Metadata } from "next";
@@ -11,10 +10,35 @@ import { Chat, type ChatTurn } from "./chat";
 
 export const metadata: Metadata = { title: "Assistente" };
 
-/** Converte o histórico salvo (formato da API) em turnos para exibir. */
-function toTurns(messages: Anthropic.Beta.BetaMessageParam[], runs: { id: string; rating: number | null }[]): ChatTurn[] {
+type Stored = {
+  role: string;
+  content?: unknown;
+  tool_calls?: { id: string; function: { name: string; arguments: string } }[];
+  tool_call_id?: string;
+};
+
+/** Converte o histórico salvo (formato Anthropic ou OpenAI) em turnos para exibir. */
+function toTurns(messages: Stored[], runs: { id: string; rating: number | null }[]): ChatTurn[] {
   const turns: ChatTurn[] = [];
-  const toolIndex = new Map<string, { ok: boolean | null; error?: string }>();
+  const tools = new Map<string, Extract<ChatTurn["parts"][number], { kind: "tool" }>>();
+  const addText = (turn: ChatTurn, text: string) => {
+    const last = turn.parts[turn.parts.length - 1];
+    if (last?.kind === "text") last.text += text;
+    else turn.parts.push({ kind: "text", text });
+  };
+  const addTool = (turn: ChatTurn, id: string, name: string, input: unknown) => {
+    const def = TOOL_BY_NAME.get(name);
+    const part = { kind: "tool" as const, id, label: def?.label ?? name, write: def?.write ?? false, input, ok: null as boolean | null, error: undefined as string | undefined };
+    tools.set(id, part);
+    turn.parts.push(part);
+  };
+  const settle = (id: string, isError: boolean, content: unknown) => {
+    const part = tools.get(id);
+    if (!part) return;
+    part.ok = !isError;
+    if (isError && typeof content === "string") part.error = content.replace(/^Erro:\s*/, "");
+  };
+
   for (const m of messages) {
     if (m.role === "user" && typeof m.content === "string") {
       const run = runs[turns.length];
@@ -22,23 +46,28 @@ function toTurns(messages: Anthropic.Beta.BetaMessageParam[], runs: { id: string
       continue;
     }
     const turn = turns[turns.length - 1];
-    if (!turn || !m.content || typeof m.content === "string") continue;
-    for (const block of m.content) {
-      if (block.type === "text" && block.text) {
-        const last = turn.parts[turn.parts.length - 1];
-        if (last?.kind === "text") last.text += block.text;
-        else turn.parts.push({ kind: "text", text: block.text });
-      } else if (block.type === "tool_use") {
-        const def = TOOL_BY_NAME.get(block.name);
-        const part = { kind: "tool" as const, id: block.id, label: def?.label ?? block.name, write: def?.write ?? false, input: block.input, ok: null as boolean | null, error: undefined as string | undefined };
-        toolIndex.set(block.id, part);
-        turn.parts.push(part);
-      } else if (block.type === "tool_result") {
-        const part = toolIndex.get(block.tool_use_id);
-        if (part) {
-          part.ok = !block.is_error;
-          if (block.is_error && typeof block.content === "string") part.error = block.content;
-        }
+    if (!turn) continue;
+    // OpenAI: resultado de ferramenta em mensagem própria.
+    if (m.role === "tool" && m.tool_call_id) {
+      settle(m.tool_call_id, typeof m.content === "string" && m.content.startsWith("Erro:"), m.content);
+      continue;
+    }
+    if (m.role === "assistant" && typeof m.content === "string" && m.content) addText(turn, m.content);
+    for (const call of m.tool_calls ?? []) {
+      let input: unknown = {};
+      try {
+        input = JSON.parse(call.function.arguments || "{}");
+      } catch {
+        // argumentos inválidos: mostra o chip sem detalhes
+      }
+      addTool(turn, call.id, call.function.name, input);
+    }
+    // Anthropic: blocos de conteúdo.
+    if (Array.isArray(m.content)) {
+      for (const block of m.content as { type: string; [k: string]: unknown }[]) {
+        if (block.type === "text" && typeof block.text === "string" && block.text) addText(turn, block.text);
+        else if (block.type === "tool_use") addTool(turn, block.id as string, block.name as string, block.input);
+        else if (block.type === "tool_result") settle(block.tool_use_id as string, Boolean(block.is_error), block.content);
       }
     }
   }
@@ -58,7 +87,11 @@ export default async function AssistantPage({ searchParams }: { searchParams: Pr
           <h2 className="mt-3 font-display text-2xl">Falta ligar a IA</h2>
           <p className="mt-2 text-sm text-muted-foreground">
             {user.role === "admin" ? (
-              <>Defina <code className="rounded bg-muted px-1">ANTHROPIC_API_KEY</code> no arquivo <code className="rounded bg-muted px-1">.env</code> do servidor e reinicie o serviço.</>
+              <>
+                Para usar de graça, crie uma chave em <a className="text-primary underline" href="https://console.groq.com/keys" target="_blank" rel="noreferrer">console.groq.com</a> e
+                defina <code className="rounded bg-muted px-1">GROQ_API_KEY</code> no <code className="rounded bg-muted px-1">.env</code> do servidor (ou{" "}
+                <code className="rounded bg-muted px-1">ANTHROPIC_API_KEY</code> para usar o Claude). Depois reinicie o serviço.
+              </>
             ) : (
               "Peça a um administrador para configurar o assistente."
             )}
@@ -94,7 +127,7 @@ export default async function AssistantPage({ searchParams }: { searchParams: Pr
       isLeader={user.role === "leader"}
       conversations={conversations}
       conversationId={current?.id ?? null}
-      initialTurns={current ? toTurns(current.messages as Anthropic.Beta.BetaMessageParam[], runs) : []}
+      initialTurns={current ? toTurns(current.messages as Stored[], runs) : []}
       initialPrompt={!current ? q : undefined}
       icon={<Sparkles className="size-5" />}
     />
