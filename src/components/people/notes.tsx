@@ -1,6 +1,6 @@
 "use client";
 
-import { MoreHorizontal, Pencil, Pin, PinOff, Send, Trash2 } from "lucide-react";
+import { Lock, MoreHorizontal, Pencil, Pin, PinOff, Send, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -9,29 +9,37 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAction } from "@/hooks/use-action";
 import { addNoteAction, deleteNoteAction, editNoteAction, toggleNotePinAction } from "@/app/(app)/pessoas/actions";
 
-export function NoteComposer({ personId, firstName }: { personId: string; firstName: string }) {
+export function NoteComposer({ personId, firstName, canPastoral = false }: { personId: string; firstName: string; canPastoral?: boolean }) {
   const [text, setText] = useState("");
-  const add = useAction(addNoteAction, { onSuccess: () => setText("") });
+  const [pastoral, setPastoral] = useState(false);
+  const add = useAction(addNoteAction, { onSuccess: () => { setText(""); setPastoral(false); } });
   return (
     <form
       className="rounded-2xl border bg-card p-3 shadow-xs focus-within:ring-3 focus-within:ring-ring/30"
       onSubmit={(e) => {
         e.preventDefault();
-        if (text.trim()) add.run(personId, text);
+        if (text.trim()) add.run(personId, text, pastoral);
       }}
     >
       <Textarea
         value={text}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && text.trim()) add.run(personId, text);
+          if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && text.trim()) add.run(personId, text, pastoral);
         }}
         placeholder={`Anotação sobre ${firstName}: conversa, pedido de oração, visita…`}
         rows={2}
         className="min-h-16 resize-none border-0 bg-transparent! p-1 shadow-none focus-visible:ring-0"
       />
       <div className="flex items-center justify-between pt-2">
-        <span className="text-xs text-muted-foreground">Visível para quem acompanha esta pessoa · ⌘↵ para salvar</span>
+        {canPastoral ? (
+          <label className="flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground select-none">
+            <input type="checkbox" checked={pastoral} onChange={(e) => setPastoral(e.target.checked)} className="accent-primary" />
+            <Lock className="size-3" /> Confidencial — só pastores
+          </label>
+        ) : (
+          <span className="text-xs text-muted-foreground">Visível para a liderança que acompanha esta pessoa</span>
+        )}
         <Button type="submit" size="sm" disabled={add.pending || !text.trim()}>
           {add.pending ? <Spinner /> : <><Send data-icon="inline-start" /> Salvar</>}
         </Button>

@@ -8,17 +8,24 @@ import { ActionError, assertCanSeePerson, type CurrentUser, visiblePersonIds } f
 
 /* ───────────── Notas ───────────── */
 
-export async function addNote(user: CurrentUser, personId: string, content: string) {
+export async function addNote(user: CurrentUser, personId: string, content: string, pastoral = false) {
   await assertCanSeePerson(user, personId);
   const text = content.trim();
   if (!text) throw new ActionError("Escreva a anotação.");
-  await db.insert(schema.note).values({ personId, authorId: user.id, content: text });
+  if (pastoral && user.role !== "admin") throw new ActionError("Só pastores registram anotações confidenciais.");
+  await db.insert(schema.note).values({ personId, authorId: user.id, content: text, visibility: pastoral ? "pastoral" : "team" });
+}
+
+/** Anotação pastoral é invisível para quem não é administrador. */
+async function visibleNote(user: CurrentUser, noteId: string) {
+  const n = await db.query.note.findFirst({ where: eq(schema.note.id, noteId) });
+  if (!n || (n.visibility === "pastoral" && user.role !== "admin")) throw new ActionError("Anotação não encontrada.");
+  await assertCanSeePerson(user, n.personId);
+  return n;
 }
 
 async function ownNote(user: CurrentUser, noteId: string) {
-  const n = await db.query.note.findFirst({ where: eq(schema.note.id, noteId) });
-  if (!n) throw new ActionError("Anotação não encontrada.");
-  await assertCanSeePerson(user, n.personId);
+  const n = await visibleNote(user, noteId);
   if (n.authorId !== user.id && user.role !== "admin") {
     throw new ActionError("Só o autor ou um administrador pode alterar esta anotação.");
   }
@@ -33,9 +40,7 @@ export async function editNote(user: CurrentUser, noteId: string, content: strin
 }
 
 export async function toggleNotePin(user: CurrentUser, noteId: string) {
-  const n = await db.query.note.findFirst({ where: eq(schema.note.id, noteId) });
-  if (!n) throw new ActionError("Anotação não encontrada.");
-  await assertCanSeePerson(user, n.personId);
+  const n = await visibleNote(user, noteId);
   await db.update(schema.note).set({ pinned: !n.pinned }).where(eq(schema.note.id, noteId));
 }
 

@@ -193,7 +193,7 @@ export async function personAttendance(personId: string, limit = 60) {
     .limit(limit);
 }
 
-export async function personTimeline(personId: string) {
+export async function personTimeline(personId: string, includePastoral: boolean) {
   const [events, notes, attendances] = await Promise.all([
     db.query.timelineEvent.findMany({
       where: eq(schema.timelineEvent.personId, personId),
@@ -202,7 +202,10 @@ export async function personTimeline(personId: string) {
       limit: 200,
     }),
     db.query.note.findMany({
-      where: eq(schema.note.personId, personId),
+      where: and(
+        eq(schema.note.personId, personId),
+        includePastoral ? undefined : eq(schema.note.visibility, "team"),
+      ),
       with: { author: { columns: { name: true } } },
       orderBy: [desc(schema.note.pinned), desc(schema.note.createdAt)],
     }),
@@ -211,7 +214,7 @@ export async function personTimeline(personId: string) {
 
   type Item =
     | { type: "event"; at: Date; id: string; kind: string; title: string; detail: string | null; actor: string | null }
-    | { type: "note"; at: Date; id: string; content: string; pinned: boolean; author: string | null; authorId: string | null; editedAt: Date | null }
+    | { type: "note"; at: Date; id: string; content: string; pinned: boolean; pastoral: boolean; author: string | null; authorId: string | null; editedAt: Date | null }
     | { type: "attendance"; at: Date; id: string; title: string; status: "present" | "absent"; color: string | null };
 
   const items: Item[] = [
@@ -230,6 +233,7 @@ export async function personTimeline(personId: string) {
       id: n.id,
       content: n.content,
       pinned: n.pinned,
+      pastoral: n.visibility === "pastoral",
       author: n.author?.name ?? null,
       authorId: n.authorId,
       editedAt: n.editedAt,

@@ -1,4 +1,4 @@
-import { ArrowRightLeft, CalendarCheck, CalendarX, Crown, Gift, HeartHandshake, House, Mail, MapPin, MessageCircle, Network, Phone, Pin, Sparkles, StickyNote, UserPlus } from "lucide-react";
+import { ArrowRightLeft, CalendarCheck, CalendarX, Crown, Gift, HeartHandshake, House, Lock, Mail, MapPin, MessageCircle, Network, Phone, Pin, Sparkles, StickyNote, UserPlus } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -36,7 +36,7 @@ export default async function PersonPage({ params }: { params: Promise<{ id: str
 
   const [settings, timeline, attendance, followUps, doneFollowUps, ministries, households, assignees] = await Promise.all([
     getSettings(),
-    personTimeline(id),
+    personTimeline(id, user.role === "admin"),
     personAttendance(id, 200),
     listFollowUps(user, { personId: id }),
     listFollowUps(user, { personId: id, done: true }),
@@ -201,11 +201,11 @@ export default async function PersonPage({ params }: { params: Promise<{ id: str
               )}
             </Section>
 
-            <NoteComposer personId={person.id} firstName={firstName(name)} />
+            <NoteComposer personId={person.id} firstName={firstName(name)} canPastoral={user.role === "admin"} />
 
             {timeline.pinned.map((n) => (
               <article key={n.id} className="relative rounded-2xl border border-gold/30 bg-[color-mix(in_oklch,var(--c-gold)_8%,var(--card))] p-4 pr-12">
-                <div className="mb-1 flex items-center gap-1.5 text-xs font-medium text-muted-foreground"><Pin className="size-3" /> Fixada</div>
+                <div className="mb-1 flex items-center gap-1.5 text-xs font-medium text-muted-foreground"><Pin className="size-3" /> Fixada{n.visibility === "pastoral" && <><Lock className="ml-1 size-3" /> confidencial</>}</div>
                 <p className="text-sm whitespace-pre-wrap">{n.content}</p>
                 <div className="mt-2 text-xs text-muted-foreground">{n.author?.name ?? "—"} · {formatDate(n.createdAt, tz)}</div>
                 <NoteMenu id={n.id} content={n.content} pinned canEdit={n.authorId === user.id || user.role === "admin"} />
@@ -220,7 +220,7 @@ export default async function PersonPage({ params }: { params: Promise<{ id: str
 
         {/* Linha do tempo */}
         <TabsContent value="timeline" className="mt-5 max-w-3xl space-y-4">
-          <NoteComposer personId={person.id} firstName={firstName(name)} />
+          <NoteComposer personId={person.id} firstName={firstName(name)} canPastoral={user.role === "admin"} />
           <Timeline items={timeline.items} tz={tz} userId={user.id} isAdmin={user.role === "admin"} full />
           {doneFollowUps.length > 0 && (
             <Section title="Acompanhamentos concluídos">
@@ -363,7 +363,8 @@ function Timeline({ items, tz, userId, isAdmin, full }: { items: TimelineItems; 
               <span className="z-10 flex size-7 shrink-0 items-center justify-center rounded-full border bg-card text-gold"><StickyNote className="size-3.5" /></span>
               <article className="relative min-w-0 flex-1 rounded-xl border bg-card p-3 pr-10 shadow-xs">
                 <p className="text-sm whitespace-pre-wrap">{item.content}</p>
-                <div className="mt-1.5 text-xs text-muted-foreground">
+                <div className="mt-1.5 flex items-center gap-1 text-xs text-muted-foreground">
+                  {item.pastoral && <><Lock className="size-3" /> Confidencial ·</>}
                   {item.author ?? "—"} · {formatDateTime(item.at, tz)}{item.editedAt && " · editada"}
                 </div>
                 <NoteMenu id={item.id} content={item.content} pinned={item.pinned} canEdit={isAdmin || item.authorId === userId} />

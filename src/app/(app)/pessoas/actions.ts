@@ -43,8 +43,8 @@ export async function deletePersonAction(id: string) {
   return result;
 }
 
-export async function addNoteAction(personId: string, content: string) {
-  return runAction(async () => addNote(await requireUser(), personId, content), "Anotação salva");
+export async function addNoteAction(personId: string, content: string, pastoral = false) {
+  return runAction(async () => addNote(await requireUser(), personId, content, pastoral), pastoral ? "Anotação confidencial salva" : "Anotação salva");
 }
 
 export async function editNoteAction(noteId: string, content: string) {
