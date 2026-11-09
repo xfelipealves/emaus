@@ -541,6 +541,8 @@ export const aiConversation = sqliteTable(
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     title: text("title").notNull().default("Nova conversa"),
+    /** Formato do histórico: "anthropic" ou "openai" (chat completions). */
+    provider: text("provider").notNull().default("anthropic"),
     /** Histórico no formato da API (MessageParam[]), incluindo blocos de ferramenta. */
     messages: text("messages", { mode: "json" }).$type<unknown[]>().notNull().default(sql`'[]'`),
     ...timestamps,
