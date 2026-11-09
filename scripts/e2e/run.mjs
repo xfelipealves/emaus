@@ -1,6 +1,6 @@
 import { spawn, spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, rm, writeFile } from "node:fs/promises";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
@@ -14,10 +14,12 @@ const restoreSmokeMode = options[0] === "--restore-smoke";
 if (capacityMode || restoreSmokeMode) options.shift();
 
 let containerName;
+let nextDistDirectory;
+let nextTsconfigPath;
 let activeChild;
 let interrupted = false;
 const forwardedEnvironment = Object.fromEntries(
-  ["PATH", "HOME", "TMPDIR", "TEMP", "TMP", "LANG", "LC_ALL", "TZ", "CI", "TERM", "PLAYWRIGHT_PORT"]
+  ["PATH", "HOME", "TMPDIR", "TEMP", "TMP", "LANG", "LC_ALL", "TZ", "CI", "TERM", "PLAYWRIGHT_PORT", "DEBUG"]
     .filter((key) => process.env[key] !== undefined)
     .map((key) => [key, process.env[key]]),
 );
@@ -103,17 +105,34 @@ async function waitForPostgres(name, databaseName) {
 }
 
 async function cleanup() {
-  if (!containerName) return;
-  const result = spawnSync("docker", ["rm", "--force", containerName], {
-    cwd: repositoryRoot,
-    env: forwardedEnvironment,
-    encoding: "utf8",
-    stdio: ["ignore", "ignore", "ignore"],
-  });
-  if (result.error || result.status !== 0) {
-    console.error("[E2E] Could not remove the temporary PostgreSQL container automatically.");
-  } else {
-    console.log("[E2E] Temporary PostgreSQL container removed.");
+  if (containerName) {
+    const result = spawnSync("docker", ["rm", "--force", containerName], {
+      cwd: repositoryRoot,
+      env: forwardedEnvironment,
+      encoding: "utf8",
+      stdio: ["ignore", "ignore", "ignore"],
+    });
+    if (result.error || result.status !== 0) {
+      console.error("[E2E] Could not remove the temporary PostgreSQL container automatically.");
+    } else {
+      console.log("[E2E] Temporary PostgreSQL container removed.");
+    }
+  }
+
+  if (nextDistDirectory) {
+    try {
+      await rm(resolve(repositoryRoot, nextDistDirectory), { recursive: true, force: true });
+    } catch {
+      console.error("[E2E] Could not remove the isolated Next.js build directory automatically.");
+    }
+  }
+
+  if (nextTsconfigPath) {
+    try {
+      await rm(resolve(repositoryRoot, nextTsconfigPath), { force: true });
+    } catch {
+      console.error("[E2E] Could not remove the temporary TypeScript config automatically.");
+    }
   }
 }
 
@@ -130,6 +149,12 @@ async function main() {
 
   const token = randomBytes(6).toString("hex");
   const databaseName = `emaus_e2e_${token}`;
+  nextDistDirectory = `.next-e2e-${process.pid}-${token}`;
+  nextTsconfigPath = `.tsconfig-e2e-${process.pid}-${token}.json`;
+  await writeFile(
+    resolve(repositoryRoot, nextTsconfigPath),
+    await readFile(resolve(repositoryRoot, "tsconfig.json")),
+  );
   const password = randomBytes(24).toString("hex");
   containerName = `emaus-e2e-${process.pid}-${databaseName}`;
   const postgresEnvironment = {
@@ -177,6 +202,8 @@ async function main() {
     E2E_CONTAINER_NAME: containerName,
     E2E_DATABASE_NAME: databaseName,
     E2E_DATABASE_USER: databaseName,
+    NEXT_DIST_DIR: nextDistDirectory,
+    NEXT_TSCONFIG_PATH: nextTsconfigPath,
   };
 
   // Keep reset behind the URL guard and pass only the runner-created endpoint.

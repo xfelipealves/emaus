@@ -1,5 +1,7 @@
 node_modules/
 .next/
+.next-e2e-*/
+.tsconfig-e2e-*.json
 out/
 coverage/
 playwright-report/

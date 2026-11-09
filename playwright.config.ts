@@ -11,11 +11,12 @@ export default defineConfig({
   globalSetup: "./e2e/global-setup.mjs",
   use: {
     baseURL,
+    headless: true,
     trace: "on-first-retry",
   },
   webServer: {
     command: "node scripts/e2e/web-server.mjs",
-    url: baseURL,
+    port: Number(port),
     reuseExistingServer: false,
     timeout: 120_000,
   },
