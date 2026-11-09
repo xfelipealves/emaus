@@ -270,6 +270,53 @@ describe("Ministry membership history service", () => {
     await expect(prisma.ministryMembership.findUnique({ where: { id: membershipId } })).resolves.toMatchObject({ endDate });
   });
 
+  it("preserves entry and role events when a membership moves into Ministry history", async () => {
+    const person = await prisma.person.create({ data: { fullName: `Histórico completo T22 ${suffix}` } });
+    personIds.push(person.id);
+    const ministry = await prisma.ministry.findUniqueOrThrow({ where: { id: ministryId } });
+    const membership = await createMembership(administrator(), {
+      personId: person.id,
+      ministryId,
+      role: "MEMBER",
+      startDate,
+    });
+
+    await updateMembershipRole(administrator(), membership.id, { role: "LEADER", effectiveDate: roleDate });
+    await endMembership(administrator(), membership.id, { endDate });
+
+    const management = await getMinistryMembershipManagement(administrator(), ministryId);
+    expect(management?.currentMemberships.some(({ id }) => id === membership.id)).toBe(false);
+    expect(management?.historicMemberships.find(({ id }) => id === membership.id)).toMatchObject({
+      person: { id: person.id },
+      role: "LEADER",
+      startDate,
+      endDate,
+    });
+
+    const timelineEvents = await prisma.timelineEvent.findMany({
+      where: { personId: person.id, category: "MINISTRY" },
+      orderBy: { occurredAt: "asc" },
+      select: { title: true, description: true, occurredAt: true },
+    });
+    expect(timelineEvents).toEqual([
+      {
+        title: "Pessoa vinculada ao Ministério",
+        description: person.fullName + " · " + ministry.name + " · Membro · Entrada: 10/01/2026",
+        occurredAt: startDate,
+      },
+      {
+        title: "Cargo no Ministério alterado",
+        description: person.fullName + " · " + ministry.name + " · Membro → Líder · Efeito em 15/03/2026",
+        occurredAt: roleDate,
+      },
+      {
+        title: "Vínculo ministerial encerrado",
+        description: person.fullName + " · " + ministry.name + " · Líder · Entrada: 10/01/2026 · Saída: 30/06/2026",
+        occurredAt: endDate,
+      },
+    ]);
+  });
+
   it("rejects role changes with an effective date outside the active membership", async () => {
     const person = await prisma.person.create({ data: { fullName: `Cargo inválido T22 ${suffix}` } });
     personIds.push(person.id);

@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { getSession } from "@/features/auth/session-service";
 import { getPersonProfile } from "@/features/pessoas/person-query";
 import { getPersonTimeline, type TimelineFilter } from "@/features/timeline/timeline-query";
-import { formatDateInBrazil } from "@/lib/dates";
+import { formatDateInBrazil, formatDateOnly } from "@/lib/dates";
 import { SESSION_COOKIE_NAME } from "@/lib/session";
 
 const filters: Array<{ value: TimelineFilter; label: string }> = [
@@ -83,7 +83,9 @@ export default async function PersonTimelinePage({
                     {event.description ? <p className="mt-1 text-sm text-slate-600">{event.description}</p> : null}
                     <p className="mt-1 text-xs text-slate-500">Pessoa: {person.fullName} · Por: {event.actor?.fullName ?? "Sistema"}</p>
                   </div>
-                  <time dateTime={event.occurredAt.toISOString()} className="shrink-0 text-xs text-slate-500">{formatDateInBrazil(event.occurredAt)}</time>
+                  <time dateTime={event.occurredAt.toISOString()} className="shrink-0 text-xs text-slate-500">
+                    {event.category === "MINISTRY" ? formatDateOnly(event.occurredAt) : formatDateInBrazil(event.occurredAt)}
+                  </time>
                 </div>
               </li>
             ))}
