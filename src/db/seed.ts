@@ -81,12 +81,12 @@ async function main() {
     .insert(schema.ministry)
     .values([
       { name: "Louvor", description: "Ministério de louvor: escalas de domingo e quarta, ensaios e a Cantata de Natal.", color: "plum" },
-      { name: "Mídia", description: "Projeção, transmissão, fotos e redes sociais da igreja.", color: "sky" },
-      { name: "New Mind", description: "Adolescentes. Culto aos sábados às 17h e discipulado às quintas; jejum semanal da liderança.", color: "ember" },
+      { name: "Mídia", description: "Escala mensal: computador, iluminação, fotos, stories e cerimonial nos cultos de domingo e quarta.", color: "sky" },
+      { name: "New Mind", description: "Adolescentes. Culto aos sábados às 17h (série Fruto do Espírito), discipulado às quintas e jejum semanal da liderança.", color: "ember" },
       { name: "Metanoia", description: "Jovens. Acampamentos e Revival Night; a liderança forma a equipe de Supervisão.", color: "teal" },
-      { name: "New Song", description: "Coral das crianças. Ensaios aos sábados para a Cantata de Natal.", color: "gold" },
+      { name: "New Song", description: "Banda de louvor dos adolescentes. Escala e ensaio aos sábados às 15h30, antes do New Mind.", color: "gold" },
       { name: "Homens de Honra", description: "Ministério de homens: encontros “Homens ao Máximo” às quintas.", color: "slate" },
-      { name: "Casa de Paz", description: "Célula “Paixão e Ousadia”: lições semanais nas casas.", color: "sage" },
+      { name: "Casa de Paz", description: "Rede de células “Paixão e Ousadia”: lições às terças nas casas (série Milagres).", color: "sage" },
     ])
     .returning();
   const M = Object.fromEntries(ministries.map((m) => [m.name, m.id])) as Record<string, string>;
@@ -207,15 +207,13 @@ async function main() {
     joined.add(key);
     memberships.push({ personId: p.id, ministryId: M[ministry], role, startDate: startDate ?? addDaysIso(today, -Math.floor(40 + rand() * 900)) });
   };
-  const kids = active.filter((p) => age(p) >= 6 && age(p) <= 11);
   const teens = active.filter((p) => age(p) >= 12 && age(p) <= 17);
   const youth = active.filter((p) => age(p) >= 18 && age(p) <= 29);
   const adults = active.filter((p) => age(p) >= 30 && p.status === "member");
   const men = adults.filter((p) => p.gender === "male");
-  const women = adults.filter((p) => p.gender === "female");
 
-  kids.filter(() => chance(0.7)).forEach((p) => join(p, "New Song"));
-  join(women[0], "New Song", "leader");
+  // New Song: músicos e vocal entre adolescentes e jovens.
+  shuffle([...teens.filter((p) => age(p) >= 14), ...youth]).slice(0, 15).forEach((p, i) => join(p, "New Song", i === 0 ? "leader" : "member"));
   teens.forEach((p) => join(p, "New Mind"));
   shuffle(youth).slice(0, 6).forEach((p) => join(p, "New Mind", "leader"));
   // Liderança primeiro: join ignora vínculo repetido (equipe de Supervisão).
@@ -248,12 +246,12 @@ async function main() {
   };
   const defs: Def[] = [
     { title: "Culto de Celebração", category: "Culto", weekday: 0, time: "18:00", minutes: 120, ministries: [], location: "Templo", who: () => 0.85 },
-    { title: "Culto de Quarta", category: "Culto", weekday: 3, time: "19:30", minutes: 90, ministries: [], location: "Templo", who: (p) => (age(p) >= 18 ? 0.5 : 0.2) },
+    { title: "Quarta do Poder", category: "Culto", weekday: 3, time: "19:30", minutes: 90, ministries: [], location: "Templo", who: (p) => (age(p) >= 18 ? 0.5 : 0.2) },
     { title: "Culto New Mind", category: "Adolescentes", weekday: 6, time: "17:00", minutes: 120, ministries: ["New Mind"], location: "Templo", who: (p) => (inMinistry(p, "New Mind") ? 0.95 : 0) },
     { title: "Discipulado New Mind", category: "Discipulado", weekday: 4, time: "20:30", minutes: 90, ministries: ["New Mind"], location: "Salão", who: (p) => (inMinistry(p, "New Mind") ? 0.55 : 0) },
     { title: "Homens ao Máximo", category: "Homens", weekday: 4, time: "19:30", minutes: 90, ministries: ["Homens de Honra"], location: "Salão", who: (p) => (inMinistry(p, "Homens de Honra") ? 0.65 : 0) },
     { title: "Casa de Paz — Paixão e Ousadia", category: "Célula", weekday: 2, time: "20:00", minutes: 90, ministries: ["Casa de Paz"], location: "Casa da família anfitriã", who: (p) => (inMinistry(p, "Casa de Paz") ? 0.75 : 0) },
-    { title: "Ensaio da Cantata de Natal", category: "Ensaio", weekday: 6, time: "14:30", minutes: 120, ministries: ["New Song", "Louvor"], location: "Templo", from: "2026-10-17", to: "2026-12-19", who: (p) => (inMinistry(p, "New Song") || inMinistry(p, "Louvor") ? 0.8 : 0) },
+    { title: "Ensaio New Song", category: "Ensaio", weekday: 6, time: "15:30", minutes: 90, ministries: ["New Song"], location: "Templo", who: (p) => (inMinistry(p, "New Song") ? 0.8 : 0) },
   ];
 
   type Ev = typeof schema.event.$inferSelect;
@@ -283,8 +281,19 @@ async function main() {
     return ev;
   };
 
-  // Programação de novembro do New Mind: 14/11 sem culto (confra) e 21/11 folga.
-  const cancelledDates = new Set(["Culto New Mind@2026-11-14", "Culto New Mind@2026-11-21", "Discipulado New Mind@2026-11-19"]);
+  // Agenda real do New Mind e da Celebração: folgas, retiro, temáticos e Santa Ceia.
+  const overrides: Record<string, { cancelled?: boolean; title?: string; description?: string }> = {
+    "Culto New Mind@2026-10-03": { cancelled: true, description: "Sem culto: casamento de dois líderes." },
+    "Culto New Mind@2026-10-17": { cancelled: true, description: "Folga do mês." },
+    "Culto New Mind@2026-10-24": { cancelled: true, description: "Adolescentes no Acamp Jovem." },
+    "Ensaio New Song@2026-10-24": { cancelled: true },
+    "Culto New Mind@2026-10-31": { title: "Culto Temático New Mind" },
+    "Culto New Mind@2026-11-14": { cancelled: true, description: "Confraternização da liderança; momento de busca na sexta (13/11)." },
+    "Culto New Mind@2026-11-21": { cancelled: true, description: "Programação separada: festa do pijama das meninas." },
+    "Culto New Mind@2026-11-28": { title: "Culto Temático New Mind" },
+    "Ensaio New Song@2026-11-14": { cancelled: true },
+    "Ensaio New Song@2026-11-21": { cancelled: true },
+  };
 
   for (const d of defs) {
     const from = d.from && d.from > start ? d.from : start;
@@ -305,18 +314,27 @@ async function main() {
       })
       .returning();
     for (const date of occurrences({ recurrence: "weekly", weekday: d.weekday, startDate: from, from, until: to })) {
-      await createEvent({ ...d, date, seriesId: series.id, cancelled: cancelledDates.has(`${d.title}@${date}`) });
+      const o = overrides[`${d.title}@${date}`] ?? {};
+      // Santa Ceia no 2º domingo do mês.
+      const ceia = d.weekday === 0 && Math.ceil(Number(date.slice(8)) / 7) === 2;
+      await createEvent({ ...d, date, seriesId: series.id, cancelled: o.cancelled, description: o.description, title: o.title ?? (ceia ? `${d.title} — Santa Ceia` : d.title) });
     }
   }
 
   // Eventos pontuais (datas reais de outubro–dezembro de 2026).
   const youthAndTeens = (p: Draft) => (inMinistry(p, "Metanoia") ? 0.7 : inMinistry(p, "New Mind") ? 0.55 : 0);
-  await createEvent({ title: "Acampamento Metanoia", category: "Jovens", date: "2026-10-24", time: "08:00", minutes: 30 * 60, ministries: ["Metanoia", "New Mind"], location: "Chácara", description: "Acampamento de jovens e adolescentes, com a equipe de supervisão.", who: youthAndTeens });
+  const adultsOnly = (p: Draft) => (age(p) >= 18 ? 0.35 : 0);
+  await createEvent({ title: "Pré-Encontro", category: "Evento", date: "2026-09-10", time: "19:30", minutes: 120, ministries: [], location: "Templo", description: "Preparação para o Encontro com Deus.", who: (p) => (inMinistry(p, "Casa de Paz") ? 0.6 : adultsOnly(p) * 0.5) });
+  await createEvent({ title: "Encontro com Deus", category: "Evento", date: "2026-09-12", time: "07:00", minutes: 14 * 60, ministries: [], location: "Chácara", description: "Retiro de um dia para novos convertidos e membros, com pré e pós-encontro.", who: (p) => adultsOnly(p) * (p.status === "visitor" ? 0 : 1) });
+  await createEvent({ title: "Subida ao monte", category: "Jovens", date: "2026-09-25", time: "19:00", minutes: 150, ministries: ["Metanoia"], location: "Saída da igreja", description: "Noite de oração dos jovens no monte.", who: (p) => (inMinistry(p, "Metanoia") ? 0.25 : 0) });
+  await createEvent({ title: "Metanoia Encounter", category: "Jovens", date: "2026-09-26", time: "19:30", minutes: 150, ministries: ["Metanoia"], location: "Templo", description: "Reunião de jovens.", who: (p) => (inMinistry(p, "Metanoia") ? 0.65 : 0) });
+  await createEvent({ title: "Outubro Rosa — Momento das Mulheres", category: "Evento", date: "2026-10-10", time: "16:00", minutes: 150, ministries: [], location: "Templo", description: "Palestra sobre prevenção do câncer de mama, com uma médica convidada.", who: (p) => (p.gender === "female" && age(p) >= 14 ? 0.45 : 0) });
+  await createEvent({ title: "Acamp Jovem — Despertar", category: "Jovens", date: "2026-10-24", time: "07:00", minutes: 31 * 60, ministries: ["Metanoia", "New Mind"], location: "Chácara", description: "Dois dias de pregações, festa neon e comunhão. Encontro na igreja às 7h.", who: youthAndTeens });
   await createEvent({ title: "Revival Night", category: "Jovens", date: "2026-10-30", time: "19:30", minutes: 150, ministries: ["Metanoia"], location: "Templo", description: "Pós-acampamento: uma noite para mergulhar ainda mais na presença de Jesus.", who: (p) => (inMinistry(p, "Metanoia") ? 0.6 : 0) });
   await createEvent({ title: "Momento de busca com Deus", category: "Adolescentes", date: "2026-11-13", time: "19:30", minutes: 120, ministries: ["New Mind"], location: "Templo", description: "No lugar do culto de sábado, que ficou para a confra da liderança.", who: () => 0 });
   await createEvent({ title: "Confraternização da Liderança", category: "Evento", date: "2026-11-14", time: "19:00", minutes: 180, ministries: [], location: "Salão", description: "Confra geral da liderança de todos os ministérios, convocada pela pastora.", who: () => 0 });
   await createEvent({ title: "Festa do Pijama das Meninas", category: "Adolescentes", date: "2026-11-21", time: "20:00", minutes: 12 * 60, ministries: ["New Mind"], location: "Casa de uma líder", description: "Programação separada no fim de semana de folga do New Mind.", who: () => 0 });
-  await createEvent({ title: "Cantata de Natal", category: "Evento", date: "2026-12-20", time: "19:00", minutes: 150, ministries: [], location: "Templo", description: "Coral New Song e ministério de louvor. Decoração a cargo da liderança do New Mind.", who: () => 0 });
+  await createEvent({ title: "Cantata de Natal", category: "Evento", date: "2026-12-20", time: "18:00", minutes: 150, ministries: [], location: "Templo", description: "Ministério de louvor; decoração a cargo da liderança do New Mind.", who: () => 0 });
 
   /* ───────────── Frequência dos encontros que já aconteceram ───────────── */
   const now = Date.now();
