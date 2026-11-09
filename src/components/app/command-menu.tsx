@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarPlus, Moon, Sun, UserPlus } from "lucide-react";
+import { CalendarPlus, Moon, Sparkles, Sun, UserPlus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
@@ -30,6 +30,7 @@ export type CommandPerson = { id: string; name: string; status: PersonStatus };
 
 export function CommandMenu({ people, isAdmin }: { people: CommandPerson[]; isAdmin: boolean }) {
   const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
   const router = useRouter();
   const { resolvedTheme, setTheme } = useTheme();
 
@@ -62,9 +63,22 @@ export function CommandMenu({ people, isAdmin }: { people: CommandPerson[]; isAd
       description="Pessoas, páginas e ações"
     >
       <Command>
-      <CommandInput placeholder="Buscar pessoas, páginas ou ações…" />
+      <CommandInput placeholder="Buscar ou perguntar ao assistente…" value={search} onValueChange={setSearch} />
       <CommandList>
         <CommandEmpty>Nada encontrado.</CommandEmpty>
+        {search.trim().length > 3 && (
+          <CommandGroup heading="Assistente">
+            <CommandItem
+              value={`assistente ${search}`}
+              onSelect={() => {
+                go(`/assistente?q=${encodeURIComponent(search.trim())}`);
+                setSearch("");
+              }}
+            >
+              <Sparkles /> Perguntar: “{search.trim()}”
+            </CommandItem>
+          </CommandGroup>
+        )}
         <CommandGroup heading="Ações rápidas">
           <CommandItem onSelect={() => go("/pessoas?novo=1")}>
             <UserPlus /> Cadastrar pessoa

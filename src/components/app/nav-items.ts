@@ -5,6 +5,7 @@ import {
   type LucideIcon,
   Network,
   Settings,
+  Sparkles,
   Users,
   UsersRound,
 } from "lucide-react";
@@ -34,6 +35,7 @@ export const NAV: { label: string; items: NavItem[] }[] = [
     items: [
       { href: "/encontros", label: "Encontros", icon: CalendarDays, mobile: true },
       { href: "/cuidado", label: "Cuidado pastoral", short: "Cuidado", icon: HeartHandshake, badgeKey: "followUps", mobile: true },
+      { href: "/assistente", label: "Assistente", icon: Sparkles },
     ],
   },
   {
