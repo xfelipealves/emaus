@@ -1,0 +1,1 @@
+ALTER TABLE `ai_conversation` ADD `provider` text DEFAULT 'anthropic' NOT NULL;

@@ -1,166 +1,179 @@
-export const BRAZIL_TIME_ZONE = "America/Sao_Paulo";
+import { formatDistanceStrict } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
-type CalendarDate = {
-  year: number;
-  month: number;
-  day: number;
-};
+export const DEFAULT_TZ = "America/Sao_Paulo";
 
-type CalendarDateTime = CalendarDate & {
-  hour: number;
-  minute: number;
-};
-
-const dateFormatter = new Intl.DateTimeFormat("en-CA", {
-  timeZone: BRAZIL_TIME_ZONE,
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-});
-
-function calendarDateInBrazil(date: Date): CalendarDate {
-  const parts = dateFormatter.formatToParts(date);
-  const values = Object.fromEntries(
-    parts
-      .filter(({ type }) => type !== "literal")
-      .map(({ type, value }) => [type, Number(value)]),
-  );
-
-  return { year: values.year, month: values.month, day: values.day };
+// Criar Intl.DateTimeFormat é caro (ms no Raspberry): um formatador por fuso/opções.
+const formatters = new Map<string, Intl.DateTimeFormat>();
+function formatter(locale: string, opts: Intl.DateTimeFormatOptions) {
+  const key = locale + JSON.stringify(opts);
+  let fmt = formatters.get(key);
+  if (!fmt) {
+    fmt = new Intl.DateTimeFormat(locale, opts);
+    formatters.set(key, fmt);
+  }
+  return fmt;
 }
 
-function calendarDateFromUtc(date: Date): CalendarDate {
-  return {
-    year: date.getUTCFullYear(),
-    month: date.getUTCMonth() + 1,
-    day: date.getUTCDate(),
-  };
-}
-
-function calendarDateTimeInBrazil(date: Date): CalendarDateTime {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: BRAZIL_TIME_ZONE,
+function parts(date: Date, timeZone: string) {
+  const fmt = formatter("en-CA", {
+    timeZone,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
+    second: "2-digit",
     hourCycle: "h23",
-  }).formatToParts(date);
-  const values = Object.fromEntries(
-    parts
-      .filter(({ type }) => type !== "literal")
-      .map(({ type, value }) => [type, Number(value)]),
+    weekday: "short",
+  });
+  const map = Object.fromEntries(
+    fmt.formatToParts(date).map((p) => [p.type, p.value]),
   );
-
-  return { year: values.year, month: values.month, day: values.day, hour: values.hour, minute: values.minute };
+  return map as Record<string, string>;
 }
 
-export function parseDateInput(value: string): Date {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    throw new Error("Data deve usar o formato AAAA-MM-DD");
-  }
-
-  const date = new Date(`${value}T12:00:00.000Z`);
-  const calendar = calendarDateFromUtc(date);
-  const [year, month, day] = value.split("-").map(Number);
-
-  if (
-    !Number.isFinite(date.getTime()) ||
-    calendar.year !== year ||
-    calendar.month !== month ||
-    calendar.day !== day
-  ) {
-    throw new Error("Data inválida");
-  }
-
-  return date;
+/** Data civil (YYYY-MM-DD) de um instante no fuso informado. */
+export function isoDateInTz(date: Date, timeZone = DEFAULT_TZ) {
+  const p = parts(date, timeZone);
+  return `${p.year}-${p.month}-${p.day}`;
 }
 
-export function normalizeDateOnly(date: Date): Date {
-  if (!Number.isFinite(date.getTime())) {
-    throw new Error("Data inválida");
-  }
-
-  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+export function timeInTz(date: Date, timeZone = DEFAULT_TZ) {
+  const p = parts(date, timeZone);
+  return `${p.hour}:${p.minute}`;
 }
 
-export function parseDateTimeInput(value: string): Date {
-  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value);
-  if (!match) throw new Error("Data e horário devem usar o formato AAAA-MM-DDTHH:mm");
+export function todayIso(timeZone = DEFAULT_TZ) {
+  return isoDateInTz(new Date(), timeZone);
+}
 
-  const [, yearValue, monthValue, dayValue, hourValue, minuteValue] = match;
-  const year = Number(yearValue);
-  const month = Number(monthValue);
-  const day = Number(dayValue);
-  const hour = Number(hourValue);
-  const minute = Number(minuteValue);
-  const candidate = new Date(Date.UTC(year, month - 1, day, hour, minute));
-
-  if (
-    !Number.isFinite(candidate.getTime()) ||
-    candidate.getUTCFullYear() !== year ||
-    candidate.getUTCMonth() + 1 !== month ||
-    candidate.getUTCDate() !== day ||
-    candidate.getUTCHours() !== hour ||
-    candidate.getUTCMinutes() !== minute
-  ) {
-    throw new Error("Data e horário inválidos");
-  }
-
-  const interpretedAsBrazil = calendarDateTimeInBrazil(candidate);
-  const brazilCalendarAsUtc = Date.UTC(
-    interpretedAsBrazil.year,
-    interpretedAsBrazil.month - 1,
-    interpretedAsBrazil.day,
-    interpretedAsBrazil.hour,
-    interpretedAsBrazil.minute,
+function offsetMs(instant: Date, timeZone: string) {
+  const p = parts(instant, timeZone);
+  const asUtc = Date.UTC(
+    Number(p.year),
+    Number(p.month) - 1,
+    Number(p.day),
+    Number(p.hour),
+    Number(p.minute),
+    Number(p.second),
   );
-  const offset = candidate.getTime() - brazilCalendarAsUtc;
-  const result = new Date(candidate.getTime() + offset);
-  const resultCalendar = calendarDateTimeInBrazil(result);
+  return asUtc - Math.floor(instant.getTime() / 1000) * 1000;
+}
 
-  if (
-    resultCalendar.year !== year ||
-    resultCalendar.month !== month ||
-    resultCalendar.day !== day ||
-    resultCalendar.hour !== hour ||
-    resultCalendar.minute !== minute
-  ) {
-    throw new Error("Data e horário inválidos");
+/** Converte data + hora "de parede" no fuso da igreja para um instante UTC. */
+export function zonedToUtc(isoDate: string, time: string, timeZone = DEFAULT_TZ) {
+  const [y, m, d] = isoDate.split("-").map(Number);
+  const [hh, mm] = time.split(":").map(Number);
+  const guess = Date.UTC(y, m - 1, d, hh, mm);
+  const first = guess - offsetMs(new Date(guess), timeZone);
+  // Segunda passada corrige transições de horário de verão.
+  return new Date(guess - offsetMs(new Date(first), timeZone));
+}
+
+/** Início do dia (00:00) no fuso, como instante UTC. */
+export function startOfDayUtc(isoDate: string, timeZone = DEFAULT_TZ) {
+  return zonedToUtc(isoDate, "00:00", timeZone);
+}
+
+export function addDaysIso(isoDate: string, days: number) {
+  const [y, m, d] = isoDate.split("-").map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d + days));
+  return date.toISOString().slice(0, 10);
+}
+
+/** 0 = domingo … 6 = sábado, para uma data civil. */
+export function weekdayOfIso(isoDate: string) {
+  const [y, m, d] = isoDate.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+}
+
+export function diffDaysIso(a: string, b: string) {
+  const toUtc = (s: string) => {
+    const [y, m, d] = s.split("-").map(Number);
+    return Date.UTC(y, m - 1, d);
+  };
+  return Math.round((toUtc(a) - toUtc(b)) / 86_400_000);
+}
+
+export function ageFrom(birthDate: string | null | undefined, today: string) {
+  if (!birthDate) return null;
+  const [by, bm, bd] = birthDate.split("-").map(Number);
+  const [ty, tm, td] = today.split("-").map(Number);
+  let age = ty - by;
+  if (tm < bm || (tm === bm && td < bd)) age -= 1;
+  return age >= 0 ? age : null;
+}
+
+/** Dias até o próximo aniversário (0 = hoje). */
+export function daysUntilBirthday(birthDate: string, today: string) {
+  const [, bm, bd] = birthDate.split("-").map(Number);
+  const [ty] = today.split("-").map(Number);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  // 29/02 em ano não bissexto vira 28/02.
+  const clampDay = (year: number) =>
+    bm === 2 && bd === 29 && new Date(Date.UTC(year, 1, 29)).getUTCMonth() !== 1
+      ? 28
+      : bd;
+  let next = `${ty}-${pad(bm)}-${pad(clampDay(ty))}`;
+  if (next < today) next = `${ty + 1}-${pad(bm)}-${pad(clampDay(ty + 1))}`;
+  return diffDaysIso(next, today);
+}
+
+const dateFmt = (timeZone: string, opts: Intl.DateTimeFormatOptions) =>
+  formatter("pt-BR", { timeZone, ...opts });
+
+export function formatDate(
+  value: Date | string | null | undefined,
+  timeZone = DEFAULT_TZ,
+  opts: Intl.DateTimeFormatOptions = { day: "2-digit", month: "short", year: "numeric" },
+) {
+  if (!value) return "—";
+  if (typeof value === "string") {
+    // Datas civis não têm fuso: formata em UTC para não "voltar um dia".
+    const [y, m, d] = value.split("-").map(Number);
+    return dateFmt("UTC", opts).format(new Date(Date.UTC(y, m - 1, d)));
   }
-
-  return result;
+  return dateFmt(timeZone, opts).format(value);
 }
 
-export function formatDateInBrazil(date: Date): string {
-  return new Intl.DateTimeFormat("pt-BR", {
-    timeZone: BRAZIL_TIME_ZONE,
+export function formatDateTime(value: Date, timeZone = DEFAULT_TZ) {
+  return dateFmt(timeZone, {
+    weekday: "short",
     day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  }).format(date);
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(value);
 }
 
-export function formatDateOnly(date: Date): string {
-  return new Intl.DateTimeFormat("pt-BR", {
-    timeZone: "UTC",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  }).format(date);
+export function formatTime(value: Date, timeZone = DEFAULT_TZ) {
+  return dateFmt(timeZone, { hour: "2-digit", minute: "2-digit" }).format(value);
 }
 
-export function calculateAge(birthDate: Date | null | undefined, now = new Date()): number | null {
-  if (!birthDate) {
-    return null;
-  }
+export function formatRelative(value: Date, now = new Date()) {
+  const text = formatDistanceStrict(value, now, { locale: ptBR, addSuffix: true });
+  return text;
+}
 
-  const birth = calendarDateFromUtc(birthDate);
-  const today = calendarDateInBrazil(now);
-  const birthdayPassed =
-    today.month > birth.month ||
-    (today.month === birth.month && today.day >= birth.day);
+export function formatDaysAgo(days: number) {
+  if (days <= 0) return "hoje";
+  if (days === 1) return "ontem";
+  if (days < 14) return `há ${days} dias`;
+  if (days < 60) return `há ${Math.round(days / 7)} semanas`;
+  if (days < 730) return `há ${Math.round(days / 30)} meses`;
+  return `há ${Math.round(days / 365)} anos`;
+}
 
-  return today.year - birth.year - (birthdayPassed ? 0 : 1);
+export function hoursUntil(date: Date) {
+  return (date.getTime() - Date.now()) / 3_600_000;
+}
+
+/** "domingo, 8 de novembro" → "Domingo, 8 de novembro" */
+export function upperFirst(text: string) {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+export function daysAgo(days: number) {
+  return new Date(Date.now() - days * 86_400_000);
 }

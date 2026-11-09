@@ -1,37 +1,40 @@
 import { describe, expect, it } from "vitest";
 import {
-  calculateAge,
-  formatDateOnly,
-  formatDateInBrazil,
-  normalizeDateOnly,
-  parseDateTimeInput,
-  parseDateInput,
+  addDaysIso,
+  ageFrom,
+  daysUntilBirthday,
+  isoDateInTz,
+  weekdayOfIso,
+  zonedToUtc,
 } from "./dates";
 
-describe("Brazil date utilities", () => {
-  it("calculates age before and on the birthday in Sao Paulo", () => {
-    const birthDate = parseDateInput("2000-08-08");
-
-    expect(calculateAge(birthDate, new Date("2026-08-07T23:00:00.000Z"))).toBe(25);
-    expect(calculateAge(birthDate, new Date("2026-08-08T03:00:00.000Z"))).toBe(26);
+describe("dates", () => {
+  it("converte horário de Brasília para UTC", () => {
+    expect(zonedToUtc("2026-11-08", "19:00", "America/Sao_Paulo").toISOString()).toBe(
+      "2026-11-08T22:00:00.000Z",
+    );
   });
 
-  it("returns no age when birth date is absent", () => {
-    expect(calculateAge(null, new Date("2026-08-08T03:00:00.000Z"))).toBeNull();
+  it("data civil no fuso não vira o dia seguinte à noite", () => {
+    expect(isoDateInTz(new Date("2026-11-09T02:30:00Z"), "America/Sao_Paulo")).toBe(
+      "2026-11-08",
+    );
   });
 
-  it("parses and formats business dates using the Brazil timezone", () => {
-    const date = parseDateInput("2026-08-08");
-
-    expect(formatDateInBrazil(date)).toBe("08/08/2026");
-    expect(formatDateOnly(new Date("1990-08-11T00:00:00.000Z"))).toBe("11/08/1990");
+  it("calcula idade antes e depois do aniversário", () => {
+    expect(ageFrom("1990-11-10", "2026-11-09")).toBe(35);
+    expect(ageFrom("1990-11-09", "2026-11-09")).toBe(36);
+    expect(ageFrom(null, "2026-11-09")).toBeNull();
   });
 
-  it("normalizes date-only values to UTC midnight for timestamp-backed legacy columns", () => {
-    expect(normalizeDateOnly(parseDateInput("2026-08-08"))).toEqual(new Date("2026-08-08T00:00:00.000Z"));
+  it("dias até o aniversário atravessam o ano", () => {
+    expect(daysUntilBirthday("2000-11-09", "2026-11-09")).toBe(0);
+    expect(daysUntilBirthday("2000-01-01", "2026-12-31")).toBe(1);
+    expect(daysUntilBirthday("2000-02-29", "2027-02-27")).toBe(1);
   });
 
-  it("converts local Sao Paulo date-times to exact instants", () => {
-    expect(parseDateTimeInput("2026-09-10T19:00")).toEqual(new Date("2026-09-10T22:00:00.000Z"));
+  it("soma dias e dia da semana", () => {
+    expect(addDaysIso("2026-12-30", 3)).toBe("2027-01-02");
+    expect(weekdayOfIso("2026-11-08")).toBe(0);
   });
 });

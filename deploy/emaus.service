@@ -1,0 +1,17 @@
+[Unit]
+Description=Emaús (Next.js + SQLite)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=felipe
+WorkingDirectory=/home/felipe/services/emaus
+Environment=NODE_ENV=production
+ExecStartPre=/usr/bin/npm run db:migrate
+ExecStart=/home/felipe/services/emaus/node_modules/.bin/next start -H 127.0.0.1 -p 3100
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

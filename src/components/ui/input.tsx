@@ -1,29 +1,19 @@
-import type { InputHTMLAttributes } from "react";
+import * as React from "react"
+import { Input as InputPrimitive } from "@base-ui/react/input"
+import { cn } from "cn"
 
-type InputProps = InputHTMLAttributes<HTMLInputElement> & {
-  label: string;
-  error?: string;
-};
-
-export function Input({ id, label, error, className = "", ...props }: InputProps) {
-  const inputId = id ?? label.toLowerCase().replaceAll(" ", "-");
-  const errorId = error ? `${inputId}-error` : undefined;
-
+function Input({ className, type, ...props }: React.ComponentProps<"input">) {
   return (
-    <label className="grid gap-2 text-sm font-medium text-slate-700" htmlFor={inputId}>
-      <span>{label}</span>
-      <input
-        {...props}
-        id={inputId}
-        aria-describedby={errorId}
-        aria-invalid={error ? true : undefined}
-        className={`min-h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-950 outline-none transition focus:border-[#26766d] focus:ring-2 focus:ring-[#dceee9] ${error ? "border-[#b54747]" : ""} ${className}`}
-      />
-      {error ? (
-        <span id={errorId} className="text-xs font-normal text-[#b54747]">
-          {error}
-        </span>
-      ) : null}
-    </label>
-  );
+    <InputPrimitive
+      type={type}
+      data-slot="input"
+      className={cn(
+        "h-9 w-full min-w-0 rounded-lg border border-input bg-card px-2.5 py-1 text-base transition-colors outline-none file:inline-flex file:h-6 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 md:text-sm dark:bg-input/30 dark:disabled:bg-input/80 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40",
+        className
+      )}
+      {...props}
+    />
+  )
 }
+
+export { Input }
