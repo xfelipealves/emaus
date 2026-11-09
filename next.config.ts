@@ -1,10 +1,16 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  poweredByHeader: false,
-  distDir: process.env.NEXT_DIST_DIR ?? ".next",
-  typescript: {
-    tsconfigPath: process.env.NEXT_TSCONFIG_PATH ?? "tsconfig.json",
+  agentRules: false,
+  serverExternalPackages: ["@libsql/client", "libsql"],
+  turbopack: {
+    root: process.cwd(),
+    rules: {
+      "*.css": {
+        loaders: ["@tailwindcss/turbopack"],
+        as: "*.css",
+      },
+    },
   },
 };
 
