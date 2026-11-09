@@ -116,6 +116,10 @@ export const churchSettings = sqliteTable("church_settings", {
   careThresholdDays: integer("care_threshold_days").notNull().default(21),
   /** Visitante pode se cadastrar sozinho pelo QR de check-in. */
   allowSelfRegistration: integer("allow_self_registration", { mode: "boolean" }).notNull().default(true),
+  /** Provedor de IA escolhido em Configurações → IA (null = automático pelo .env). */
+  aiProvider: text("ai_provider"),
+  aiModel: text("ai_model"),
+  aiEffort: text("ai_effort"),
   ...timestamps,
 });
 
