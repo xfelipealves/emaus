@@ -31,28 +31,41 @@ export type AiProvider = {
 const LEAN_HISTORY_TURNS = 2;
 const LEAN_RESULT_CHARS = 4000;
 
-/**
- * Provedor de IA escolhido pelo .env:
- * - EMAUS_AI_PROVIDER=openai (padrão quando há OPENAI_API_KEY): gpt-6-luna pela Responses API.
- * - EMAUS_AI_PROVIDER=groq | cerebras | gemini: planos gratuitos (GROQ_API_KEY, CEREBRAS_API_KEY, GEMINI_API_KEY).
- * - EMAUS_AI_PROVIDER=anthropic (padrão quando há ANTHROPIC_API_KEY): Claude.
- * - EMAUS_AI_PROVIDER=openai-compatible: qualquer API no formato OpenAI
- *   (EMAUS_AI_BASE_URL, EMAUS_AI_API_KEY, EMAUS_AI_MODEL).
- */
-export function aiProvider(): AiProvider | null {
+export const PROVIDER_IDS = ["openai", "groq", "cerebras", "gemini", "anthropic", "openai-compatible"] as const;
+export type ProviderId = (typeof PROVIDER_IDS)[number];
+export const EFFORTS = ["none", "low", "medium", "high"] as const;
+
+/** Catálogo dos provedores. As chaves ficam só no .env do servidor; a tela escolhe entre os configurados. */
+export const PROVIDERS: Record<ProviderId, { label: string; keyEnv: string; defaultModel: string; note: string }> = {
+  openai: { label: "OpenAI", keyEnv: "OPENAI_API_KEY", defaultModel: "gpt-6-luna", note: "Barato e rápido; resolve perguntas de vários passos. ~US$ 0,002 por pergunta." },
+  groq: { label: "Groq", keyEnv: "GROQ_API_KEY", defaultModel: "qwen/qwen3.8-27b", note: "Gratuito, mas com limite de tokens por minuto: bom só para perguntas simples." },
+  cerebras: { label: "Cerebras", keyEnv: "CEREBRAS_API_KEY", defaultModel: "qwen-3.8-27b", note: "Gratuito (trial), limite por minuto maior que o Groq." },
+  gemini: { label: "Google Gemini", keyEnv: "GEMINI_API_KEY", defaultModel: "gemini-flash-latest", note: "Gratuito; no plano grátis o Google pode usar os dados." },
+  anthropic: { label: "Anthropic (Claude)", keyEnv: "ANTHROPIC_API_KEY", defaultModel: "claude-opus-5-5", note: "O mais capaz, e o mais caro." },
+  "openai-compatible": { label: "Compatível com OpenAI", keyEnv: "EMAUS_AI_API_KEY", defaultModel: "", note: "Qualquer API no formato OpenAI (EMAUS_AI_BASE_URL)." },
+};
+
+const FREE: Price = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
+
+function hasKey(id: ProviderId) {
   const env = process.env;
-  const choice =
-    env.EMAUS_AI_PROVIDER ??
-    (env.OPENAI_API_KEY ? "openai" : env.GROQ_API_KEY ? "groq" : env.CEREBRAS_API_KEY ? "cerebras" : env.GEMINI_API_KEY ? "gemini" : env.ANTHROPIC_API_KEY || env.ANTHROPIC_AUTH_TOKEN ? "anthropic" : null);
-  const free = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
-  switch (choice) {
+  if (id === "anthropic") return Boolean(env.ANTHROPIC_API_KEY || env.ANTHROPIC_AUTH_TOKEN);
+  if (id === "openai-compatible") return Boolean(env.EMAUS_AI_BASE_URL && env.EMAUS_AI_API_KEY);
+  return Boolean(env[PROVIDERS[id].keyEnv]);
+}
+
+function buildProvider(id: ProviderId, modelOverride?: string | null, effortOverride?: string | null): AiProvider | null {
+  if (!hasKey(id)) return null;
+  const env = process.env;
+  const model = modelOverride || env.EMAUS_AI_MODEL || PROVIDERS[id].defaultModel;
+  const effort = (effortOverride || env.EMAUS_AI_EFFORT || "low") as AiProvider["effort"];
+  switch (id) {
     case "openai":
-      if (!env.OPENAI_API_KEY) return null;
       // gpt-6-luna: US$ 0,10 entrada / 0,01 cache / 0,50 saída por milhão de tokens.
       return {
         kind: "openai-responses",
         label: "OpenAI",
-        model: env.EMAUS_AI_MODEL ?? "gpt-6-luna",
+        model,
         apiKey: env.OPENAI_API_KEY,
         price: {
           input: Number(env.EMAUS_AI_PRICE_IN ?? 0.1),
@@ -60,38 +73,56 @@ export function aiProvider(): AiProvider | null {
           cacheRead: Number(env.EMAUS_AI_PRICE_CACHE ?? 0.01),
           cacheWrite: 0,
         },
-        effort: (env.EMAUS_AI_EFFORT as AiProvider["effort"]) ?? "low",
+        effort,
       };
     case "groq":
-      if (!env.GROQ_API_KEY) return null;
-      return { kind: "openai", label: "Groq (gratuito)", model: env.EMAUS_AI_MODEL ?? "qwen/qwen3.8-27b", baseURL: "https://api.groq.com/openai/v1", apiKey: env.GROQ_API_KEY, price: free, lean: true };
+      return { kind: "openai", label: "Groq (gratuito)", model, baseURL: "https://api.groq.com/openai/v1", apiKey: env.GROQ_API_KEY, price: FREE, lean: true };
     case "cerebras":
-      if (!env.CEREBRAS_API_KEY) return null;
-      return { kind: "openai", label: "Cerebras (gratuito)", model: env.EMAUS_AI_MODEL ?? "qwen-3.8-27b", baseURL: "https://api.cerebras.ai/v1", apiKey: env.CEREBRAS_API_KEY, price: free, lean: true };
+      return { kind: "openai", label: "Cerebras (gratuito)", model, baseURL: "https://api.cerebras.ai/v1", apiKey: env.CEREBRAS_API_KEY, price: FREE, lean: true };
     case "gemini":
-      if (!env.GEMINI_API_KEY) return null;
-      return { kind: "openai", label: "Google Gemini (gratuito)", model: env.EMAUS_AI_MODEL ?? "gemini-flash-latest", baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/", apiKey: env.GEMINI_API_KEY, price: free, lean: true };
+      return { kind: "openai", label: "Google Gemini (gratuito)", model, baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/", apiKey: env.GEMINI_API_KEY, price: FREE, lean: true };
+    case "anthropic":
+      // Claude Opus 5.5; escrita de cache de 5 min = 1,25× a entrada.
+      return { kind: "anthropic", label: "Anthropic", model, price: { input: 4, output: 20, cacheRead: 0.2, cacheWrite: 5 } };
     case "openai-compatible":
-      if (!env.EMAUS_AI_BASE_URL || !env.EMAUS_AI_API_KEY || !env.EMAUS_AI_MODEL) return null;
+      if (!model) return null;
       return {
         kind: "openai",
-        label: new URL(env.EMAUS_AI_BASE_URL).hostname,
-        model: env.EMAUS_AI_MODEL,
+        label: new URL(env.EMAUS_AI_BASE_URL!).hostname,
+        model,
         baseURL: env.EMAUS_AI_BASE_URL,
         apiKey: env.EMAUS_AI_API_KEY,
-        price: { ...free, input: Number(env.EMAUS_AI_PRICE_IN ?? 0), output: Number(env.EMAUS_AI_PRICE_OUT ?? 0) },
+        price: { ...FREE, input: Number(env.EMAUS_AI_PRICE_IN ?? 0), output: Number(env.EMAUS_AI_PRICE_OUT ?? 0) },
       };
-    case "anthropic":
-      if (!env.ANTHROPIC_API_KEY && !env.ANTHROPIC_AUTH_TOKEN) return null;
-      // Claude Opus 5.5; escrita de cache de 5 min = 1,25× a entrada.
-      return { kind: "anthropic", label: "Anthropic", model: env.EMAUS_AI_MODEL ?? "claude-opus-5-5", price: { input: 4, output: 20, cacheRead: 0.2, cacheWrite: 5 } };
-    default:
-      return null;
   }
 }
 
-export function isAiConfigured() {
-  return aiProvider() !== null;
+/** Provedores com chave no .env, para o seletor em Configurações → IA. */
+export function availableProviders() {
+  return PROVIDER_IDS.map((id) => ({ id, ...PROVIDERS[id], configured: hasKey(id) }));
+}
+
+/**
+ * Provedor em uso: o escolhido em Configurações → IA; se não houver escolha (ou a chave
+ * sumiu do .env), o primeiro configurado — EMAUS_AI_PROVIDER, depois OpenAI, Groq,
+ * Cerebras, Gemini e Anthropic.
+ */
+export async function aiProvider(): Promise<AiProvider | null> {
+  const settings = await getSettings();
+  if (settings.aiProvider && (PROVIDER_IDS as readonly string[]).includes(settings.aiProvider)) {
+    const chosen = buildProvider(settings.aiProvider as ProviderId, settings.aiModel, settings.aiEffort);
+    if (chosen) return chosen;
+  }
+  const envChoice = process.env.EMAUS_AI_PROVIDER as ProviderId | undefined;
+  for (const id of [envChoice, "openai", "groq", "cerebras", "gemini", "anthropic"] as (ProviderId | undefined)[]) {
+    const p = id ? buildProvider(id) : null;
+    if (p) return p;
+  }
+  return null;
+}
+
+export async function isAiConfigured() {
+  return (await aiProvider()) !== null;
 }
 
 export type AgentEvent =
@@ -512,7 +543,7 @@ export async function runAgent(opts: {
   signal?: AbortSignal;
 }) {
   const { user, prompt, emit } = opts;
-  const provider = aiProvider();
+  const provider = await aiProvider();
   if (!provider) throw new ActionError("IA não configurada.");
   const started = Date.now();
   const conv = await loadConversation(user, opts.conversationId, prompt, provider);

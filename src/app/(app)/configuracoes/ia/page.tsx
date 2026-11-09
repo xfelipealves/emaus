@@ -5,7 +5,8 @@ import { Section, StatCard } from "@/components/app/page-header";
 import { ToneBadge } from "@/components/app/tone";
 import { db, schema } from "@/db";
 import { daysAgo, formatDateTime } from "@/lib/dates";
-import { aiProvider } from "@/server/ai/agent";
+import { aiProvider, availableProviders } from "@/server/ai/agent";
+import { AiSelector } from "./ai-selector";
 import { TOOL_BY_NAME } from "@/server/ai/tools";
 import { getSettings } from "@/server/settings";
 
@@ -15,7 +16,7 @@ const usd = (v: number) => `US$ ${v < 1 ? v.toFixed(3) : v.toFixed(2)}`;
 
 export default async function AiOpsPage() {
   const settings = await getSettings();
-  const provider = aiProvider();
+  const provider = await aiProvider();
   const since = daysAgo(30);
   const runs = await db.query.aiRun.findMany({
     where: gte(schema.aiRun.createdAt, since),
@@ -57,10 +58,13 @@ export default async function AiOpsPage() {
 
   return (
     <div className="space-y-4">
+      <AiSelector options={availableProviders()} active={settings.aiProvider} model={settings.aiModel} effort={settings.aiEffort} />
       <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+        Em uso agora:
         {provider ? (
           <>
             {provider.label} · <code className="rounded bg-muted px-1.5 py-0.5 text-foreground">{provider.model}</code>
+            {provider.effort && provider.kind === "openai-responses" && <span>· esforço {provider.effort}</span>}
             <ToneBadge tone="sage">chave configurada</ToneBadge>
             {provider.price.input === 0 && <ToneBadge tone="gold">sem custo</ToneBadge>}
           </>

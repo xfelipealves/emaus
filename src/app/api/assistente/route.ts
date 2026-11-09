@@ -12,7 +12,7 @@ const body = z.object({
 export async function POST(request: Request) {
   const user = await getCurrentUser();
   if (!user || user.mustChangePassword) return new Response("Não autenticado", { status: 401 });
-  if (!isAiConfigured()) return Response.json({ error: "IA não configurada" }, { status: 503 });
+  if (!(await isAiConfigured())) return Response.json({ error: "IA não configurada" }, { status: 503 });
   if (!(await rateLimit(`ai:${user.id}`, 20))) {
     return Response.json({ error: "Muitas perguntas seguidas. Aguarde um minuto." }, { status: 429 });
   }

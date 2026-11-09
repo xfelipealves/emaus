@@ -98,7 +98,7 @@ export default async function AssistantPage({ searchParams }: { searchParams: Pr
   const user = await requireUser();
   const { c, q } = await searchParams;
 
-  if (!isAiConfigured()) {
+  if (!(await isAiConfigured())) {
     return (
       <>
         <PageHeader title="Assistente" description="Pergunte em linguagem natural sobre pessoas, presença e agenda — e peça para ele fazer as tarefas." />

@@ -4,10 +4,11 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db, schema } from "@/db";
+import { availableProviders, EFFORTS, PROVIDER_IDS, PROVIDERS } from "@/server/ai/agent";
 import { formToObject, runAction } from "@/server/action";
 import { deleteCategory, saveCategory } from "@/server/events";
 import { recordAudit } from "@/server/history";
-import { requireRole } from "@/server/session";
+import { ActionError, requireRole } from "@/server/session";
 import { createUserAccount, resetUserPassword, revokeUserSessions, setUserActive, updateUserAccount } from "@/server/users";
 
 const settingsInput = z.object({
@@ -70,4 +71,33 @@ export async function deleteCategoryAction(id: string) {
     await requireRole("admin");
     await deleteCategory(id);
   }, "Categoria excluída");
+}
+
+const aiSettingsInput = z.object({
+  provider: z.enum(PROVIDER_IDS),
+  model: z.string().trim().max(80).optional(),
+  effort: z.enum(EFFORTS).optional(),
+});
+
+export async function saveAiSettingsAction(raw: unknown) {
+  return runAction(async () => {
+    const user = await requireRole("admin");
+    const input = aiSettingsInput.parse(raw);
+    if (!availableProviders().find((p) => p.id === input.provider)?.configured) {
+      throw new ActionError("Esse provedor não tem chave configurada no servidor.");
+    }
+    await db
+      .update(schema.churchSettings)
+      .set({ aiProvider: input.provider, aiModel: input.model || null, aiEffort: input.effort ?? null })
+      .where(eq(schema.churchSettings.id, 1));
+    await recordAudit(db, {
+      actorId: user.id,
+      entity: "settings",
+      entityId: "1",
+      action: "ai.provider",
+      summary: `IA alterada para ${PROVIDERS[input.provider].label}${input.model ? ` (${input.model})` : ""}`,
+      after: input,
+    });
+    revalidatePath("/configuracoes/ia");
+  }, "IA atualizada");
 }
