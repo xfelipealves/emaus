@@ -32,11 +32,14 @@ npm run db:seed
 
 O `npm run db:seed` também pode ser executado novamente sobre o banco local: os registros do cenário demo usam IDs estáveis e não são duplicados. Todas as identidades são fictícias e usam domínios locais de teste.
 
-Contas demo (senha comum `emaus-demo`):
+Contas do cenário QA:
 
 - `demo-admin` — administrador
 - `demo-secretary` — secretaria
 - `demo-leader` — líder com escopo no Ministério Demo Acolhimento
+
+O README não publica senha para essas contas. Confirme a credencial vigente no
+ambiente QA antes de usar os dados semeados.
 
 ## Documentação de produto
 

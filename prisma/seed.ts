@@ -514,7 +514,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   seed()
     .then((account) => {
       console.log(`Seeded development administrator: ${account.username}`);
-      console.log(`Seeded demo accounts with password: ${DEMO_PASSWORD}`);
+      console.log("Seeded QA accounts: demo-admin, demo-secretary, demo-leader");
     })
     .finally(() => seedPrisma.$disconnect());
 }
