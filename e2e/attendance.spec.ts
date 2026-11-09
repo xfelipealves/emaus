@@ -206,19 +206,23 @@ test("lets secretaries and in-scope leaders cycle attendance and hides out-of-sc
     await row.click();
     await expect(row).toContainText("Presente");
     await expect.poll(() => prisma.attendance.findUnique({ where: { meetingId_personId: { meetingId: meeting.id, personId: person.id } } })).toMatchObject({ status: "PRESENT" });
+    await row.click();
+    await expect(row).toContainText("Ausente");
+    await expect(page.getByRole("status")).toHaveText("Presença salva.");
+    await expect.poll(() => prisma.attendance.findUnique({ where: { meetingId_personId: { meetingId: meeting.id, personId: person.id } } })).toMatchObject({ status: "ABSENT" });
 
     await authenticate(scopedLeader.id);
     await page.goto(`/encontros/${meeting.id}`);
-    await expect(row).toContainText("Presente");
-    await row.click();
     await expect(row).toContainText("Ausente");
-    await expect.poll(() => prisma.attendance.findUnique({ where: { meetingId_personId: { meetingId: meeting.id, personId: person.id } } })).toMatchObject({ status: "ABSENT" });
+    await row.click();
+    await expect(row).toContainText("Não confirmado");
+    await expect.poll(() => prisma.attendance.findUnique({ where: { meetingId_personId: { meetingId: meeting.id, personId: person.id } } })).toMatchObject({ status: "NOT_CONFIRMED" });
 
     await authenticate(outOfScopeLeader.id);
     await page.goto(`/encontros/${meeting.id}`);
     await expect(page).toHaveURL(/\/encontros$/);
     await expect(page.getByText(person.fullName)).toHaveCount(0);
-    await expect.poll(() => prisma.attendance.findUnique({ where: { meetingId_personId: { meetingId: meeting.id, personId: person.id } } })).toMatchObject({ status: "ABSENT" });
+    await expect.poll(() => prisma.attendance.findUnique({ where: { meetingId_personId: { meetingId: meeting.id, personId: person.id } } })).toMatchObject({ status: "NOT_CONFIRMED" });
   } finally {
     const accountIds = [secretary.id, scopedLeader.id, outOfScopeLeader.id];
     const personIds = [person.id, secretary.personId, scopedLeader.personId, outOfScopeLeader.personId];

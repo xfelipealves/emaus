@@ -87,6 +87,20 @@ test("creates, filters, edits and deletes activities with subtasks", async ({ pa
     select: { completed: true },
   })).toEqual({ completed: true });
 
+  let subtaskDeleteConfirmation: string | undefined;
+  page.once("dialog", async (dialog) => {
+    subtaskDeleteConfirmation = dialog.message();
+    await dialog.dismiss();
+  });
+  await firstSubtask.getByRole("button", { name: `Excluir subtask ${updatedSubtaskTitle}` }).click();
+  expect(subtaskDeleteConfirmation).toBe(`Excluir a subtask ${updatedSubtaskTitle}?`);
+  await expect(firstSubtask).toBeVisible();
+  await expect(firstSubtask.getByRole("checkbox")).toBeChecked();
+  await expect.poll(async () => prisma.activitySubtask.findFirst({
+    where: { title: updatedSubtaskTitle },
+    select: { completed: true },
+  })).toEqual({ completed: true });
+
   await page.once("dialog", (dialog) => dialog.accept());
   await firstSubtask.getByRole("button", { name: `Excluir subtask ${updatedSubtaskTitle}` }).click();
   await expect(activity.getByRole("listitem").filter({ hasText: updatedSubtaskTitle })).toHaveCount(0);
@@ -187,11 +201,25 @@ test("secretary and leader complete a shared activity journey", async ({ page })
   const sharedSubtask = activity.getByRole("listitem").filter({ hasText: sharedSubtaskTitle });
   await sharedSubtask.getByRole("checkbox").check();
   await sharedSubtask.getByRole("button", { name: "Salvar" }).click();
+  await expect(sharedSubtask.getByRole("status")).toHaveText("Subtask atualizada.");
+  await expect.poll(async () => prisma.activitySubtask.findFirst({
+    where: { title: sharedSubtaskTitle },
+    select: { completed: true },
+  })).toEqual({ completed: true });
   await expect(sharedSubtask.getByRole("checkbox")).toBeChecked();
   await expect(activity.getByText("1/1", { exact: true })).toBeVisible();
+
+  await page.locator("#activity-filter").selectOption("all");
+  await page.getByRole("button", { name: "Ver" }).click();
+  activity = page.getByRole("article").filter({ hasText: sharedTitle });
+  await expect(activity).toBeVisible();
   await activity.getByLabel("Mover").selectOption("PARKED");
   await activity.getByRole("button", { name: "Salvar área" }).click();
-  await expect(activity).toHaveCount(0);
+  await expect(activity.getByRole("status")).toHaveText("Área atualizada.");
+  await expect.poll(async () => prisma.activity.findFirst({
+    where: { title: sharedTitle },
+    select: { bucket: true },
+  })).toEqual({ bucket: "PARKED" });
 
   await page.locator("#activity-filter").selectOption("parked");
   await page.getByRole("button", { name: "Ver" }).click();
@@ -201,7 +229,13 @@ test("secretary and leader complete a shared activity journey", async ({ page })
   await expect(activity.getByRole("checkbox")).toBeChecked();
   await expect(activity.getByText("1/1", { exact: true })).toBeVisible();
   await page.reload();
-  await expect(page.getByRole("article").filter({ hasText: sharedTitle })).toBeVisible();
+  await expect(page).toHaveURL(/bucket=parked/);
+  activity = page.getByRole("article").filter({ hasText: sharedTitle });
+  await expect(activity).toBeVisible();
+  const persistedSubtask = activity.getByRole("listitem").filter({ hasText: sharedSubtaskTitle });
+  await expect(persistedSubtask).toBeVisible();
+  await expect(persistedSubtask.getByRole("checkbox")).toBeChecked();
+  await expect(activity.getByText("1/1", { exact: true })).toBeVisible();
 
   await page.context().clearCookies();
   await login(page, "demo-leader");

@@ -2,7 +2,9 @@
 
 **Spec**: `.specs/features/emaus-secretary-runtime/spec.md`  
 **Design**: `.specs/features/emaus-secretary-runtime/design.md`  
-**Status**: implementação e gates registrados; verificação independente: **FAIL — 5/8 ACs cobertos integralmente, 3 parciais**. Typecheck atual bloqueado por erro fora desta frente; integração consolidada não repetida após o incidente de isolamento.
+**Status**: baseline independente inicial apontou 5/8 ACs completos; os gaps receberam testes e foram exercitados na rodada integrada final (31/31 E2E). Lint, schema e unit-only passaram; typecheck segue bloqueado por erro externo em Contas. Não houve execução consolidada de Vitest de integração após o incidente de isolamento.
+
+**Atualização de 2026-09-28**: foram adicionadas asserções para os três gaps independentes e para a navegação após falha de frequência. A rodada integrada final, serial e sem disputa do webServer, passou por toda a suíte relevante; veja o fechamento no fim deste documento.
 
 ## Gates da implementação
 
@@ -69,21 +71,21 @@ Durante o diagnóstico anterior à rodada final, o teste de atividades interagiu
 | Critério | Resultado esperado pela spec | `file:line` + asserção e valor | Resultado |
 | --- | --- | --- | --- |
 | SEC-RUN-01 / P1.1 — abrir `/encontros` | Agenda ou vazio válido, sem exceção de cliente | `e2e/secretary-runtime.spec.ts:38-45` — `Encontros` e `Demo Encontro de Comunidade` visíveis antes/depois do reload; `expect(pageErrors).toEqual([])` | ✅ PASS |
-| SEC-RUN-01 / P1.2 — operar encontro autorizado | Exibir frequência e permitir lançamento e correção pela Secretaria | `e2e/secretary-runtime.spec.ts:52-59` — encontro e `Resumo` visíveis após reload; `e2e/attendance.spec.ts:202-208` — Secretaria muda `NOT_CONFIRMED` para `PRESENT`. Não há asserção de correção de frequência feita pela própria Secretaria. | ⚠️ Parcial |
+| SEC-RUN-01 / P1.2 — operar encontro autorizado | Exibir frequência e permitir lançamento e correção pela Secretaria | `e2e/secretary-runtime.spec.ts:52-59` — encontro e `Resumo` visíveis após reload; `e2e/attendance.spec.ts:202-212` — Secretaria muda `NOT_CONFIRMED → PRESENT → ABSENT`, verifica feedback e persistência. | ✅ PASS na rodada integrada final |
 | SEC-RUN-01 / P1.3 — frequência negada/falha | Erro contextual, página funcional e valor não salvo não marcado como concluído | `e2e/attendance.spec.ts:255-266` — encontro cancelado mantém `Não confirmado`/`NOT_CONFIRMED`, mostra `Encontro cancelado não aceita lançamentos de presença.`, oferece retry e, ao reabrir, salva `PRESENT`. É cobertura da frente de frequência, separada dos 5 E2E da Secretaria. | ✅ PASS |
 | SEC-RUN-02 / P1.1 — atividades compartilhadas | Secretaria ativa vê o mesmo item compartilhado que outras contas ativas | `e2e/activities.spec.ts:170-213` — Administrador cria item; Secretaria e depois Líder veem o mesmo título e estado após edição/reload. É teste existente da frente de atividades, separado dos 5 E2E da Secretaria. | ✅ PASS |
-| SEC-RUN-02 / P1.2 — criar/editar atividade ou subtarefa | Persistência mais confirmação ou erro contextual conforme ACT-01 a ACT-07 | `e2e/secretary-runtime.spec.ts:93-145` — entrada vazia mostra alerta exato `Título da atividade é obrigatório.` sem registro; criação mostra `Atividade criada com sucesso.` e contagem 1; subtask mostra `Subtask criada.` e contagem 1; conclusão persiste como `true` após reload. `e2e/activities.spec.ts:188-204` verifica edição compartilhada e reload, mas não a confirmação/erro de cada operação de edição. | ⚠️ Parcial |
+| SEC-RUN-02 / P1.2 — criar/editar atividade ou subtarefa | Persistência mais confirmação ou erro contextual conforme ACT-01 a ACT-07 | `e2e/secretary-runtime.spec.ts:93-145` — entrada vazia mostra alerta exato sem registro; criação de atividade/subtask confirma sucesso e contagens; conclusão persiste após reload. `e2e/activities.spec.ts:188-208` — edição da subtask e da área mostra feedback exato, confirma valores no Prisma e após reload. | ✅ PASS nos fluxos exercitados; entradas inválidas de edição continuam sem caso E2E dedicado |
 | SEC-RUN-03 / P1.1 — leitura de Ministérios | Página de leitura válida ou negação controlada, nunca exceção de cliente | `e2e/secretary-runtime.spec.ts:66-75` — título e `Demo Acolhimento` visíveis após reload; zero formulários e `pageErrors=[]`. | ✅ PASS |
-| SEC-RUN-03 / P1.2 — ação administrativa de Ministério | Negar a ação e não exibir formulários de gestão | `e2e/secretary-runtime.spec.ts:69-74` — zero formulários e zero link de gerenciamento; `e2e/ministry-memberships.spec.ts:120-127` — rota administrativa de vínculos responde 404, sem título/formulário. Asserções não invocam ações de criar/editar/arquivar por chamada manipulada; a guarda existe em `src/app/(dashboard)/ministerios/actions.ts:9-15`, sem teste de resultado da própria ação. | ⚠️ Parcial |
+| SEC-RUN-03 / P1.2 — ação administrativa de Ministério | Negar a ação e não exibir formulários de gestão | `e2e/secretary-runtime.spec.ts:160-203` — chamadas diretas de criar, alterar cargo e encerrar vínculo são rejeitadas; Prisma confirma nenhum vínculo novo, vínculo existente inalterado e zero audit/timeline. A UI continua sem formulários de gestão. | ✅ PASS na rodada integrada final |
 | SEC-RUN-04 / P1.3 — sessão/dados inválidos em rota protegida | Estado seguro e diagnóstico técnico suficiente | `src/app/(dashboard)/error.test.tsx:23-31` — alerta/cópia/retry exatos e sentinel privado ausente; `:43-53` — log esperado contém `scope: "dashboard"` e `digest: "next-digest-42"`, sem mensagem privada. `e2e/secretary-runtime.spec.ts:150-182` — sessão expirada redireciona as quatro rotas para `/login`, sem `pageerror`. | ✅ PASS |
 
-**Cobertura**: 5/8 critérios correspondem a asserções com o resultado da spec; 3/8 têm cobertura parcial; nenhum critério foi tratado como coberto apenas por existência de código. Os testes de frequência e atividades compartilhadas acima são evidência de arquivos de teste já existentes, não execução da rodada-base `secretary-runtime`.
+**Cobertura no baseline independente**: 5/8 critérios correspondiam a asserções com o resultado da spec; 3/8 eram parciais. A rodada integrada final executou os novos casos E2E documentados abaixo. Nenhum critério foi tratado como coberto apenas por existência de código.
 
 ### Tarefas e casos de borda
 
 - T1 e T2 permanecem marcadas como concluídas em `tasks.md`; a evidência correspondente está nas seções anteriores e nos testes citados acima.
 - Sessão expirada, lista de atividades vazia e encontro cancelado têm estados explícitos cobertos pelos testes citados.
-- Não há asserção de que falha/erro de uma rota deixa a navegação de outra rota intacta.
+- A navegação após falha de ação de frequência está coberta em `e2e/secretary-runtime.spec.ts:79-142`; não cobre falha de renderização de segmento.
 - A matriz de contagem de testes antes/depois da feature não está no histórico disponível; não foi possível calcular o delta de testes.
 
 ### Gates e sensor de discriminação
@@ -107,4 +109,28 @@ Durante o diagnóstico anterior à rodada final, o teste de atividades interagiu
 3. **SEC-RUN-03 / P1.2** — testar tentativa direta de chamar ações administrativas como Secretaria e confirmar ausência de mutação, além de ocultar formulários e negar a rota de vínculos.
 4. **Borda de navegação** — comprovar que erro em uma rota protegida não impede abrir outra rota depois.
 
-**Veredito independente**: ❌ **FAIL** — há três lacunas de critério e uma borda sem asserção. Build consolidado e E2E da Secretaria registrados continuam aprovados; o timeout de capacidade é separado.
+**Veredito independente inicial**: ❌ **FAIL** — naquela revisão havia três lacunas de critério e uma borda sem asserção. As correções e a execução posterior constam abaixo; o timeout de capacidade é separado.
+
+### Correções de cobertura posteriores ao baseline independente
+
+| Critério / borda | Asserções adicionadas | Estado |
+| --- | --- | --- |
+| SEC-RUN-01 / P1.2 — correção de frequência pela Secretaria | `e2e/attendance.spec.ts:202-212` — a Secretaria muda `NOT_CONFIRMED → PRESENT → ABSENT`; `Presença salva.` e o estado `ABSENT` persistido são verificados após a correção. | Implementado; incluído na rodada integrada final |
+| SEC-RUN-02 / P1.2 — feedback e estado persistido da edição compartilhada | `e2e/activities.spec.ts:187-208` — confirmações exatas `Subtask atualizada.` e `Área atualizada.`; Prisma confirma subtask concluída e bucket `PARKED`. | Implementado; incluído na rodada integrada final |
+| SEC-RUN-03 / P1.2 — tentativa direta de ação administrativa | `e2e/secretary-runtime.spec.ts:160-203` — chamadas diretas de Secretaria a `createMembership`, `updateMembershipRole` e `endMembership` são rejeitadas; Prisma confirma ausência de vínculo novo, vínculo pré-existente inalterado e zero eventos de auditoria/timeline. | Implementado; incluído na rodada integrada final |
+| Borda — navegar após erro de frequência | `e2e/secretary-runtime.spec.ts:79-142` — após falha contextual por encontro cancelado, a Secretaria abre `/ministerios`, retorna ao encontro e tenta novamente; o registro final fica `PRESENT`. Esta asserção cobre falha de ação e navegação, não uma exceção de renderização do segmento. | Implementado; incluído na rodada integrada final |
+
+### Validação das novas asserções
+
+- `rtk npx eslint e2e/attendance.spec.ts e2e/activities.spec.ts e2e/secretary-runtime.spec.ts` — passou sem issues.
+- `rtk run -c 'PLAYWRIGHT_PORT=3110 npm run test:e2e -- e2e/secretary-runtime.spec.ts e2e/attendance.spec.ts e2e/activities.spec.ts'` — **interrompido antes da conclusão, 6 de 18 testes**. Durante uma disputa concorrente de inicialização do webServer, o servidor reportou `PageNotFoundError` para `/(dashboard)/encontros/[meetingId]/page`; a rodada não serve como validação nem como reprovação dos novos testes. O runner usou somente `emaus_e2e_5ed405153ede` em PostgreSQL temporário; esse container foi removido.
+- `rtk npm run typecheck` — bloqueado por diagnósticos das frentes de Encontros/Contas: imports ausentes `category-forms` e `series-forms`, export ausente `resetAccountPassword`, além de tipos `MeetingSeries.audiences` ausentes no Prisma Client atual. Nenhum diagnóstico aponta para os três E2Es desta frente. Esses erros ficam sob avaliação das frentes correspondentes e não são registrados como defeitos da Secretaria.
+- `rtk npm test -- 'src/app/(dashboard)/error.test.tsx'` — passou, 3/3; confirma o boundary existente, sem validar as novas asserções E2E. As integrações com banco não foram reexecutadas nesta rodada.
+
+**Status após esta atualização**: os quatro itens da tabela acima foram executados com sucesso na rodada integrada final. O veredito independente 5/8 permanece como registro histórico daquela revisão; a cobertura E2E atual exercita os três ACs e a borda adicionados. O sensor independente não foi repetido.
+
+## Rodada integrada final — 2026-09-28
+
+`rtk run -c 'PLAYWRIGHT_PORT=3105 npm run test:e2e -- e2e/attendance.spec.ts e2e/activities.spec.ts e2e/secretary-runtime.spec.ts e2e/leader-access-scopes.spec.ts e2e/ministry-memberships.spec.ts e2e/people-profile.spec.ts e2e/people.spec.ts'` terminou com **31/31 testes aprovados em 3,8 min**. O runner criou `emaus_e2e_fc00faf5c5da` em PostgreSQL temporário tmpfs, aplicou oito migrations e seed, e removeu o container ao final. A suíte da Secretaria passou nos sete casos, incluindo correção após falha, edição compartilhada, chamadas de gestão negadas sem gravação e sessão expirada.
+
+Verificações executadas depois da rodada: `rtk npm run lint` passou sem erros (um warning existente de `<img>`); `rtk npm run db:validate` passou; unit-only passou **80/80 em 22 arquivos**; `rtk git diff --check` passou; `rtk npm run test:e2e:safety` passou 2/2. `rtk npm run typecheck` permanece bloqueado exclusivamente por `resetAccountPassword` não exportado em `src/features/auth/account-service.integration.test.ts`, fora desta frente. O build atual passou pelo runner temporário usando `rtk run -c 'npm run test:capacity -- --list'`; o runner construiu o app e listou o cenário de capacidade, sem executá-lo, e removeu o banco tmpfs. Não foram executadas integrações Vitest DB-backed neste fechamento.
