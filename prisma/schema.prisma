@@ -163,6 +163,7 @@ model Ministry {
   memberships      MinistryMembership[]
   accountAccess    AccountMinistryAccess[]
   meetingAudiences MeetingAudience[]
+  seriesAudiences  MeetingSeriesAudience[]
 }
 
 model MinistryMembership {
@@ -221,10 +222,25 @@ model MeetingSeries {
   createdAt  DateTime          @default(now())
   updatedAt  DateTime          @updatedAt
 
-  category Category  @relation(fields: [categoryId], references: [id])
-  meetings Meeting[]
+  category  Category                   @relation(fields: [categoryId], references: [id])
+  audiences MeetingSeriesAudience[]
+  meetings  Meeting[]
 
   @@index([categoryId, startDate])
+}
+
+model MeetingSeriesAudience {
+  id         String   @id @default(cuid())
+  seriesId   String
+  ministryId String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  series   MeetingSeries @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  ministry Ministry      @relation(fields: [ministryId], references: [id])
+
+  @@unique([seriesId, ministryId])
+  @@index([ministryId])
 }
 
 model Meeting {
