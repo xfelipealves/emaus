@@ -9,6 +9,7 @@ const ITEMS = [
   { href: "/configuracoes/usuarios", label: "Usuários e acessos" },
   { href: "/configuracoes/categorias", label: "Categorias de encontro" },
   { href: "/configuracoes/auditoria", label: "Auditoria" },
+  { href: "/configuracoes/ia", label: "IA" },
 ];
 
 export function SettingsNav() {

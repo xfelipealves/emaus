@@ -173,3 +173,7 @@ export function hoursUntil(date: Date) {
 export function upperFirst(text: string) {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
+
+export function daysAgo(days: number) {
+  return new Date(Date.now() - days * 86_400_000);
+}
