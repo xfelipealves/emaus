@@ -396,6 +396,16 @@ async function main() {
   for (const [i, [p, text, pinned]] of notes.entries()) {
     await db.insert(schema.note).values({ personId: p.id, authorId: users.admin, content: text, pinned, createdAt: new Date(now - (i + 1) * 3 * 86_400_000) });
   }
+  // Anotação confidencial: só administradores (pastores) enxergam.
+  const counseled = pickMember((p) => inMinistry(p, "New Mind") && p.householdRole === "child");
+  await db.insert(schema.note).values({
+    personId: counseled.id,
+    authorId: users.admin,
+    content: "Atendimento pastoral com a família. Situação delicada em casa; acompanhar com discrição e não comentar com a equipe.",
+    visibility: "pastoral",
+    pinned: true,
+    createdAt: new Date(now - 2 * 86_400_000),
+  });
   const away = people.filter((p) => p.engagement < 0);
   const firstVisitor = people.find((p) => p.status === "visitor")!;
   await db.insert(schema.followUp).values([
