@@ -1,11 +1,16 @@
 /**
  * Cenário demo inspirado na estrutura real da IEQ Buriti Sereno: ministérios,
- * agenda semanal e eventos recentes. Todas as PESSOAS, telefones e anotações são
- * fictícios. APAGA o banco atual.
+ * agenda semanal e eventos recentes. APAGA o banco atual.
+ *
+ * Sem `data/roster.json`, todas as pessoas são fictícias. Com ele (gerado por
+ * `scripts/extract-whatsapp-roster.mjs`, fora do git), os ministérios recebem as
+ * pessoas reais dos grupos de WhatsApp; o restante da congregação continua
+ * fictício. Anotações, acompanhamentos e afastamentos ficam só nos fictícios.
  *
  *   npm run db:seed
  */
 import "./load-env";
+import { existsSync, readFileSync } from "node:fs";
 import { sql } from "drizzle-orm";
 import type { HouseholdRole, PersonStatus } from "./schema";
 import { auth } from "../lib/auth";
@@ -67,7 +72,26 @@ type Draft = {
   howFound: string | null;
   /** 0–1: chance de vir; -1 = afastado (vinha e parou) */
   engagement: number;
+  /** Veio do roster de WhatsApp: nunca recebe dados pastorais inventados. */
+  real?: boolean;
+  ministries?: { ministry: string; role: "member" | "leader" }[];
 };
+
+type Roster = { people: { name: string; memberships: { ministry: string; role: "member" | "leader" }[] }[] };
+
+function loadRoster(): Roster | null {
+  const file = "data/roster.json";
+  return existsSync(file) ? (JSON.parse(readFileSync(file, "utf8")) as Roster) : null;
+}
+
+/** Palpite de gênero pelo nome (só afeta a simulação de presença). */
+const MALE_ENDINGS = new Set(["felipe", "jose", "josé", "halley", "henrique", "jorge", "andre", "andré", "dudu", "moncaio", "cecilio", "cecílio"]);
+function guessGender(name: string, ministries: string[]): "female" | "male" {
+  const first = name.split(" ")[0].toLowerCase();
+  if (first === "pastora") return "female";
+  if (first === "pastor" || ministries.includes("Homens de Honra") || MALE_ENDINGS.has(first)) return "male";
+  return /(a|y|ne|ice|ele)$/.test(first) ? "female" : "male";
+}
 
 async function main() {
   const today = todayIso(TZ);
@@ -172,6 +196,37 @@ async function main() {
     }
   }
 
+  // Pessoas reais dos ministérios (roster do WhatsApp), sem telefone nem endereço.
+  const roster = loadRoster();
+  for (const r of roster?.people ?? []) {
+    const ms = r.memberships.map((m) => m.ministry);
+    const pastor = /^Pastora? /.test(r.name);
+    const leadsYouth = r.memberships.some((m) => m.role === "leader" && ["New Mind", "Metanoia"].includes(m.ministry));
+    const range: [number, number] = pastor
+      ? [45, 65]
+      : ms.includes("Homens de Honra") || ms.includes("Casa de Paz")
+        ? [28, 62]
+        : leadsYouth || ms.includes("Metanoia") || ms.includes("Louvor") || ms.includes("Mídia")
+          ? [18, 29]
+          : [13, 17];
+    add({
+      fullName: r.name,
+      gender: guessGender(r.name, ms),
+      status: "member",
+      phone: null,
+      birthDate: birth(range[0], range[1], today),
+      householdId: null,
+      householdRole: null,
+      address: null,
+      memberSince: addDaysIso(today, -Math.floor(300 + rand() * 3000)),
+      firstVisitDate: null,
+      howFound: null,
+      engagement: 0.6 + rand() * 0.35,
+      real: true,
+      ministries: r.memberships,
+    });
+  }
+
   // Aniversariantes garantidos nos próximos dias.
   people.filter((p) => p.status === "member" && p.householdRole === "head").slice(0, 4).forEach((p, i) => {
     p.birthDate = `${p.birthDate.slice(0, 4)}${addDaysIso(today, i * 3 + 1).slice(4)}`;
@@ -181,7 +236,7 @@ async function main() {
   const created = await db
     .insert(schema.person)
     .values(
-      people.map(({ engagement: _e, ...p }) => ({
+      people.map(({ engagement: _e, real: _r, ministries: _m, ...p }) => ({
         ...p,
         phoneDigits: p.phone ? normalizePhone(p.phone) : null,
         createdAt: new Date(Date.now() - 220 * 86_400_000),
@@ -212,19 +267,23 @@ async function main() {
   const adults = active.filter((p) => age(p) >= 30 && p.status === "member");
   const men = adults.filter((p) => p.gender === "male");
 
-  // New Song: músicos e vocal entre adolescentes e jovens.
-  shuffle([...teens.filter((p) => age(p) >= 14), ...youth]).slice(0, 15).forEach((p, i) => join(p, "New Song", i === 0 ? "leader" : "member"));
-  teens.forEach((p) => join(p, "New Mind"));
-  shuffle(youth).slice(0, 6).forEach((p) => join(p, "New Mind", "leader"));
-  // Liderança primeiro: join ignora vínculo repetido (equipe de Supervisão).
-  shuffle(youth).slice(0, 4).forEach((p) => join(p, "Metanoia", "leader"));
-  youth.forEach((p) => join(p, "Metanoia"));
-  const louvor = shuffle([...youth, ...adults.slice(0, 30)]).slice(0, 22);
-  louvor.forEach((p, i) => join(p, "Louvor", i === 0 ? "leader" : "member"));
-  const midia = shuffle([...teens.filter((p) => age(p) >= 15), ...youth]).slice(0, 14);
-  midia.forEach((p, i) => join(p, "Mídia", i === 0 ? "leader" : "member", i >= 12 ? "2026-10-31" : undefined));
-  men.filter(() => chance(0.75)).forEach((p, i) => join(p, "Homens de Honra", i < 2 ? "leader" : "member"));
-  shuffle(adults).slice(0, 22).forEach((p, i) => join(p, "Casa de Paz", i < 2 ? "leader" : "member"));
+  if (roster) {
+    for (const p of people) for (const m of p.ministries ?? []) join(p, m.ministry, m.role);
+  } else {
+    // New Song: músicos e vocal entre adolescentes e jovens.
+    shuffle([...teens.filter((p) => age(p) >= 14), ...youth]).slice(0, 15).forEach((p, i) => join(p, "New Song", i === 0 ? "leader" : "member"));
+    teens.forEach((p) => join(p, "New Mind"));
+    shuffle(youth).slice(0, 6).forEach((p) => join(p, "New Mind", "leader"));
+    // Liderança primeiro: join ignora vínculo repetido (equipe de Supervisão).
+    shuffle(youth).slice(0, 4).forEach((p) => join(p, "Metanoia", "leader"));
+    youth.forEach((p) => join(p, "Metanoia"));
+    const louvor = shuffle([...youth, ...adults.slice(0, 30)]).slice(0, 22);
+    louvor.forEach((p, i) => join(p, "Louvor", i === 0 ? "leader" : "member"));
+    const midia = shuffle([...teens.filter((p) => age(p) >= 15), ...youth]).slice(0, 14);
+    midia.forEach((p, i) => join(p, "Mídia", i === 0 ? "leader" : "member", i >= 12 ? "2026-10-31" : undefined));
+    men.filter(() => chance(0.75)).forEach((p, i) => join(p, "Homens de Honra", i < 2 ? "leader" : "member"));
+    shuffle(adults).slice(0, 22).forEach((p, i) => join(p, "Casa de Paz", i < 2 ? "leader" : "member"));
+  }
   await db.insert(schema.membership).values(memberships);
   const inMinistry = (p: Draft, name: string) => joined.has(`${p.id}:${name}`);
 
@@ -371,8 +430,9 @@ async function main() {
   const ctx = await auth.$context;
   const hash = await ctx.password.hash(PASSWORD);
   const newMindLeader = people.find((p) => joined.has(`${p.id}:New Mind`) && memberships.some((m) => m.personId === p.id && m.ministryId === M["New Mind"] && m.role === "leader"))!;
+  const pastor = people.find((p) => p.real && /^Pastor /.test(p.fullName)) ?? people.find((p) => p.real && /^Pastora /.test(p.fullName));
   const accounts = [
-    { username: "admin", name: "Pastora Regina", email: "pastora@emaus.local", role: "admin" as const, personId: null },
+    { username: "admin", name: pastor?.fullName ?? "Pastora Regina", email: "pastora@emaus.local", role: "admin" as const, personId: pastor?.id ?? null },
     { username: "secretaria", name: "Secretaria IEQ", email: "secretaria@emaus.local", role: "secretary" as const, personId: null },
     { username: "lider", name: newMindLeader.fullName, email: "newmind@emaus.local", role: "leader" as const, personId: newMindLeader.id },
   ];
@@ -385,19 +445,21 @@ async function main() {
   await db.insert(schema.userMinistryAccess).values({ userId: users.lider, ministryId: M["New Mind"] });
 
   /* ───────────── Cuidado pastoral (fictício) ───────────── */
-  const pickMember = (f: (p: Draft) => boolean) => people.find((p) => p.status === "member" && f(p))!;
+  // Situações pastorais só em pessoas fictícias.
+  const fictional = people.filter((p) => !p.real && p.status === "member");
+  const pickMember = (f: (p: Draft) => boolean, skip = 0) => fictional.filter(f)[skip] ?? fictional[skip];
   const notes: [Draft, string, boolean][] = [
-    [pickMember((p) => inMinistry(p, "Louvor") && age(p) >= 30), "Pediu oração pela saúde do esposo; não conseguiu servir no domingo.", true],
-    [pickMember((p) => inMinistry(p, "Mídia")), "Entrou na escala da Mídia em novembro. Quer aprender transmissão.", false],
-    [pickMember((p) => inMinistry(p, "New Mind") && age(p) <= 17), "Vai fazer o ENEM neste fim de semana. Combinamos de orar por ele no culto.", false],
-    [pickMember((p) => inMinistry(p, "Metanoia")), "Voltou do acampamento muito tocado. Interessado no discipulado.", false],
-    [pickMember((p) => inMinistry(p, "Casa de Paz") && p.householdRole === "head"), "Abriu a casa para a célula na próxima terça.", false],
+    [pickMember((p) => p.householdRole === "spouse" && age(p) >= 30), "Pediu oração pela saúde do esposo; não conseguiu vir no domingo.", true],
+    [pickMember((p) => age(p) >= 18 && age(p) <= 29), "Quer começar a servir; tem interesse na Mídia e em transmissão.", false],
+    [pickMember((p) => age(p) >= 16 && age(p) <= 17), "Vai fazer o ENEM neste fim de semana. Combinamos de orar por ele no culto.", false],
+    [pickMember((p) => age(p) >= 18 && age(p) <= 29, 1), "Voltou do acampamento muito tocado. Interessado no discipulado.", false],
+    [pickMember((p) => p.householdRole === "head"), "Abriu a casa para a célula na próxima terça.", false],
   ];
   for (const [i, [p, text, pinned]] of notes.entries()) {
     await db.insert(schema.note).values({ personId: p.id, authorId: users.admin, content: text, pinned, createdAt: new Date(now - (i + 1) * 3 * 86_400_000) });
   }
   // Anotação confidencial: só administradores (pastores) enxergam.
-  const counseled = pickMember((p) => inMinistry(p, "New Mind") && p.householdRole === "child");
+  const counseled = pickMember((p) => p.householdRole === "child" && age(p) >= 13 && age(p) <= 17, 1);
   await db.insert(schema.note).values({
     personId: counseled.id,
     authorId: users.admin,
