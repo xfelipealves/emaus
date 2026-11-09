@@ -10,10 +10,14 @@
  *
  * Não grava telefones nem mensagens: só nome, ministérios e função.
  *
+ * Correções manuais ficam em `data/roster-overrides.json` (também fora do git):
+ *   { "leaders": { "Homens de Honra": ["Nome Exato"] } }
+ * define a liderança exata do ministério; os demais viram participantes.
+ *
  *   node scripts/extract-whatsapp-roster.mjs [--nchat-profile <dir>]
  */
 import { createHash } from "node:crypto";
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -114,6 +118,16 @@ try {
       people.set(key, person);
     }
     report.push(`  ✓ ${group.name.trim()} → ${rule.ministry}${rule.role ? " (liderança)" : ""}: ${named}/${rows.length} com nome`);
+  }
+
+  const overrides = existsSync("data/roster-overrides.json")
+    ? JSON.parse(readFileSync("data/roster-overrides.json", "utf8"))
+    : {};
+  for (const [ministry, leaders] of Object.entries(overrides.leaders ?? {})) {
+    for (const person of people.values()) {
+      if (person.memberships[ministry]) person.memberships[ministry] = leaders.includes(person.name) ? "leader" : "member";
+    }
+    report.push(`  ✎ ${ministry}: liderança definida manualmente (${leaders.join(", ")})`);
   }
 
   const roster = [...people.values()]
