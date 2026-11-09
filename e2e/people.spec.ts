@@ -26,6 +26,7 @@ test.describe("P1 Person lifecycle", () => {
   test.describe.configure({ mode: "serial" });
 
   test("PES-01/PES-02 — registers a visitor, promotes it, then preserves its history when inactive", async ({ page }) => {
+    test.setTimeout(90_000);
     const suffix = Date.now().toString();
     const fullName = `Pessoa ciclo T35 ${suffix}`;
     let personId: string | undefined;

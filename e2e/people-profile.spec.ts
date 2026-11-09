@@ -128,7 +128,16 @@ test.describe("person profile", () => {
     await expect(page.getByText("Pessoa promovida a membro.")).toBeVisible();
     await expect(page.locator("dd").nth(0)).toHaveText("(11) 98888-2020");
     await expect(page.locator("dd").nth(1)).toContainText("22/02/1998");
-    await expect(prisma.person.findUnique({ where: { id: visitor.id } })).resolves.toMatchObject({ status: "MEMBER", phone: "(11) 98888-2020" });
+    await expect(prisma.person.findUnique({ where: { id: visitor.id } })).resolves.toMatchObject({
+      status: "MEMBER",
+      phone: "(11) 98888-2020",
+      birthDate: new Date("1998-02-22T00:00:00.000Z"),
+      statusChangedAt: new Date("2024-03-12T12:00:00.000Z"),
+    });
+    await expect(prisma.timelineEvent.findFirst({ where: { personId: visitor.id, category: "STATUS" } })).resolves.toMatchObject({
+      title: "Pessoa promovida a membro",
+      occurredAt: new Date("2024-03-12T12:00:00.000Z"),
+    });
 
     await page.getByRole("link", { name: "Timeline" }).click();
     await expect(page).toHaveURL(new RegExp(`/pessoas/${visitor.id}/timeline$`));
