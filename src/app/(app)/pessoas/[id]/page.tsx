@@ -6,15 +6,17 @@ import { Section } from "@/components/app/page-header";
 import { StatusBadge } from "@/components/app/status-badge";
 import { PersonAvatar, ToneBadge, ToneDot } from "@/components/app/tone";
 import { FollowUpItem, NewFollowUpButton } from "@/components/people/follow-ups";
+import { AttendanceMatrix } from "@/components/people/attendance-matrix";
 import { AddToMinistry, MembershipMenu } from "@/components/people/memberships";
 import { NoteComposer, NoteMenu } from "@/components/people/notes";
 import { PersonActions } from "@/components/people/person-actions";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { addDaysIso, diffDaysIso, formatDate, formatDateTime, formatDaysAgo, isoDateInTz, todayIso } from "@/lib/dates";
+import { diffDaysIso, formatDate, formatDateTime, formatDaysAgo, isoDateInTz, todayIso } from "@/lib/dates";
 import { HOUSEHOLD_ROLE_LABEL } from "@/lib/labels";
 import { displayName, firstName, formatPhone, whatsappUrl } from "@/lib/text";
 import { cn } from "@/lib/utils";
+import { personAttendanceMatrix } from "@/server/attendance-matrix";
 import { listAssignees, listFollowUps } from "@/server/care";
 import { listHouseholds } from "@/server/households";
 import { listMinistries } from "@/server/ministries";
@@ -34,7 +36,7 @@ export default async function PersonPage({ params }: { params: Promise<{ id: str
   const person = await getPerson(user, id);
   if (!person) notFound();
 
-  const [settings, timeline, attendance, followUps, doneFollowUps, ministries, households, assignees] = await Promise.all([
+  const [settings, timeline, attendance, followUps, doneFollowUps, ministries, households, assignees, matrix] = await Promise.all([
     getSettings(),
     personTimeline(id, user.role === "admin"),
     personAttendance(id, 200),
@@ -43,6 +45,7 @@ export default async function PersonPage({ params }: { params: Promise<{ id: str
     listMinistries(user),
     listHouseholds(user),
     listAssignees(),
+    personAttendanceMatrix(id),
   ]);
   const tz = settings.timezone;
   const today = todayIso(tz);
@@ -54,21 +57,6 @@ export default async function PersonPage({ params }: { params: Promise<{ id: str
   const activeMemberships = person.memberships.filter((m) => !m.endDate);
   const pastMemberships = person.memberships.filter((m) => m.endDate);
   const availableMinistries = ministries.filter((m) => !activeMemberships.some((am) => am.ministryId === m.id));
-
-  // Grade de 20 semanas: presença em qualquer encontro da semana.
-  const weeks = Array.from({ length: 20 }, (_, i) => {
-    const start = addDaysIso(today, -(19 - i) * 7 - 6);
-    const end = addDaysIso(start, 6);
-    const hits = attendance.filter((a) => {
-      const d = isoDateInTz(a.startsAt, tz);
-      return d >= start && d <= end;
-    });
-    return {
-      start,
-      present: hits.filter((h) => h.status === "present").length,
-      absent: hits.filter((h) => h.status === "absent").length,
-    };
-  });
 
   return (
     <div className="space-y-6">
@@ -231,22 +219,9 @@ export default async function PersonPage({ params }: { params: Promise<{ id: str
 
         {/* Frequência */}
         <TabsContent value="attendance" className="mt-5 space-y-4">
-          <Section title="Últimas 20 semanas" description="Cada quadrado é uma semana. Quanto mais forte, mais encontros com presença.">
-            <div className="flex flex-wrap gap-1.5 px-5 pb-5">
-              {weeks.map((w) => (
-                <div
-                  key={w.start}
-                  title={`Semana de ${formatDate(w.start, tz, { day: "2-digit", month: "short" })}: ${w.present} presença(s)`}
-                  className={cn(
-                    "size-7 rounded-md border sm:size-8",
-                    w.present === 0 && w.absent === 0 && "bg-muted/50",
-                    w.present === 0 && w.absent > 0 && "border-destructive/30 bg-destructive/10",
-                    w.present === 1 && "border-transparent bg-primary/35",
-                    w.present === 2 && "border-transparent bg-primary/65",
-                    w.present >= 3 && "border-transparent bg-primary",
-                  )}
-                />
-              ))}
+          <Section title="Chamada das últimas 12 semanas" description="Uma linha por tipo de encontro que a pessoa deveria frequentar. Toque num círculo para abrir o encontro.">
+            <div className="px-5 pb-5">
+              <AttendanceMatrix {...matrix} daysSinceLast={matrix.stats.lastPresent ? diffDaysIso(today, matrix.stats.lastPresent.date) : null} />
             </div>
           </Section>
           <Section title="Histórico de encontros" description={`${present.length} presenças registradas`}>
