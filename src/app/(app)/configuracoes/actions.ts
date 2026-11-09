@@ -8,7 +8,7 @@ import { formToObject, runAction } from "@/server/action";
 import { deleteCategory, saveCategory } from "@/server/events";
 import { recordAudit } from "@/server/history";
 import { requireRole } from "@/server/session";
-import { createUserAccount, resetUserPassword, setUserActive, updateUserAccount } from "@/server/users";
+import { createUserAccount, resetUserPassword, revokeUserSessions, setUserActive, updateUserAccount } from "@/server/users";
 
 const settingsInput = z.object({
   name: z.string().trim().min(2, "Informe o nome da igreja").max(80),
@@ -21,6 +21,7 @@ const settingsInput = z.object({
     }
   }, "Fuso horário inválido"),
   careThresholdDays: z.coerce.number().int().min(7, "Mínimo 7 dias").max(180, "Máximo 180 dias"),
+  allowSelfRegistration: z.preprocess((v) => v === "on" || v === "true", z.boolean()),
 });
 
 export async function saveSettingsAction(form: FormData) {
@@ -47,6 +48,10 @@ export async function updateUserAction(id: string, form: FormData) {
 
 export async function setUserActiveAction(id: string, active: boolean) {
   return runAction(async () => setUserActive(await requireRole("admin"), id, active), active ? "Conta reativada" : "Conta desativada");
+}
+
+export async function revokeSessionsAction(id: string) {
+  return runAction(async () => revokeUserSessions(await requireRole("admin"), id), "Sessões encerradas");
 }
 
 export async function resetPasswordAction(id: string, password: string) {

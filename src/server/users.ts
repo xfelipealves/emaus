@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, desc, eq, ne } from "drizzle-orm";
+import { and, asc, desc, eq, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db, schema } from "@/db";
 import { ROLES } from "@/db/schema";
@@ -26,13 +26,19 @@ export const userInput = z.object({
 export const passwordRule = z.string().min(8, "A senha precisa ter ao menos 8 caracteres").max(128);
 
 export async function listUsers() {
-  return db.query.user.findMany({
+  const seen = await db
+    .select({ userId: schema.session.userId, last: sql<number>`max(${schema.session.updatedAt})` })
+    .from(schema.session)
+    .groupBy(schema.session.userId);
+  const lastSeen = new Map(seen.map((s) => [s.userId, new Date(s.last)]));
+  const users = await db.query.user.findMany({
     orderBy: [desc(schema.user.active), asc(schema.user.name)],
     with: {
       ministryAccess: { with: { ministry: { columns: { id: true, name: true, color: true } } } },
       person: { columns: { id: true, fullName: true } },
     },
   });
+  return users.map((u) => ({ ...u, lastSeen: lastSeen.get(u.id) ?? null }));
 }
 
 async function ensureUnique(username: string, email: string, exceptId?: string) {
@@ -66,6 +72,7 @@ export async function createUserAccount(
     displayUsername: input.username,
     role: input.role,
     active: true,
+    mustChangePassword: true,
     personId: input.personId ?? null,
   }, { method: "admin" });
   await ctx.internalAdapter.linkAccount({
@@ -159,14 +166,31 @@ export async function resetUserPassword(actor: CurrentUser, id: string, password
   if (!target) throw new ActionError("Usuário não encontrado.");
   const ctx = await auth.$context;
   await ctx.internalAdapter.updatePassword(id, await ctx.password.hash(password));
-  // Outras sessões da pessoa caem ao trocar a senha.
-  if (actor.id !== id) await db.delete(schema.session).where(eq(schema.session.userId, id));
+  // Senha definida por outra pessoa é provisória: sessões caem e a troca vira obrigatória.
+  if (actor.id !== id) {
+    await db.delete(schema.session).where(eq(schema.session.userId, id));
+    await db.update(schema.user).set({ mustChangePassword: true }).where(eq(schema.user.id, id));
+  }
   await recordAudit(db, {
     actorId: actor.id,
     entity: "user",
     entityId: id,
     action: "password.reset",
     summary: `Senha de ${target.name} redefinida`,
+  });
+}
+
+export async function revokeUserSessions(actor: CurrentUser, id: string) {
+  const target = await db.query.user.findFirst({ where: eq(schema.user.id, id) });
+  if (!target) throw new ActionError("Usuário não encontrado.");
+  if (actor.id === id) throw new ActionError("Use “Sair” para encerrar a sua própria sessão.");
+  await db.delete(schema.session).where(eq(schema.session.userId, id));
+  await recordAudit(db, {
+    actorId: actor.id,
+    entity: "user",
+    entityId: id,
+    action: "sessions.revoke",
+    summary: `Sessões de ${target.name} encerradas`,
   });
 }
 

@@ -3,6 +3,7 @@ import { listMinistries } from "@/server/ministries";
 import { listPeople } from "@/server/people";
 import { requireUser } from "@/server/session";
 import { listUsers } from "@/server/users";
+import { formatRelative } from "@/lib/dates";
 import { displayName } from "@/lib/text";
 import { UsersManager } from "./users-manager";
 
@@ -21,6 +22,8 @@ export default async function UsersPage() {
         email: u.email,
         role: u.role,
         active: u.active,
+        mustChangePassword: u.mustChangePassword,
+        lastSeen: u.lastSeen ? `último acesso ${formatRelative(u.lastSeen)}` : "nunca acessou",
         personId: u.personId,
         ministries: u.ministryAccess.map((a) => a.ministry),
       }))}

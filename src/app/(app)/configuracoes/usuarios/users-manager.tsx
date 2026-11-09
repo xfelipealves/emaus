@@ -1,6 +1,6 @@
 "use client";
 
-import { KeyRound, MoreHorizontal, Pencil, Power, UserPlus } from "lucide-react";
+import { KeyRound, LogOut, MoreHorizontal, Pencil, Power, UserPlus } from "lucide-react";
 import { useState } from "react";
 import { FormField } from "@/components/app/form";
 import { PersonAvatar, ToneBadge, ToneDot } from "@/components/app/tone";
@@ -15,7 +15,7 @@ import type { Role } from "@/db/schema";
 import { useAction } from "@/hooks/use-action";
 import { ROLE_LABEL } from "@/lib/labels";
 import { cn } from "@/lib/utils";
-import { createUserAction, resetPasswordAction, setUserActiveAction, updateUserAction } from "../actions";
+import { createUserAction, resetPasswordAction, revokeSessionsAction, setUserActiveAction, updateUserAction } from "../actions";
 
 type U = {
   id: string;
@@ -24,6 +24,9 @@ type U = {
   email: string;
   role: Role;
   active: boolean;
+  mustChangePassword: boolean;
+  /** Texto pronto do servidor (evita divergência de hidratação). */
+  lastSeen: string;
   personId: string | null;
   ministries: { id: string; name: string; color: string }[];
 };
@@ -40,10 +43,14 @@ export function UsersManager({ users, ministries, people, currentUserId }: { use
   const [editing, setEditing] = useState<U | null | "new">(null);
   const [resetting, setResetting] = useState<U | null>(null);
   const active = useAction(setUserActiveAction);
+  const revoke = useAction(revokeSessionsAction);
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="max-w-xl text-sm text-muted-foreground">
+          O Emaús é restrito à liderança. Crie contas só para quem precisa acompanhar pessoas; a senha inicial é provisória e precisa ser trocada no primeiro acesso.
+        </p>
         <Button onClick={() => setEditing("new")}><UserPlus data-icon="inline-start" /> Nova conta</Button>
       </div>
       <ul className="divide-y overflow-hidden rounded-2xl border bg-card shadow-xs">
@@ -55,11 +62,13 @@ export function UsersManager({ users, ministries, people, currentUserId }: { use
                 <span className="font-medium">{u.name}</span>
                 <ToneBadge tone={ROLE_TONE[u.role]}>{ROLE_LABEL[u.role]}</ToneBadge>
                 {!u.active && <ToneBadge tone="slate">desativada</ToneBadge>}
+                {u.active && u.mustChangePassword && <ToneBadge tone="gold">aguardando 1º acesso</ToneBadge>}
                 {u.id === currentUserId && <span className="text-xs text-muted-foreground">(você)</span>}
               </div>
               <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                 <span>@{u.username}</span>
                 <span>{u.email}</span>
+                <span>{u.lastSeen}</span>
                 {u.role === "leader" && (
                   <span className="inline-flex flex-wrap items-center gap-1.5">
                     {u.ministries.length ? u.ministries.map((m) => <span key={m.id} className="inline-flex items-center gap-1"><ToneDot tone={m.color} />{m.name}</span>) : "sem ministérios liberados"}
@@ -72,6 +81,7 @@ export function UsersManager({ users, ministries, people, currentUserId }: { use
               <DropdownMenuContent align="end" className="w-52">
                 <DropdownMenuItem onClick={() => setEditing(u)}><Pencil /> Editar</DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setResetting(u)}><KeyRound /> Redefinir senha</DropdownMenuItem>
+                {u.id !== currentUserId && <DropdownMenuItem onClick={() => revoke.run(u.id)}><LogOut /> Encerrar sessões</DropdownMenuItem>}
                 {u.id !== currentUserId && (
                   <>
                     <DropdownMenuSeparator />
@@ -109,7 +119,7 @@ function UserDialog({ user, ministries, people, onClose }: { user: U | null; min
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{user ? "Editar conta" : "Nova conta"}</DialogTitle>
-          <DialogDescription>{user ? "Atualize o papel e os acessos." : "A pessoa entra com o nome de usuário e a senha que você definir."}</DialogDescription>
+          <DialogDescription>{user ? "Atualize o papel e os acessos." : "Passe o usuário e a senha provisória pessoalmente; no primeiro acesso a pessoa define a própria senha."}</DialogDescription>
         </DialogHeader>
         <form id="user-form" className="grid gap-4" onSubmit={(ev) => { ev.preventDefault(); save.run(new FormData(ev.currentTarget)); }}>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -124,7 +134,7 @@ function UserDialog({ user, ministries, people, onClose }: { user: U | null; min
             <Input id="u-email" name="email" type="email" defaultValue={user?.email} required />
           </FormField>
           {!user && (
-            <FormField label="Senha inicial" htmlFor="u-password" error={e.password} hint="Mínimo de 8 caracteres.">
+            <FormField label="Senha provisória" htmlFor="u-password" error={e.password} hint="Mínimo de 8 caracteres. Será trocada no primeiro acesso.">
               <Input id="u-password" name="password" type="text" minLength={8} required autoComplete="new-password" />
             </FormField>
           )}
@@ -169,7 +179,7 @@ function ResetDialog({ user, onClose }: { user: U; onClose: () => void }) {
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Redefinir senha de {user.name}</DialogTitle>
-          <DialogDescription>As sessões abertas dessa conta serão encerradas.</DialogDescription>
+          <DialogDescription>A senha nova é provisória: as sessões abertas caem e a pessoa define uma senha própria no próximo acesso.</DialogDescription>
         </DialogHeader>
         <Input value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Nova senha (mín. 8 caracteres)" autoFocus />
         <DialogFooter>
