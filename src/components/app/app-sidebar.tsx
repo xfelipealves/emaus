@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronsUpDown, LogOut, Monitor, Moon, Search, Sun } from "lucide-react";
+import { ChevronsUpDown, KeyRound, LogOut, Monitor, Moon, Search, Sun } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
@@ -127,6 +127,9 @@ function UserMenu({ user }: { user: ShellUser }) {
           </DropdownMenuRadioGroup>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={() => router.push("/conta")}>
+          <KeyRound /> Minha conta
+        </DropdownMenuItem>
         <DropdownMenuItem
           variant="destructive"
           onClick={async () => {

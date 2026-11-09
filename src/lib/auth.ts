@@ -15,6 +15,13 @@ export const auth = betterAuth({
     disableSignUp: true,
     minPasswordLength: 8,
   },
+  // App restrito à liderança: poucas tentativas de login por IP.
+  rateLimit: {
+    enabled: true,
+    window: 60,
+    max: 100,
+    customRules: { "/sign-in/username": { window: 300, max: 8 } },
+  },
   session: {
     expiresIn: 60 * 60 * 24 * 30,
     updateAge: 60 * 60 * 24,
@@ -24,11 +31,19 @@ export const auth = betterAuth({
     additionalFields: {
       role: { type: "string", input: false, defaultValue: "secretary" },
       active: { type: "boolean", input: false, defaultValue: true },
+      mustChangePassword: { type: "boolean", input: false, defaultValue: false },
       personId: { type: "string", input: false, required: false },
     },
   },
   databaseHooks: {
-    session: {
+    // App restrito à liderança: poucas tentativas de login por IP.
+  rateLimit: {
+    enabled: true,
+    window: 60,
+    max: 100,
+    customRules: { "/sign-in/username": { window: 300, max: 8 } },
+  },
+  session: {
       create: {
         before: async (session) => {
           const account = await db.query.user.findFirst({

@@ -14,6 +14,7 @@ export type CurrentUser = {
   username: string | null;
   role: Role;
   personId: string | null;
+  mustChangePassword: boolean;
   /** null = enxerga todos os ministérios */
   ministryIds: string[] | null;
 };
@@ -33,6 +34,7 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
     username: row.displayUsername ?? row.username,
     role: row.role,
     personId: row.personId,
+    mustChangePassword: row.mustChangePassword,
     ministryIds:
       row.role === "leader" ? row.ministryAccess.map((a) => a.ministryId) : null,
   };
@@ -41,6 +43,11 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
 export async function requireUser() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
+  // Senha definida pelo administrador: troca obrigatória antes de usar o app.
+  if (user.mustChangePassword) {
+    const path = (await headers()).get("x-pathname") ?? "";
+    if (!path.startsWith("/conta")) redirect("/conta?primeiro-acesso=1");
+  }
   return user;
 }
 
