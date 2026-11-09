@@ -1,76 +1,98 @@
 # Emaús
 
-> Sistema de acompanhamento de pessoas e organização da vida comunitária de igrejas.
+> Acompanhamento de pessoas e da vida comunitária da igreja.
+> “Fica conosco, porque é tarde, e já declinou o dia.” — Lucas 24:29
 
-O Emaús será desenvolvido com **Spec-Driven Development**. Antes de implementar interface ou tecnologia, as decisões de negócio são registradas e aprovadas como especificações.
+O Emaús reúne em um só lugar quem caminha com a igreja: cadastro de pessoas e famílias,
+ministérios, encontros com presença e o cuidado pastoral de quem se afastou.
 
-## Estado atual
+## O que tem
 
-Specify e Design estão aprovados. O MVP está implementado e validado pelo relatório
-`.specs/features/emaus-mvp/validation.md`. O fluxo normal de novos lotes começa a
-partir de `origin/dev` e mantém um Draft PR por lote; a reconciliação histórica do
-MVP usa a branch `lote/L001-emaus-mvp-reconcile` antes de sua integração em `dev`.
+- **Painel pastoral** — pessoas ativas, média semanal de presença com tendência, gráfico de
+  12 semanas, quem está sumido, visitantes recentes (e se voltaram) e aniversariantes.
+- **Pessoas** — lista com busca instantânea (sem acento, por nome ou telefone), filtros por
+  status e ministério, perfil com linha do tempo, anotações fixáveis, grade de frequência de
+  20 semanas, ministérios e família. WhatsApp em um toque.
+- **Famílias** — agrupe a casa toda; papéis (responsável, cônjuge, filhos).
+- **Ministérios** — participantes, líderes, histórico de vínculos e engajamento semanal.
+- **Encontros** — lista e calendário, séries recorrentes (semanal, quinzenal, mensal) geradas
+  automaticamente, público por ministério.
+- **Presença** — lista otimizada para celular (toque em ✓ / ✕), visitante rápido sem sair
+  da tela, “marcar pendentes como ausentes”, correções auditadas.
+- **Modo recepção** — tela cheia para tablet na entrada: a pessoa digita o nome e confirma.
+- **Check-in por QR Code** — projete o QR; a pessoa confirma pelo celular (pelo telefone
+  cadastrado) e visitantes se cadastram sozinhos. Só aceita registros com o check-in aberto.
+- **Cuidado pastoral** — acompanhamentos (ligar, visitar, orar…) com responsável e prazo;
+  lista de quem passou do limite de dias sem presença.
+- **Importar / exportar CSV** — reconhece colunas comuns em português, datas DD/MM/AAAA,
+  cria famílias e ignora duplicados. Exportação abre direto no Excel.
+- **Permissões** — Administrador, Secretaria e Líder (vê só os ministérios liberados).
+- **Auditoria** — correções de presença, mudanças de status, contas e exclusões.
+- **PWA** — instalável no celular, tema claro/escuro, busca global com ⌘K.
 
-## Banco local
+## Stack
 
-Copie `.env.example` para `.env` e substitua os placeholders por valores locais. O arquivo `.env` é ignorado pelo Git.
+Next.js 16 (App Router, Server Actions) · React 19 · TypeScript · Tailwind CSS 4 ·
+shadcn/ui (Base UI) · Drizzle ORM + SQLite (libSQL) · Better Auth · Recharts · Vitest.
+
+Sem Docker e sem servidor de banco: os dados ficam em `data/emaus.db` (SQLite em modo WAL).
+Para fazer backup, copie esse arquivo (de preferência com o serviço parado ou via
+`sqlite3 data/emaus.db ".backup backup.db"`).
+
+## Rodando localmente
 
 ```bash
-docker compose up -d
+cp .env.example .env          # e gere um BETTER_AUTH_SECRET: openssl rand -base64 32
+npm install
+npm run db:migrate
+npm run db:seed               # opcional: APAGA o banco e carrega a igreja demo
+npm run dev
 ```
 
-O banco fica disponível em `localhost:5432`. A aplicação e o Prisma devem obter a conexão exclusivamente pela variável `DATABASE_URL`.
+Contas do cenário demo: `admin`, `secretaria` e `lider` — senha `emaus2026`
+(ou o valor de `SEED_PASSWORD`).
 
-## Cenário demo local
+## Scripts
 
-Para aplicar migrations pendentes sem zerar o banco e carregar o cenário demo:
+| Comando | O que faz |
+| --- | --- |
+| `npm run dev` | servidor de desenvolvimento |
+| `npm run build` / `npm start` | build e servidor de produção |
+| `npm run db:generate` | gera migration a partir de `src/db/schema.ts` |
+| `npm run db:migrate` | aplica migrations pendentes |
+| `npm run db:seed` | recria o cenário demo (destrutivo) |
+| `npm run db:studio` | Drizzle Studio para inspecionar o banco |
+| `npm test` | testes unitários (datas, recorrência, CSV) |
+| `npm run lint` / `npm run typecheck` | qualidade |
+
+## Estrutura
+
+```
+src/
+  app/(auth)/login        login
+  app/(app)/…             telas autenticadas (painel, pessoas, famílias, ministérios,
+                          encontros, cuidado, configurações) + server actions
+  app/checkin/[id]        modo recepção (tela cheia)
+  app/c/[token]           check-in público por QR
+  components/             design system (ui/ = shadcn) e componentes de domínio
+  db/                     schema Drizzle, cliente, migrate e seed
+  server/                 regras de negócio e consultas (sempre no servidor)
+  lib/                    utilitários puros: datas com fuso, recorrência, CSV, textos
+drizzle/                  migrations SQL
+deploy/                   unidade systemd e script de deploy no Raspberry
+```
+
+## Deploy no Raspberry
 
 ```bash
-npm run db:migrate:deploy
-npm run db:seed
+deploy/deploy-rasp.sh          # rsync + npm ci + migrate + build + restart
+deploy/deploy-rasp.sh --seed   # idem, recriando o banco demo (APAGA os dados)
 ```
 
-O `npm run db:seed` também pode ser executado novamente sobre o banco local: os registros do cenário demo usam IDs estáveis e não são duplicados. Todas as identidades são fictícias e usam domínios locais de teste.
-
-Contas do cenário QA:
-
-- `demo-admin` — administrador
-- `demo-secretary` — secretaria
-- `demo-leader` — líder com escopo no Ministério Demo Acolhimento
-
-O README não publica senha para essas contas. Confirme a credencial vigente no
-ambiente QA antes de usar os dados semeados.
+Na primeira vez, instale `deploy/emaus.service` em `/etc/systemd/system/` e rode
+`sudo systemctl daemon-reload && sudo systemctl enable --now emaus`. O app escuta em
+`127.0.0.1:3100`; a exposição na tailnet continua via `tailscale serve --https=8444`.
 
 ## Documentação de produto
 
-- [Visão do produto](docs/product/01-visao-do-produto.md)
-- [Domínio e glossário](docs/product/02-dominio-e-glossario.md)
-- [Regras de negócio iniciais](docs/product/03-regras-de-negocio.md)
-- [Escopo do MVP](docs/product/04-escopo-do-mvp.md)
-- [Requisitos funcionais — Pessoas, Ministérios e Frequência](docs/product/05-requisitos-funcionais-pessoas-ministerios-frequencia.md)
-- [Requisitos funcionais — Acessos e Permissões](docs/product/06-requisitos-funcionais-acessos-permissoes.md)
-- [Requisitos funcionais — Timeline e Notas](docs/product/07-requisitos-funcionais-timeline-notas.md)
-- [Requisitos não funcionais](docs/product/08-requisitos-nao-funcionais.md)
-- [Validação operacional dos requisitos não funcionais](docs/operations/rnf-validation.md)
-- [Arquitetura da informação e navegação](docs/design/01-arquitetura-da-informacao-e-navegacao.md)
-- [Fluxos essenciais](docs/design/02-fluxos-essenciais.md)
-- [Modelo de dados inicial](docs/architecture/01-modelo-de-dados-inicial.md)
-- [Arquitetura técnica inicial](docs/architecture/02-arquitetura-tecnica-inicial.md)
-- [Estado operacional TLC](.specs/STATE.md)
-- [Especificação consolidada do MVP](.specs/features/emaus-mvp/spec.md)
-- [Design técnico e milestones](.specs/features/emaus-mvp/design.md)
-- [Plano de execução T01–T47](.specs/features/emaus-mvp/tasks.md)
-- [Operação do Ralph Loop com OpenCode](docs/operations/opencode-ralph-loop.md)
-- [QA e prontidão do lote Ralph](docs/operations/opencode-ralph-loop.md#qa-independente-do-lote)
-- [Fluxo de branches e PRs do Ralph](docs/operations/ralph-branch-pr-flow.md)
-
-## Fluxo de desenvolvimento
-
-1. **Specify** — negócio, domínio, regras, requisitos e critérios de aceite.
-2. **Design** — UX, arquitetura, dados e integrações.
-3. **Tasks** — tarefas pequenas, testáveis e ordenadas.
-4. **Execute** — implementação, testes e validação com a igreja.
-
-## Princípio do MVP
-
-O primeiro objetivo é permitir que a igreja cadastre e acompanhe pessoas, organize ministérios e registre frequência com histórico confiável. Recursos como WhatsApp, financeiro, QR Code e aplicativo nativo não fazem parte deste primeiro ciclo.
+As regras de negócio originais continuam em [`docs/product`](docs/product).
