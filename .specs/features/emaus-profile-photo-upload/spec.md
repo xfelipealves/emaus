@@ -36,6 +36,17 @@ RF-PES-004 exige que visitantes e membros possam adicionar e atualizar foto opci
 
 **Questões em aberto:** Design deve propor formatos permitidos, limite de tamanho/dimensões, validação de conteúdo real, armazenamento, entrega autenticada e remoção dos arquivos substituídos/inativos. Esses limites precisam de valor aprovado antes de implementação/testes de limite.
 
+## Plano de entrega
+
+AD-011 inclui a foto opcional e substituível no MVP, mas sua implementação pertence somente a esta frente dedicada. A feature de ciclo de vida de Pessoas não deve começar upload nem armazenamento de imagens.
+
+1. **Fechar o Design:** aprovar formatos, limite de bytes e dimensões, validação do conteúdo, mecanismo de armazenamento, entrega autenticada, retenção e remoção após substituição.
+2. **Definir autorização e falhas:** descrever quem pode ler/substituir, como a foto de uma Pessoa inativa continua sujeita ao escopo, e como uma falha mantém a referência e a imagem anterior utilizáveis.
+3. **Implementar após o Design:** adicionar e substituir uma única foto por Pessoa, com fallback por iniciais e auditoria sem bytes ou URL pública sensível.
+4. **Validar a frente isoladamente:** cobrir upload válido após recarga, tipo/conteúdo e limites inválidos, substituição bem-sucedida, falha sem perda da foto anterior, acesso sem escopo, Pessoa inativa e ausência de imagem nos fluxos de cadastro/promoção.
+
+**Gate de início:** a implementação e os testes de limites só começam depois de os valores e decisões do passo 1 estarem aprovados; a decisão de escopo AD-011, por si só, não aprova limites nem armazenamento.
+
 ## Histórias e critérios de aceite
 
 ### P1 — Adicionar foto opcional

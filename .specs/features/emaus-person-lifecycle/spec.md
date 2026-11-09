@@ -19,7 +19,7 @@ O cadastro rápido e a inativação já funcionam, mas o formulário de promoç�
 | Alertas de duplicidade no cadastro rápido | RF-PES-001 dispensa alerta no MVP. |
 | Exclusão física de Pessoas | RF-PES-003 proíbe excluir definitivamente no MVP. |
 | Campos adicionais de membro | Não aprovados para esta frente. |
-| Upload e armazenamento de foto | Permanecem na especificação `emaus-profile-photo-upload`. |
+| Upload e armazenamento de foto | AD-011 mantém foto opcional no MVP, entregue pela frente dedicada `emaus-profile-photo-upload`; este fluxo só preserva o perfil existente e usa iniciais enquanto a frente de foto não estiver implementada. |
 | Alterações em frequência/quadro/auditoria de frequência | Pertencem à frente de confiabilidade de frequência. |
 
 ## Premissas e decisões
