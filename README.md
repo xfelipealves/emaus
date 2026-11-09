@@ -42,6 +42,22 @@ check-in por QR Code (e, se a igreja permitir, pelo autocadastro de visitantes).
 - **Auditoria** — correções de presença, mudanças de status, contas e exclusões.
 - **PWA** — instalável no celular, tema claro/escuro, busca global com ⌘K.
 
+## Assistente (IA)
+
+Em **Assistente** (ou ⌘K → "Perguntar…"), a liderança conversa em português com o Emaús:
+"quem do New Mind faltou nos dois últimos sábados?", "marca presença do Davi no último culto",
+"cria um acompanhamento para eu ligar para os visitantes que vieram só uma vez".
+
+- **Agente com ferramentas** (Claude Opus 5.5 via API da Anthropic): 12 consultas e 12 operações
+  sobre o banco (`src/server/ai/tools.ts`). Em vez de embeddings, a recuperação é feita por
+  ferramentas que consultam os dados estruturados — sempre frescos e exatos.
+- Tudo roda **com o acesso de quem pergunta**: líderes só alcançam seus ministérios, notas
+  confidenciais só chegam a pastores, e cada alteração entra na auditoria como "via assistente".
+  Exclusão de cadastro exige confirmação explícita na conversa.
+- **LLMOps** em Configurações → IA: perguntas, custo estimado, latência (p50/p95), taxa de erro,
+  uso de cache, ferramentas mais usadas, uso por pessoa e avaliações 👍/👎 de cada resposta.
+- Configure `ANTHROPIC_API_KEY` no `.env` do servidor (veja `.env.example`).
+
 ## Stack
 
 Next.js 16 (App Router, Server Actions) · React 19 · TypeScript · Tailwind CSS 4 ·
