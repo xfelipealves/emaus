@@ -36,16 +36,50 @@ export type ProviderId = (typeof PROVIDER_IDS)[number];
 export const EFFORTS = ["none", "low", "medium", "high"] as const;
 
 /** Catálogo dos provedores. As chaves ficam só no .env do servidor; a tela escolhe entre os configurados. */
-export const PROVIDERS: Record<ProviderId, { label: string; keyEnv: string; defaultModel: string; note: string }> = {
-  openai: { label: "OpenAI", keyEnv: "OPENAI_API_KEY", defaultModel: "gpt-6-luna", note: "Barato e rápido; resolve perguntas de vários passos. ~US$ 0,002 por pergunta." },
-  groq: { label: "Groq", keyEnv: "GROQ_API_KEY", defaultModel: "qwen/qwen3.8-27b", note: "Gratuito, mas com limite de tokens por minuto: bom só para perguntas simples." },
-  cerebras: { label: "Cerebras", keyEnv: "CEREBRAS_API_KEY", defaultModel: "qwen-3.8-27b", note: "Gratuito (trial), limite por minuto maior que o Groq." },
-  gemini: { label: "Google Gemini", keyEnv: "GEMINI_API_KEY", defaultModel: "gemini-flash-latest", note: "Gratuito; no plano grátis o Google pode usar os dados." },
-  anthropic: { label: "Anthropic (Claude)", keyEnv: "ANTHROPIC_API_KEY", defaultModel: "claude-opus-5-5", note: "O mais capaz, e o mais caro." },
-  "openai-compatible": { label: "Compatível com OpenAI", keyEnv: "EMAUS_AI_API_KEY", defaultModel: "", note: "Qualquer API no formato OpenAI (EMAUS_AI_BASE_URL)." },
+export const PROVIDERS: Record<ProviderId, { label: string; keyEnv: string; note: string }> = {
+  openai: { label: "OpenAI", keyEnv: "OPENAI_API_KEY", note: "Barato e rápido; resolve perguntas de vários passos. ~US$ 0,002 por pergunta." },
+  groq: { label: "Groq", keyEnv: "GROQ_API_KEY", note: "Gratuito, mas com limite de tokens por minuto: bom só para perguntas simples." },
+  cerebras: { label: "Cerebras", keyEnv: "CEREBRAS_API_KEY", note: "Gratuito (trial), limite por minuto maior que o Groq." },
+  gemini: { label: "Google Gemini", keyEnv: "GEMINI_API_KEY", note: "Gratuito; no plano grátis o Google pode usar os dados." },
+  anthropic: { label: "Anthropic (Claude)", keyEnv: "ANTHROPIC_API_KEY", note: "O mais capaz, e o mais caro." },
+  "openai-compatible": { label: "Compatível com OpenAI", keyEnv: "EMAUS_AI_API_KEY", note: "Qualquer API no formato OpenAI (EMAUS_AI_BASE_URL)." },
 };
 
 const FREE: Price = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
+
+export type ModelOption = { id: string; label: string; price: Price };
+const perM = (input: number, output: number, cacheRead = 0, cacheWrite = 0): Price => ({ input, output, cacheRead, cacheWrite });
+
+/** Modelos oferecidos no seletor (o primeiro é o padrão). Preços em US$ por milhão de tokens. */
+export const MODELS: Record<Exclude<ProviderId, "openai-compatible">, ModelOption[]> = {
+  openai: [
+    { id: "gpt-6-luna", label: "GPT-6 Luna — mais barato e rápido", price: perM(0.1, 0.5, 0.01) },
+    { id: "gpt-5.6-luna", label: "GPT-5.6 Luna — um pouco mais forte", price: perM(0.2, 1.2, 0.02) },
+    { id: "gpt-6.1-terra", label: "GPT-6.1 Terra — intermediário", price: perM(1, 5, 0.05) },
+    { id: "gpt-6.1-sol", label: "GPT-6.1 Sol — mais capaz", price: perM(2, 10, 0.1) },
+  ],
+  groq: [
+    { id: "qwen/qwen3.8-27b", label: "Qwen 3.8 27B", price: FREE },
+    { id: "openai/gpt-oss-120b", label: "GPT-OSS 120B", price: FREE },
+    { id: "llama-3.3-70b-versatile", label: "Llama 3.3 70B", price: FREE },
+    { id: "minimaxai/minimax-m2.7", label: "MiniMax M2.7", price: FREE },
+  ],
+  cerebras: [
+    { id: "qwen-3.8-27b", label: "Qwen 3.8 27B", price: FREE },
+    { id: "gpt-oss-120b", label: "GPT-OSS 120B", price: FREE },
+  ],
+  gemini: [{ id: "gemini-flash-latest", label: "Gemini Flash", price: FREE }],
+  anthropic: [
+    // Escrita de cache de 5 min = 1,25× a entrada.
+    { id: "claude-haiku-5-5", label: "Claude Haiku 5.5 — barato", price: perM(0.1, 0.5, 0.01, 0.125) },
+    { id: "claude-sonnet-5-5", label: "Claude Sonnet 5.5 — equilibrado", price: perM(2, 10, 0.2, 2.5) },
+    { id: "claude-opus-5-5", label: "Claude Opus 5.5 — mais capaz", price: perM(4, 20, 0.2, 5) },
+  ],
+};
+
+function modelOption(id: ProviderId, model: string) {
+  return id === "openai-compatible" ? undefined : MODELS[id].find((m) => m.id === model);
+}
 
 function hasKey(id: ProviderId) {
   const env = process.env;
@@ -57,22 +91,17 @@ function hasKey(id: ProviderId) {
 function buildProvider(id: ProviderId, modelOverride?: string | null, effortOverride?: string | null): AiProvider | null {
   if (!hasKey(id)) return null;
   const env = process.env;
-  const model = modelOverride || env.EMAUS_AI_MODEL || PROVIDERS[id].defaultModel;
+  const model = modelOverride || env.EMAUS_AI_MODEL || (id === "openai-compatible" ? "" : MODELS[id][0].id);
+  const listed = modelOption(id, model);
   const effort = (effortOverride || env.EMAUS_AI_EFFORT || "low") as AiProvider["effort"];
   switch (id) {
     case "openai":
-      // gpt-6-luna: US$ 0,10 entrada / 0,01 cache / 0,50 saída por milhão de tokens.
       return {
         kind: "openai-responses",
         label: "OpenAI",
         model,
         apiKey: env.OPENAI_API_KEY,
-        price: {
-          input: Number(env.EMAUS_AI_PRICE_IN ?? 0.1),
-          output: Number(env.EMAUS_AI_PRICE_OUT ?? 0.5),
-          cacheRead: Number(env.EMAUS_AI_PRICE_CACHE ?? 0.01),
-          cacheWrite: 0,
-        },
+        price: listed?.price ?? perM(Number(env.EMAUS_AI_PRICE_IN ?? 0), Number(env.EMAUS_AI_PRICE_OUT ?? 0)),
         effort,
       };
     case "groq":
@@ -82,8 +111,7 @@ function buildProvider(id: ProviderId, modelOverride?: string | null, effortOver
     case "gemini":
       return { kind: "openai", label: "Google Gemini (gratuito)", model, baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/", apiKey: env.GEMINI_API_KEY, price: FREE, lean: true };
     case "anthropic":
-      // Claude Opus 5.5; escrita de cache de 5 min = 1,25× a entrada.
-      return { kind: "anthropic", label: "Anthropic", model, price: { input: 4, output: 20, cacheRead: 0.2, cacheWrite: 5 } };
+      return { kind: "anthropic", label: "Anthropic", model, price: listed?.price ?? MODELS.anthropic[2].price };
     case "openai-compatible":
       if (!model) return null;
       return {
@@ -99,7 +127,12 @@ function buildProvider(id: ProviderId, modelOverride?: string | null, effortOver
 
 /** Provedores com chave no .env, para o seletor em Configurações → IA. */
 export function availableProviders() {
-  return PROVIDER_IDS.map((id) => ({ id, ...PROVIDERS[id], configured: hasKey(id) }));
+  return PROVIDER_IDS.map((id) => ({
+    id,
+    ...PROVIDERS[id],
+    configured: hasKey(id),
+    models: id === "openai-compatible" ? [] : MODELS[id].map((m) => ({ id: m.id, label: m.label, price: m.price })),
+  }));
 }
 
 /**
@@ -264,8 +297,8 @@ async function anthropicLoop(
         tools,
         messages,
         output_config: { effort: "medium" },
-        betas: ["server-side-fallback-2026-07-01"],
-        fallbacks: "default",
+        // Fallback do servidor em recusas: Opus e Sonnet aceitam; Haiku não.
+        ...(provider.model.includes("haiku") ? {} : { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" as const }),
       },
       { signal },
     );
