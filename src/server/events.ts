@@ -509,7 +509,10 @@ export async function selfCheckin(token: string, phone: string) {
     .select({ id: schema.person.id, fullName: schema.person.fullName, preferredName: schema.person.preferredName })
     .from(schema.person)
     .where(eq(schema.person.phoneDigits, digits));
-  if (!matches.length) return { found: false as const };
+  if (!matches.length) {
+    const settings = await getSettings();
+    return { found: false as const, allowRegister: settings.allowSelfRegistration };
+  }
   for (const p of matches) await setAttendance(null, ev.id, p.id, "present", "qr");
   return {
     found: true as const,
@@ -518,6 +521,9 @@ export async function selfCheckin(token: string, phone: string) {
 }
 
 export async function selfRegisterVisitor(token: string, fullName: string, phone: string) {
+  if (!(await getSettings()).allowSelfRegistration) {
+    throw new ActionError("Procure a equipe de recepção para fazer seu cadastro.");
+  }
   const ev = await getEventByToken(token);
   if (!ev || !ev.checkinOpen || ev.cancelled) {
     throw new ActionError("O check-in deste encontro não está aberto.");

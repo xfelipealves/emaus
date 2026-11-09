@@ -10,7 +10,7 @@ import { saveSettingsAction } from "./actions";
 
 const ZONES = ["America/Sao_Paulo", "America/Manaus", "America/Cuiaba", "America/Belem", "America/Fortaleza", "America/Recife", "America/Bahia", "America/Porto_Velho", "America/Rio_Branco", "America/Noronha", "Europe/Lisbon"];
 
-export function ChurchForm({ settings }: { settings: { name: string; timezone: string; careThresholdDays: number } }) {
+export function ChurchForm({ settings }: { settings: { name: string; timezone: string; careThresholdDays: number; allowSelfRegistration: boolean } }) {
   const save = useAction(saveSettingsAction);
   const e = save.fieldErrors;
   return (
@@ -32,6 +32,15 @@ export function ChurchForm({ settings }: { settings: { name: string; timezone: s
       <FormField label="Alerta de afastamento (dias)" htmlFor="s-care" error={e.careThresholdDays} hint="Quem ficar mais que isso sem presença aparece em “Precisam de cuidado”.">
         <Input id="s-care" name="careThresholdDays" type="number" min={7} max={180} defaultValue={settings.careThresholdDays} className="w-32" />
       </FormField>
+      <label className="flex items-start gap-3 rounded-xl border p-3 text-sm">
+        <input type="checkbox" name="allowSelfRegistration" defaultChecked={settings.allowSelfRegistration} className="mt-1 accent-primary" />
+        <span>
+          <span className="font-medium">Visitantes podem se cadastrar pelo QR Code</span>
+          <span className="block text-xs text-muted-foreground">
+            Desligado, o QR só confirma presença de quem já está cadastrado; visitantes são registrados pela recepção.
+          </span>
+        </span>
+      </label>
       <Button type="submit" disabled={save.pending}>{save.pending ? <Spinner /> : "Salvar"}</Button>
     </form>
   );

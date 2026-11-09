@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { selfCheckinAction, selfVisitorAction } from "../actions";
 
-type Step = { kind: "phone" } | { kind: "visitor" } | { kind: "done"; names: string[]; visitor?: boolean };
+type Step = { kind: "phone" } | { kind: "visitor" } | { kind: "reception" } | { kind: "done"; names: string[]; visitor?: boolean };
 
 function maskPhone(v: string) {
   const d = v.replace(/\D/g, "").slice(0, 11);
@@ -37,6 +37,20 @@ export function SelfCheckin({ token }: { token: string }) {
     );
   }
 
+  if (step.kind === "reception") {
+    return (
+      <div className="mt-10 rounded-3xl border bg-card p-6 text-center shadow-sm">
+        <p className="font-display text-3xl">Que bom ter você aqui!</p>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Não encontramos esse número. Procure alguém da recepção para registrar sua presença.
+        </p>
+        <button type="button" className="mt-4 text-sm underline" onClick={() => setStep({ kind: "phone" })}>
+          Tentar outro número
+        </button>
+      </div>
+    );
+  }
+
   return (
     <form
       className="mt-10 space-y-4"
@@ -48,7 +62,7 @@ export function SelfCheckin({ token }: { token: string }) {
             const r = await selfCheckinAction(token, phone);
             if (!r.ok) return setError(r.error);
             if (r.data.found) setStep({ kind: "done", names: r.data.names });
-            else setStep({ kind: "visitor" });
+            else setStep({ kind: r.data.allowRegister ? "visitor" : "reception" });
           } else {
             const r = await selfVisitorAction(token, name, phone);
             if (!r.ok) return setError(r.error);
