@@ -61,6 +61,19 @@ npm run db:seed               # opcional: APAGA o banco e carrega a igreja demo
 npm run dev
 ```
 
+### Pessoas reais dos ministérios (WhatsApp)
+
+```bash
+node scripts/extract-whatsapp-roster.mjs   # lê WhatsApp Desktop + nchat deste Mac
+npm run db:seed                            # usa data/roster.json se existir
+```
+
+O script grava em `data/roster.json` (fora do git) só nome, ministérios e função de quem está
+nos grupos dos ministérios e tem o contato salvo na agenda — sem telefones nem mensagens.
+Admins dos grupos, a Supervisão e a Liderança New Mind viram líderes. O restante da
+congregação continua fictício, e anotações, acompanhamentos e afastamentos nunca são
+gerados para pessoas reais. A frequência é simulada.
+
 Contas do cenário demo: `admin`, `secretaria` e `lider` — senha `emaus2026`
 (ou o valor de `SEED_PASSWORD`).
 
