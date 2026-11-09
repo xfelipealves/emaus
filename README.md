@@ -56,7 +56,7 @@ Em **Assistente** (ou ⌘K → "Perguntar…"), a liderança conversa em portugu
   Exclusão de cadastro exige confirmação explícita na conversa.
 - **LLMOps** em Configurações → IA: perguntas, custo estimado, latência (p50/p95), taxa de erro,
   uso de cache, ferramentas mais usadas, uso por pessoa e avaliações 👍/👎 de cada resposta.
-- **Provedores:** grátis com `GROQ_API_KEY` (padrão `qwen/qwen3.8-27b`), `CEREBRAS_API_KEY` ou
+- **Provedores:** recomendado `OPENAI_API_KEY` (`gpt-6-luna` pela Responses API, ~US$ 0,002 por pergunta); grátis com `GROQ_API_KEY` (padrão `qwen/qwen3.8-27b`), `CEREBRAS_API_KEY` ou
   `GEMINI_API_KEY`; pago e mais capaz com `ANTHROPIC_API_KEY` (Claude Opus 5.5); ou qualquer API
   compatível com OpenAI. Nos planos grátis o assistente entra em modo enxuto (menos histórico,
   resultados menores, espera e repete quando bate o limite por minuto). Veja `.env.example`.
