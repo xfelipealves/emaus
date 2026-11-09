@@ -48,7 +48,7 @@ Em **Assistente** (ou ⌘K → "Perguntar…"), a liderança conversa em portugu
 "quem do New Mind faltou nos dois últimos sábados?", "marca presença do Davi no último culto",
 "cria um acompanhamento para eu ligar para os visitantes que vieram só uma vez".
 
-- **Agente com ferramentas** (Claude Opus 5.5 via API da Anthropic): 12 consultas e 12 operações
+- **Agente com ferramentas**: 12 consultas e 12 operações
   sobre o banco (`src/server/ai/tools.ts`). Em vez de embeddings, a recuperação é feita por
   ferramentas que consultam os dados estruturados — sempre frescos e exatos.
 - Tudo roda **com o acesso de quem pergunta**: líderes só alcançam seus ministérios, notas
@@ -56,7 +56,10 @@ Em **Assistente** (ou ⌘K → "Perguntar…"), a liderança conversa em portugu
   Exclusão de cadastro exige confirmação explícita na conversa.
 - **LLMOps** em Configurações → IA: perguntas, custo estimado, latência (p50/p95), taxa de erro,
   uso de cache, ferramentas mais usadas, uso por pessoa e avaliações 👍/👎 de cada resposta.
-- Configure `ANTHROPIC_API_KEY` no `.env` do servidor (veja `.env.example`).
+- **Provedores:** grátis com `GROQ_API_KEY` (padrão `qwen/qwen3.8-27b`), `CEREBRAS_API_KEY` ou
+  `GEMINI_API_KEY`; pago e mais capaz com `ANTHROPIC_API_KEY` (Claude Opus 5.5); ou qualquer API
+  compatível com OpenAI. Nos planos grátis o assistente entra em modo enxuto (menos histórico,
+  resultados menores, espera e repete quando bate o limite por minuto). Veja `.env.example`.
 
 ## Stack
 
