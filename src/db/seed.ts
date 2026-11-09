@@ -1,19 +1,22 @@
 /**
- * Cenário demo: igreja fictícia com ~70 pessoas, famílias, ministérios,
- * cultos recorrentes e 12 semanas de frequência. APAGA o banco atual.
+ * Cenário demo inspirado na estrutura real da IEQ Buriti Sereno: ministérios,
+ * agenda semanal e eventos recentes. Todas as PESSOAS, telefones e anotações são
+ * fictícios. APAGA o banco atual.
  *
  *   npm run db:seed
  */
 import "./load-env";
 import { sql } from "drizzle-orm";
+import type { HouseholdRole, PersonStatus } from "./schema";
 import { auth } from "../lib/auth";
-import { addDaysIso, isoDateInTz, todayIso, zonedToUtc } from "../lib/dates";
+import { addDaysIso, isoDateInTz, todayIso, weekdayOfIso, zonedToUtc } from "../lib/dates";
 import { occurrences } from "../lib/recurrence";
 import { normalizePhone } from "../lib/text";
 import { db, schema } from "./index";
 
 const TZ = "America/Sao_Paulo";
 const PASSWORD = process.env.SEED_PASSWORD ?? "emaus2026";
+const CHURCH = "IEQ Buriti Sereno";
 
 // PRNG determinístico: o mesmo seed gera o mesmo cenário.
 let state = 20261109;
@@ -22,26 +25,21 @@ const rand = () => {
   return state / 2 ** 32;
 };
 const pick = <T,>(xs: readonly T[]) => xs[Math.floor(rand() * xs.length)];
-// Domingo recente (0 a 3 semanas atrás): visitantes chegam em dia de culto.
-const recentSunday = (today: string) => {
-  const day = new Date(`${today}T12:00:00Z`).getUTCDay();
-  return addDaysIso(today, -day - 7 * Math.floor(rand() * 4));
-};
 const chance = (p: number) => rand() < p;
+const shuffle = <T,>(xs: T[]) => [...xs].sort(() => rand() - 0.5);
 
-const FEMALE = ["Ana", "Beatriz", "Camila", "Daniela", "Eduarda", "Fernanda", "Gabriela", "Helena", "Isabela", "Júlia", "Larissa", "Mariana", "Natália", "Patrícia", "Raquel", "Sara", "Tatiane", "Vitória", "Luíza", "Débora", "Priscila", "Lívia"];
-const MALE = ["André", "Bruno", "Carlos", "Daniel", "Eduardo", "Felipe", "Gabriel", "Henrique", "Igor", "João", "Lucas", "Mateus", "Nícolas", "Otávio", "Paulo", "Rafael", "Samuel", "Tiago", "Vinícius", "Davi", "Elias", "Josué"];
-const SURNAMES = ["Silva", "Santos", "Oliveira", "Souza", "Lima", "Pereira", "Costa", "Rodrigues", "Almeida", "Nascimento", "Carvalho", "Araújo", "Ribeiro", "Barbosa", "Rocha", "Moreira", "Teixeira", "Mendes"];
-const STREETS = ["Rua das Oliveiras", "Rua Emaús", "Av. da Esperança", "Rua do Caminho", "Rua Betânia", "Av. Jerusalém", "Rua das Palmeiras"];
+const FEMALE = ["Ana Clara", "Beatriz", "Camila", "Daniela", "Eduarda", "Fernanda", "Gabriela", "Helena", "Isabela", "Júlia", "Larissa", "Mariana", "Natália", "Patrícia", "Raquel", "Sara", "Tatiane", "Vitória", "Luíza", "Débora", "Priscila", "Lívia", "Rebeca", "Ester", "Raissa", "Yasmin", "Kamila", "Nayara", "Jéssica", "Thaís", "Bianca", "Lorena", "Sofia", "Alice", "Manuela", "Cecília", "Rosângela", "Marlene", "Cleide", "Valdirene", "Sônia", "Aparecida"];
+const MALE = ["André", "Bruno", "Carlos", "Daniel", "Eduardo", "Felipe", "Gabriel", "Henrique", "Igor", "João Pedro", "Lucas", "Mateus", "Nícolas", "Otávio", "Paulo", "Rafael", "Samuel", "Tiago", "Vinícius", "Davi", "Elias", "Josué", "Arthur", "Heitor", "Miguel", "Enzo", "Kauã", "Wesley", "Wellington", "Jefferson", "Leandro", "Rodrigo", "Marcos", "Valdeci", "Sebastião", "Antônio", "Edson"];
+const SURNAMES = ["Silva", "Santos", "Oliveira", "Souza", "Lima", "Pereira", "Costa", "Rodrigues", "Almeida", "Nascimento", "Carvalho", "Araújo", "Ribeiro", "Barbosa", "Rocha", "Moreira", "Teixeira", "Mendes", "Gomes", "Martins", "Ferreira", "Cardoso", "Batista", "Freitas", "Machado", "Rezende", "Borges", "Queiroz", "Vieira", "Campos", "Fonseca", "Prado", "Siqueira", "Amorim", "Peixoto", "Godoy", "Brandão", "Nogueira", "Melo", "Pires", "Dias", "Rios", "Xavier", "Lacerda", "Toledo", "Matos", "Pacheco", "Assis", "Cunha", "Neves"];
+const STREETS = ["Rua BS-3", "Rua BS-7", "Rua BS-12", "Av. Buriti", "Rua dos Ipês", "Rua Sereno", "Av. Independência", "Rua das Acácias", "Rua Jequitibá"];
 
 function phone() {
-  return `(11) 9${Math.floor(1000 + rand() * 8999)}-${Math.floor(1000 + rand() * 8999)}`;
+  return `(62) 9${Math.floor(8000 + rand() * 1999)}-${Math.floor(1000 + rand() * 8999)}`;
 }
 
 function birth(minAge: number, maxAge: number, today: string) {
-  const age = minAge + Math.floor(rand() * (maxAge - minAge));
-  const day = Math.floor(rand() * 365);
-  return addDaysIso(`${Number(today.slice(0, 4)) - age}-01-01`, day);
+  const age = minAge + Math.floor(rand() * (maxAge - minAge + 1));
+  return addDaysIso(`${Number(today.slice(0, 4)) - age - 1}-01-01`, Math.floor(rand() * 365));
 }
 
 async function reset() {
@@ -54,262 +52,311 @@ async function reset() {
   for (const t of tables) await db.run(sql.raw(`DELETE FROM "${t}"`));
 }
 
+type Draft = {
+  id: string;
+  fullName: string;
+  gender: "female" | "male";
+  status: PersonStatus;
+  phone: string | null;
+  birthDate: string;
+  householdId: string | null;
+  householdRole: HouseholdRole | null;
+  address: string | null;
+  memberSince: string | null;
+  firstVisitDate: string | null;
+  howFound: string | null;
+  /** 0–1: chance de vir; -1 = afastado (vinha e parou) */
+  engagement: number;
+};
+
 async function main() {
   const today = todayIso(TZ);
+  const age = (p: Draft) => Number(today.slice(0, 4)) - Number(p.birthDate.slice(0, 4));
   await reset();
 
-  await db.insert(schema.churchSettings).values({
-    id: 1,
-    name: "Comunidade Emaús",
-    timezone: TZ,
-    careThresholdDays: 21,
-  });
+  await db.insert(schema.churchSettings).values({ id: 1, name: CHURCH, timezone: TZ, careThresholdDays: 21 });
 
-  /* Ministérios e categorias */
+  /* ───────────── Ministérios e categorias (estrutura real) ───────────── */
   const ministries = await db
     .insert(schema.ministry)
     .values([
-      { name: "Acolhimento", description: "Recepção, café e integração de visitantes.", color: "ember" },
-      { name: "Louvor", description: "Música e liturgia dos cultos.", color: "plum" },
-      { name: "Jovens", description: "Encontros e discipulado para 15 a 29 anos.", color: "sky" },
-      { name: "Infantil", description: "Ensino bíblico para crianças.", color: "gold" },
-      { name: "Intercessão", description: "Oração pela igreja e pela cidade.", color: "sage" },
-      { name: "Casais", description: "Cuidado e formação de famílias.", color: "rose" },
+      { name: "Louvor", description: "Ministério de louvor: escalas de domingo e quarta, ensaios e a Cantata de Natal.", color: "plum" },
+      { name: "Mídia", description: "Projeção, transmissão, fotos e redes sociais da igreja.", color: "sky" },
+      { name: "New Mind", description: "Adolescentes. Culto aos sábados às 17h e discipulado às quintas; jejum semanal da liderança.", color: "ember" },
+      { name: "Metanoia", description: "Jovens. Acampamentos e Revival Night; a liderança forma a equipe de Supervisão.", color: "teal" },
+      { name: "New Song", description: "Coral das crianças. Ensaios aos sábados para a Cantata de Natal.", color: "gold" },
+      { name: "Homens de Honra", description: "Ministério de homens: encontros “Homens ao Máximo” às quintas.", color: "slate" },
+      { name: "Casa de Paz", description: "Célula “Paixão e Ousadia”: lições semanais nas casas.", color: "sage" },
     ])
     .returning();
-  const M = Object.fromEntries(ministries.map((m) => [m.name, m.id]));
+  const M = Object.fromEntries(ministries.map((m) => [m.name, m.id])) as Record<string, string>;
 
   const categories = await db
     .insert(schema.eventCategory)
     .values([
       { name: "Culto", color: "ember" },
-      { name: "Jovens", color: "sky" },
-      { name: "Oração", color: "sage" },
-      { name: "Evento", color: "gold" },
+      { name: "Adolescentes", color: "gold" },
+      { name: "Jovens", color: "teal" },
+      { name: "Discipulado", color: "sky" },
+      { name: "Célula", color: "sage" },
+      { name: "Homens", color: "slate" },
+      { name: "Ensaio", color: "plum" },
+      { name: "Evento", color: "rose" },
     ])
     .returning();
-  const C = Object.fromEntries(categories.map((c) => [c.name, c.id]));
+  const C = Object.fromEntries(categories.map((c) => [c.name, c.id])) as Record<string, string>;
 
-  /* Famílias e pessoas */
-  type P = typeof schema.person.$inferInsert & { id: string; engagement: number };
-  const people: P[] = [];
-  const addPerson = (p: Omit<P, "id" | "phoneDigits">) => {
-    const id = crypto.randomUUID();
-    people.push({ ...p, id, phoneDigits: p.phone ? normalizePhone(p.phone) : null });
-    return id;
-  };
-
+  /* ───────────── Pessoas e famílias (fictícias) ───────────── */
+  const people: Draft[] = [];
   const households: (typeof schema.household.$inferInsert & { id: string })[] = [];
-  const usedSurnames = [...SURNAMES].sort(() => rand() - 0.5);
-  for (let h = 0; h < 16; h++) {
-    const surname = usedSurnames[h % usedSurnames.length];
+  const add = (p: Omit<Draft, "id">) => {
+    const d = { ...p, id: crypto.randomUUID() };
+    people.push(d);
+    return d;
+  };
+  const recentSunday = (maxWeeks: number) => addDaysIso(today, -weekdayOfIso(today) - 7 * Math.floor(rand() * maxWeeks));
+  const surnames = shuffle(SURNAMES);
+
+  for (let h = 0; h < 46; h++) {
+    const surname = surnames[h % surnames.length];
     const id = crypto.randomUUID();
-    const address = `${pick(STREETS)}, ${Math.floor(10 + rand() * 900)}`;
+    const address = `${pick(STREETS)}, Qd. ${Math.floor(1 + rand() * 60)} Lt. ${Math.floor(1 + rand() * 30)} — Buriti Sereno`;
     households.push({ id, name: `Família ${surname}`, address });
-    const engagement = 0.35 + rand() * 0.6;
-    const since = addDaysIso(today, -Math.floor(200 + rand() * 3000));
-    const status = h < 13 ? "member" : "visitor";
-    const head = chance(0.5);
-    addPerson({
-      fullName: `${pick(MALE)} ${surname}`,
-      gender: "male",
-      status,
-      phone: phone(),
-      birthDate: birth(28, 65, today),
-      householdId: id,
-      householdRole: head ? "head" : "spouse",
-      address,
-      memberSince: status === "member" ? since : null,
-      firstVisitDate: status === "visitor" ? recentSunday(today) : null,
-      engagement,
-    });
-    addPerson({
-      fullName: `${pick(FEMALE)} ${pick(SURNAMES)} ${surname}`,
-      gender: "female",
-      status,
-      phone: phone(),
-      birthDate: birth(26, 62, today),
-      householdId: id,
-      householdRole: head ? "spouse" : "head",
-      address,
-      memberSince: status === "member" ? since : null,
-      firstVisitDate: status === "visitor" ? recentSunday(today) : null,
-      engagement: Math.min(1, engagement + 0.1),
-    });
-    const kids = Math.floor(rand() * 3.2);
-    for (let k = 0; k < kids; k++) {
-      const female = chance(0.5);
-      addPerson({
-        fullName: `${pick(female ? FEMALE : MALE)} ${surname}`,
+    const isVisitor = h >= 42;
+    const status: PersonStatus = isVisitor ? "visitor" : "member";
+    const engagement = 0.45 + rand() * 0.5;
+    const since = isVisitor ? null : addDaysIso(today, -Math.floor(150 + rand() * 4500));
+    const firstVisit = isVisitor ? recentSunday(4) : null;
+    const parentAge: [number, number] = h % 5 === 0 ? [50, 68] : [30, 48];
+    const base = { status, householdId: id, address, memberSince: since, firstVisitDate: firstVisit, howFound: isVisitor ? pick(["Convite de um amigo", "Instagram da igreja", "Vizinho da igreja", "Família"]) : null };
+    add({ ...base, fullName: `${pick(MALE)} ${surname}`, gender: "male", phone: phone(), birthDate: birth(...parentAge, today), householdRole: "head", engagement });
+    if (h % 7 !== 3) {
+      add({ ...base, fullName: `${pick(FEMALE)} ${pick(SURNAMES)} ${surname}`, gender: "female", phone: phone(), birthDate: birth(parentAge[0] - 2, parentAge[1] - 2, today), householdRole: "spouse", engagement: Math.min(0.98, engagement + 0.1) });
+    }
+    if (parentAge[0] < 50) {
+      // Filhos: crianças (New Song), adolescentes (New Mind) e jovens (Metanoia).
+      const kids = 1 + Math.floor(rand() * 3);
+      for (let k = 0; k < kids; k++) {
+        const female = chance(0.5);
+        const band = pick([[6, 11], [12, 17], [12, 17], [18, 23]] as const);
+        add({ ...base, fullName: `${pick(female ? FEMALE : MALE)} ${surname}`, gender: female ? "female" : "male", phone: band[0] >= 12 ? phone() : null, birthDate: birth(band[0], band[1], today), householdRole: "child", engagement: engagement * (band[0] >= 18 ? 0.85 : 0.95) });
+      }
+    }
+  }
+
+  // Jovens e adultos sem família vinculada, afastados, visitantes e inativos.
+  const loose: [number, PersonStatus | "away", [number, number]][] = [
+    [26, "member", [18, 29]],
+    [8, "member", [30, 75]],
+    [8, "away", [18, 45]],
+    [9, "visitor", [15, 35]],
+    [7, "inactive", [20, 60]],
+  ];
+  for (const [count, kind, range] of loose) {
+    for (let i = 0; i < count; i++) {
+      const female = chance(0.55);
+      add({
+        fullName: `${pick(female ? FEMALE : MALE)} ${pick(SURNAMES)} ${pick(SURNAMES)}`,
         gender: female ? "female" : "male",
-        status,
-        birthDate: birth(3, 24, today),
-        householdId: id,
-        householdRole: "child",
-        address,
-        memberSince: status === "member" ? since : null,
-        engagement: engagement * 0.9,
+        status: kind === "away" ? "member" : kind,
+        phone: phone(),
+        birthDate: birth(range[0], range[1], today),
+        householdId: null,
+        householdRole: null,
+        address: null,
+        memberSince: kind === "member" || kind === "away" ? addDaysIso(today, -Math.floor(200 + rand() * 2500)) : null,
+        firstVisitDate: kind === "visitor" ? recentSunday(5) : null,
+        howFound: kind === "visitor" ? pick(["Convite de um amigo", "Instagram da igreja", "Veio com a turma do New Mind", "Acampamento Metanoia", "Passou na frente"]) : null,
+        engagement: kind === "away" ? -1 : kind === "inactive" ? 0 : 0.5 + rand() * 0.45,
       });
     }
   }
 
-  // Pessoas sozinhas: jovens, membros afastados, visitantes recentes, inativos.
-  for (let i = 0; i < 16; i++) {
-    const female = chance(0.55);
-    const kind = i < 8 ? "member" : i < 12 ? "away" : i < 14 ? "visitor" : "inactive";
-    addPerson({
-      fullName: `${pick(female ? FEMALE : MALE)} ${pick(SURNAMES)}`,
-      gender: female ? "female" : "male",
-      status: kind === "away" ? "member" : (kind as "member" | "visitor" | "inactive"),
-      phone: phone(),
-      birthDate: birth(17, 40, today),
-      memberSince: kind === "member" || kind === "away" ? addDaysIso(today, -Math.floor(300 + rand() * 1500)) : null,
-      firstVisitDate: kind === "visitor" ? recentSunday(today) : null,
-      howFound: kind === "visitor" ? pick(["Convite de amigo", "Instagram", "Passou na frente", "Família"]) : null,
-      // Afastados: frequentavam e pararam de vir há algumas semanas.
-      engagement: kind === "away" ? -1 : kind === "inactive" ? 0 : 0.5 + rand() * 0.45,
-    });
-  }
-
-  // Aniversariantes garantidos nos próximos dias para o painel.
-  people.filter((p) => p.householdRole === "head").slice(0, 3).forEach((p, i) => {
-    const y = Number((p.birthDate as string).slice(0, 4));
-    p.birthDate = `${y}${addDaysIso(today, i * 3 + 1).slice(4)}`;
+  // Aniversariantes garantidos nos próximos dias.
+  people.filter((p) => p.status === "member" && p.householdRole === "head").slice(0, 4).forEach((p, i) => {
+    p.birthDate = `${p.birthDate.slice(0, 4)}${addDaysIso(today, i * 3 + 1).slice(4)}`;
   });
 
   await db.insert(schema.household).values(households);
   const created = await db
     .insert(schema.person)
-    .values(people.map(({ engagement: _e, ...p }) => ({ ...p, createdAt: new Date(Date.now() - 200 * 86_400_000) })))
+    .values(
+      people.map(({ engagement: _e, ...p }) => ({
+        ...p,
+        phoneDigits: p.phone ? normalizePhone(p.phone) : null,
+        createdAt: new Date(Date.now() - 220 * 86_400_000),
+      })),
+    )
     .returning();
-
   for (const p of created) {
     await db.insert(schema.timelineEvent).values({
       personId: p.id,
       kind: "registered",
       title: p.status === "visitor" ? "Primeira visita registrada" : "Cadastrado como membro",
-      occurredAt: p.memberSince ? zonedToUtc(p.memberSince, "10:00", TZ) : p.createdAt,
+      occurredAt: zonedToUtc(p.memberSince ?? p.firstVisitDate ?? addDaysIso(today, -220), "10:00", TZ),
     });
   }
 
-  /* Vínculos com ministérios */
-  const ageOf = (p: P) => (p.birthDate ? Number(today.slice(0, 4)) - Number(String(p.birthDate).slice(0, 4)) : 30);
+  /* ───────────── Vínculos com ministérios ───────────── */
+  const active = people.filter((p) => p.status !== "inactive");
   const memberships: (typeof schema.membership.$inferInsert)[] = [];
-  const join = (personId: string, ministry: string, role: "member" | "leader" = "member") =>
-    memberships.push({ personId, ministryId: M[ministry], role, startDate: addDaysIso(today, -Math.floor(60 + rand() * 700)) });
-  const adults = people.filter((p) => p.status === "member" && ageOf(p) >= 25);
-  const youth = people.filter((p) => p.status !== "inactive" && ageOf(p) >= 15 && ageOf(p) < 30);
-  for (const p of youth) join(p.id, "Jovens");
-  adults.slice(0, 7).forEach((p) => join(p.id, "Acolhimento"));
-  adults.slice(5, 11).forEach((p) => join(p.id, "Louvor"));
-  adults.slice(9, 15).forEach((p) => join(p.id, "Infantil"));
-  adults.slice(12, 18).forEach((p) => join(p.id, "Intercessão"));
-  adults.filter((p) => p.householdRole === "head" || p.householdRole === "spouse").slice(0, 12).forEach((p) => join(p.id, "Casais"));
-  // Um líder por ministério.
-  for (const name of Object.keys(M)) {
-    const first = memberships.find((m) => m.ministryId === M[name]);
-    if (first) first.role = "leader";
-  }
-  await db.insert(schema.membership).values(memberships);
+  const joined = new Set<string>();
+  const join = (p: Draft, ministry: string, role: "member" | "leader" = "member", startDate?: string) => {
+    const key = `${p.id}:${ministry}`;
+    if (joined.has(key)) return;
+    joined.add(key);
+    memberships.push({ personId: p.id, ministryId: M[ministry], role, startDate: startDate ?? addDaysIso(today, -Math.floor(40 + rand() * 900)) });
+  };
+  const kids = active.filter((p) => age(p) >= 6 && age(p) <= 11);
+  const teens = active.filter((p) => age(p) >= 12 && age(p) <= 17);
+  const youth = active.filter((p) => age(p) >= 18 && age(p) <= 29);
+  const adults = active.filter((p) => age(p) >= 30 && p.status === "member");
+  const men = adults.filter((p) => p.gender === "male");
+  const women = adults.filter((p) => p.gender === "female");
 
-  /* Séries e encontros (12 semanas para trás + 12 à frente) */
+  kids.filter(() => chance(0.7)).forEach((p) => join(p, "New Song"));
+  join(women[0], "New Song", "leader");
+  teens.forEach((p) => join(p, "New Mind"));
+  shuffle(youth).slice(0, 6).forEach((p) => join(p, "New Mind", "leader"));
+  // Liderança primeiro: join ignora vínculo repetido (equipe de Supervisão).
+  shuffle(youth).slice(0, 4).forEach((p) => join(p, "Metanoia", "leader"));
+  youth.forEach((p) => join(p, "Metanoia"));
+  const louvor = shuffle([...youth, ...adults.slice(0, 30)]).slice(0, 22);
+  louvor.forEach((p, i) => join(p, "Louvor", i === 0 ? "leader" : "member"));
+  const midia = shuffle([...teens.filter((p) => age(p) >= 15), ...youth]).slice(0, 14);
+  midia.forEach((p, i) => join(p, "Mídia", i === 0 ? "leader" : "member", i >= 12 ? "2026-10-31" : undefined));
+  men.filter(() => chance(0.75)).forEach((p, i) => join(p, "Homens de Honra", i < 2 ? "leader" : "member"));
+  shuffle(adults).slice(0, 22).forEach((p, i) => join(p, "Casa de Paz", i < 2 ? "leader" : "member"));
+  await db.insert(schema.membership).values(memberships);
+  const inMinistry = (p: Draft, name: string) => joined.has(`${p.id}:${name}`);
+
+  /* ───────────── Agenda semanal (real) ───────────── */
   const start = addDaysIso(today, -7 * 12);
   const until = addDaysIso(today, 7 * 12);
-  const seriesDefs = [
-    { title: "Culto de Celebração", category: "Culto", weekday: 0, time: "19:00", ministries: [] as string[], location: "Templo" },
-    { title: "Culto de Oração", category: "Oração", weekday: 3, time: "20:00", ministries: [], location: "Templo" },
-    { title: "Encontro de Jovens", category: "Jovens", weekday: 6, time: "19:30", ministries: ["Jovens"], location: "Salão" },
+  type Def = {
+    title: string;
+    category: string;
+    weekday: number;
+    time: string;
+    minutes: number;
+    ministries: string[];
+    location: string;
+    from?: string;
+    to?: string;
+    /** quem costuma vir e com que peso sobre o engajamento */
+    who: (p: Draft) => number;
+  };
+  const defs: Def[] = [
+    { title: "Culto de Celebração", category: "Culto", weekday: 0, time: "18:00", minutes: 120, ministries: [], location: "Templo", who: () => 0.85 },
+    { title: "Culto de Quarta", category: "Culto", weekday: 3, time: "19:30", minutes: 90, ministries: [], location: "Templo", who: (p) => (age(p) >= 18 ? 0.5 : 0.2) },
+    { title: "Culto New Mind", category: "Adolescentes", weekday: 6, time: "17:00", minutes: 120, ministries: ["New Mind"], location: "Templo", who: (p) => (inMinistry(p, "New Mind") ? 0.95 : 0) },
+    { title: "Discipulado New Mind", category: "Discipulado", weekday: 4, time: "20:30", minutes: 90, ministries: ["New Mind"], location: "Salão", who: (p) => (inMinistry(p, "New Mind") ? 0.55 : 0) },
+    { title: "Homens ao Máximo", category: "Homens", weekday: 4, time: "19:30", minutes: 90, ministries: ["Homens de Honra"], location: "Salão", who: (p) => (inMinistry(p, "Homens de Honra") ? 0.65 : 0) },
+    { title: "Casa de Paz — Paixão e Ousadia", category: "Célula", weekday: 2, time: "20:00", minutes: 90, ministries: ["Casa de Paz"], location: "Casa da família anfitriã", who: (p) => (inMinistry(p, "Casa de Paz") ? 0.75 : 0) },
+    { title: "Ensaio da Cantata de Natal", category: "Ensaio", weekday: 6, time: "14:30", minutes: 120, ministries: ["New Song", "Louvor"], location: "Templo", from: "2026-10-17", to: "2026-12-19", who: (p) => (inMinistry(p, "New Song") || inMinistry(p, "Louvor") ? 0.8 : 0) },
   ];
+
   type Ev = typeof schema.event.$inferSelect;
-  const allEvents: { ev: Ev; def: (typeof seriesDefs)[number] }[] = [];
-  for (const def of seriesDefs) {
+  const all: { ev: Ev; who: (p: Draft) => number; tracksAbsence: boolean }[] = [];
+  const createEvent = async (opts: {
+    title: string; category: string; date: string; time: string; minutes: number; ministries: string[];
+    location: string; seriesId?: string; description?: string; cancelled?: boolean; who: (p: Draft) => number;
+  }) => {
+    const startsAt = zonedToUtc(opts.date, opts.time, TZ);
+    const [ev] = await db
+      .insert(schema.event)
+      .values({
+        title: opts.title,
+        description: opts.description ?? null,
+        categoryId: C[opts.category],
+        seriesId: opts.seriesId ?? null,
+        startsAt,
+        endsAt: new Date(startsAt.getTime() + opts.minutes * 60_000),
+        location: opts.location,
+        cancelled: opts.cancelled ?? false,
+      })
+      .returning();
+    if (opts.ministries.length) {
+      await db.insert(schema.eventMinistry).values(opts.ministries.map((n) => ({ eventId: ev.id, ministryId: M[n] })));
+    }
+    all.push({ ev, who: opts.who, tracksAbsence: opts.ministries.length > 0 });
+    return ev;
+  };
+
+  // Programação de novembro do New Mind: 14/11 sem culto (confra) e 21/11 folga.
+  const cancelledDates = new Set(["Culto New Mind@2026-11-14", "Culto New Mind@2026-11-21", "Discipulado New Mind@2026-11-19"]);
+
+  for (const d of defs) {
+    const from = d.from && d.from > start ? d.from : start;
+    const to = d.to && d.to < until ? d.to : until;
     const [series] = await db
       .insert(schema.eventSeries)
       .values({
-        title: def.title,
-        categoryId: C[def.category],
+        title: d.title,
+        categoryId: C[d.category],
         recurrence: "weekly",
-        weekday: def.weekday,
-        time: def.time,
-        durationMinutes: 120,
-        location: def.location,
-        startDate: start,
-        ministryIds: def.ministries.map((n) => M[n]),
+        weekday: d.weekday,
+        time: d.time,
+        durationMinutes: d.minutes,
+        location: d.location,
+        startDate: from,
+        endDate: d.to ?? null,
+        ministryIds: d.ministries.map((n) => M[n]),
       })
       .returning();
-    for (const date of occurrences({ recurrence: "weekly", weekday: def.weekday, startDate: start, from: start, until })) {
-      const startsAt = zonedToUtc(date, def.time, TZ);
-      const [ev] = await db
-        .insert(schema.event)
-        .values({
-          title: def.title,
-          categoryId: C[def.category],
-          seriesId: series.id,
-          startsAt,
-          endsAt: new Date(startsAt.getTime() + 120 * 60_000),
-          location: def.location,
-        })
-        .returning();
-      if (def.ministries.length) {
-        await db.insert(schema.eventMinistry).values(def.ministries.map((n) => ({ eventId: ev.id, ministryId: M[n] })));
-      }
-      allEvents.push({ ev, def });
+    for (const date of occurrences({ recurrence: "weekly", weekday: d.weekday, startDate: from, from, until: to })) {
+      await createEvent({ ...d, date, seriesId: series.id, cancelled: cancelledDates.has(`${d.title}@${date}`) });
     }
   }
-  const [special] = await db
-    .insert(schema.event)
-    .values({
-      title: "Noite de Louvor e Testemunhos",
-      description: "Culto especial com a participação de todos os ministérios.",
-      categoryId: C["Evento"],
-      startsAt: zonedToUtc(addDaysIso(today, 12), "19:30", TZ),
-      endsAt: zonedToUtc(addDaysIso(today, 12), "22:00", TZ),
-      location: "Templo",
-    })
-    .returning();
-  void special;
 
-  /* Frequência dos encontros passados */
+  // Eventos pontuais (datas reais de outubro–dezembro de 2026).
+  const youthAndTeens = (p: Draft) => (inMinistry(p, "Metanoia") ? 0.7 : inMinistry(p, "New Mind") ? 0.55 : 0);
+  await createEvent({ title: "Acampamento Metanoia", category: "Jovens", date: "2026-10-24", time: "08:00", minutes: 30 * 60, ministries: ["Metanoia", "New Mind"], location: "Chácara", description: "Acampamento de jovens e adolescentes, com a equipe de supervisão.", who: youthAndTeens });
+  await createEvent({ title: "Revival Night", category: "Jovens", date: "2026-10-30", time: "19:30", minutes: 150, ministries: ["Metanoia"], location: "Templo", description: "Pós-acampamento: uma noite para mergulhar ainda mais na presença de Jesus.", who: (p) => (inMinistry(p, "Metanoia") ? 0.6 : 0) });
+  await createEvent({ title: "Momento de busca com Deus", category: "Adolescentes", date: "2026-11-13", time: "19:30", minutes: 120, ministries: ["New Mind"], location: "Templo", description: "No lugar do culto de sábado, que ficou para a confra da liderança.", who: () => 0 });
+  await createEvent({ title: "Confraternização da Liderança", category: "Evento", date: "2026-11-14", time: "19:00", minutes: 180, ministries: [], location: "Salão", description: "Confra geral da liderança de todos os ministérios, convocada pela pastora.", who: () => 0 });
+  await createEvent({ title: "Festa do Pijama das Meninas", category: "Adolescentes", date: "2026-11-21", time: "20:00", minutes: 12 * 60, ministries: ["New Mind"], location: "Casa de uma líder", description: "Programação separada no fim de semana de folga do New Mind.", who: () => 0 });
+  await createEvent({ title: "Cantata de Natal", category: "Evento", date: "2026-12-20", time: "19:00", minutes: 150, ministries: [], location: "Templo", description: "Coral New Song e ministério de louvor. Decoração a cargo da liderança do New Mind.", who: () => 0 });
+
+  /* ───────────── Frequência dos encontros que já aconteceram ───────────── */
   const now = Date.now();
-  const youthIds = new Set(youth.map((p) => p.id));
   const records: (typeof schema.attendance.$inferInsert)[] = [];
-  for (const { ev, def } of allEvents) {
-    if (ev.startsAt.getTime() > now) continue;
+  for (const { ev, who, tracksAbsence } of all) {
+    if (ev.cancelled || ev.startsAt.getTime() > now) continue;
     const eventDate = isoDateInTz(ev.startsAt, TZ);
     const weeksAgo = Math.floor((now - ev.startsAt.getTime()) / (7 * 86_400_000));
     for (const p of people) {
       if (p.status === "inactive") continue;
-      if (def.ministries.includes("Jovens") && !youthIds.has(p.id)) continue;
+      const weight = who(p);
+      if (weight === 0) continue;
       if (p.status === "visitor" && p.firstVisitDate && eventDate < p.firstVisitDate) continue;
-      let prob = p.engagement;
-      if (prob < 0) prob = weeksAgo > 5 ? 0.85 : 0; // afastados
-      if (def.weekday === 3) prob *= 0.45; // oração tem menos gente
-      if (p.status === "visitor") prob = eventDate === p.firstVisitDate ? 1 : prob * 0.6;
+      let prob = p.engagement < 0 ? (weeksAgo > 5 ? 0.8 : 0) : p.engagement;
+      prob *= weight;
+      if (p.status === "visitor") prob = eventDate === p.firstVisitDate ? 1 : prob * 0.7;
       const present = chance(prob);
-      if (present || (def.ministries.length && chance(0.5))) {
+      // Encontros de ministério registram ausências; cultos abertos só presença.
+      if (present || (tracksAbsence && chance(0.6))) {
         records.push({
           eventId: ev.id,
           personId: p.id,
           status: present ? "present" : "absent",
-          method: present && chance(0.25) ? "qr" : "manual",
+          method: present && chance(0.3) ? "qr" : "manual",
           createdAt: ev.startsAt,
           updatedAt: ev.startsAt,
         });
       }
     }
   }
-  for (let i = 0; i < records.length; i += 400) {
-    await db.insert(schema.attendance).values(records.slice(i, i + 400));
-  }
+  for (let i = 0; i < records.length; i += 400) await db.insert(schema.attendance).values(records.slice(i, i + 400));
 
-  /* Contas */
+  /* ───────────── Contas ───────────── */
   const ctx = await auth.$context;
   const hash = await ctx.password.hash(PASSWORD);
-  const leaderPerson = created.find((p) => memberships.some((m) => m.personId === p.id && m.ministryId === M["Jovens"] && m.role === "leader"));
+  const newMindLeader = people.find((p) => joined.has(`${p.id}:New Mind`) && memberships.some((m) => m.personId === p.id && m.ministryId === M["New Mind"] && m.role === "leader"))!;
   const accounts = [
-    { username: "admin", name: "Pastor Daniel", email: "admin@emaus.local", role: "admin" as const, personId: null },
-    { username: "secretaria", name: "Raquel Secretaria", email: "secretaria@emaus.local", role: "secretary" as const, personId: null },
-    { username: "lider", name: leaderPerson?.fullName ?? "Líder Jovens", email: "lider@emaus.local", role: "leader" as const, personId: leaderPerson?.id ?? null },
+    { username: "admin", name: "Pastora Regina", email: "pastora@emaus.local", role: "admin" as const, personId: null },
+    { username: "secretaria", name: "Secretaria IEQ", email: "secretaria@emaus.local", role: "secretary" as const, personId: null },
+    { username: "lider", name: newMindLeader.fullName, email: "newmind@emaus.local", role: "leader" as const, personId: newMindLeader.id },
   ];
   const users: Record<string, string> = {};
   for (const a of accounts) {
@@ -317,33 +364,30 @@ async function main() {
     await ctx.internalAdapter.linkAccount({ userId: u.id, providerId: "credential", accountId: u.id, password: hash });
     users[a.username] = u.id;
   }
-  await db.insert(schema.userMinistryAccess).values({ userId: users.lider, ministryId: M["Jovens"] });
+  await db.insert(schema.userMinistryAccess).values({ userId: users.lider, ministryId: M["New Mind"] });
 
-  /* Notas e acompanhamentos */
-  const members = created.filter((p) => p.status === "member");
-  const notes = [
-    "Conversamos depois do culto. Está passando por um período de mudança de emprego; pediu oração.",
-    "Se ofereceu para ajudar no Acolhimento aos domingos.",
-    "Visitamos a família; estão bem e agradeceram o cuidado.",
-    "Comentou interesse em fazer o curso de batismo no próximo semestre.",
+  /* ───────────── Cuidado pastoral (fictício) ───────────── */
+  const pickMember = (f: (p: Draft) => boolean) => people.find((p) => p.status === "member" && f(p))!;
+  const notes: [Draft, string, boolean][] = [
+    [pickMember((p) => inMinistry(p, "Louvor") && age(p) >= 30), "Pediu oração pela saúde do esposo; não conseguiu servir no domingo.", true],
+    [pickMember((p) => inMinistry(p, "Mídia")), "Entrou na escala da Mídia em novembro. Quer aprender transmissão.", false],
+    [pickMember((p) => inMinistry(p, "New Mind") && age(p) <= 17), "Vai fazer o ENEM neste fim de semana. Combinamos de orar por ele no culto.", false],
+    [pickMember((p) => inMinistry(p, "Metanoia")), "Voltou do acampamento muito tocado. Interessado no discipulado.", false],
+    [pickMember((p) => inMinistry(p, "Casa de Paz") && p.householdRole === "head"), "Abriu a casa para a célula na próxima terça.", false],
   ];
-  for (const [i, text] of notes.entries()) {
-    await db.insert(schema.note).values({
-      personId: members[i * 3].id,
-      authorId: users.admin,
-      content: text,
-      pinned: i === 0,
-      createdAt: new Date(now - (i + 1) * 5 * 86_400_000),
-    });
+  for (const [i, [p, text, pinned]] of notes.entries()) {
+    await db.insert(schema.note).values({ personId: p.id, authorId: users.admin, content: text, pinned, createdAt: new Date(now - (i + 1) * 3 * 86_400_000) });
   }
-  const away = created.filter((p) => people.find((x) => x.id === p.id)!.engagement < 0);
+  const away = people.filter((p) => p.engagement < 0);
+  const firstVisitor = people.find((p) => p.status === "visitor")!;
   await db.insert(schema.followUp).values([
     { personId: away[0].id, title: "Ligar para saber como está", kind: "call", assigneeId: users.admin, createdById: users.admin, dueDate: addDaysIso(today, 1) },
-    { personId: away[1].id, title: "Visita em casa com a liderança", kind: "visit", assigneeId: users.secretaria, createdById: users.admin, dueDate: addDaysIso(today, 4) },
-    { personId: created.find((p) => p.status === "visitor")!.id, title: "Mensagem de boas-vindas", kind: "message", assigneeId: users.admin, createdById: users.admin, dueDate: today },
+    { personId: away[1].id, title: "Visita com a liderança da Casa de Paz", kind: "visit", assigneeId: users.secretaria, createdById: users.admin, dueDate: addDaysIso(today, 4) },
+    { personId: firstVisitor.id, title: "Mensagem de boas-vindas", kind: "message", assigneeId: users.admin, createdById: users.admin, dueDate: today },
+    { personId: notes[0][0].id, title: "Orar pela família no culto de quarta", kind: "prayer", assigneeId: users.admin, createdById: users.admin, dueDate: addDaysIso(today, 2) },
   ]);
 
-  console.log(`Seed concluído: ${created.length} pessoas, ${households.length} famílias, ${allEvents.length + 1} encontros, ${records.length} registros de presença.`);
+  console.log(`Seed concluído (${CHURCH}): ${created.length} pessoas, ${households.length} famílias, ${all.length} encontros, ${records.length} registros de presença.`);
   console.log(`Contas: admin, secretaria, lider — senha: ${PASSWORD}`);
 }
 
