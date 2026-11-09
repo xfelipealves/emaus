@@ -2,8 +2,10 @@ import type { AccountRole, AccountStatus } from "@prisma/client";
 import { hashPassword } from "./password";
 import { prisma } from "../../lib/prisma";
 import { canManageAccounts, type AuthorizationAccount } from "../../server/authorization";
+import { recordAuditEvent } from "../../server/audit";
+import { withTransaction } from "../../server/transaction";
 
-export type AccountActor = Pick<AuthorizationAccount, "role">;
+export type AccountActor = Pick<AuthorizationAccount, "role"> & { id: string };
 
 export type CreateAccountInput = {
   personId: string;
@@ -56,16 +58,30 @@ export async function createAccount(actor: AccountActor, input: CreateAccountInp
     throw new Error("Esta Pessoa já possui uma conta.");
   }
 
+  const passwordHash = await hashPassword(input.password);
+
   try {
-    return await prisma.account.create({
-      data: {
-        personId: input.personId,
-        username: input.username.trim(),
-        email: input.email.trim().toLowerCase(),
-        passwordHash: await hashPassword(input.password),
-        role: input.role,
-      },
-      include: { person: true },
+    return await withTransaction(async (transaction) => {
+      const account = await transaction.account.create({
+        data: {
+          personId: input.personId,
+          username: input.username.trim(),
+          email: input.email.trim().toLowerCase(),
+          passwordHash,
+          role: input.role,
+        },
+        include: { person: true },
+      });
+
+      await recordAuditEvent(transaction, {
+        actorId: actor.id,
+        targetType: "Account",
+        targetId: account.id,
+        action: "CREATE",
+        after: { role: account.role, status: account.status },
+      });
+
+      return account;
     });
   } catch (error) {
     if (error instanceof Error && "code" in error && error.code === "P2002") {
@@ -83,9 +99,68 @@ export async function deactivateAccount(actor: AccountActor, accountId: string) 
     throw new Error("Conta não encontrada.");
   }
 
-  return prisma.account.update({
-    where: { id: accountId },
-    data: { status: "INACTIVE" satisfies AccountStatus },
-    include: { person: true },
+  return withTransaction(async (transaction) => {
+    const deactivated = await transaction.account.update({
+      where: { id: accountId },
+      data: { status: "INACTIVE" satisfies AccountStatus },
+      include: { person: true },
+    });
+
+    await transaction.session.updateMany({
+      where: { accountId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+
+    await recordAuditEvent(transaction, {
+      actorId: actor.id,
+      targetType: "Account",
+      targetId: accountId,
+      action: "DEACTIVATE",
+      before: { status: account.status },
+      after: { status: deactivated.status },
+    });
+
+    return deactivated;
+  });
+}
+
+export async function resetAccountPassword(
+  actor: AccountActor,
+  accountId: string,
+  password: string,
+) {
+  assertCanManageAccounts(actor);
+
+  if (!password.trim()) {
+    throw new Error("Informe a nova senha.");
+  }
+
+  const account = await prisma.account.findUnique({ where: { id: accountId } });
+  if (!account) {
+    throw new Error("Conta não encontrada.");
+  }
+
+  const passwordHash = await hashPassword(password);
+
+  return withTransaction(async (transaction) => {
+    const updatedAccount = await transaction.account.update({
+      where: { id: accountId },
+      data: { passwordHash },
+    });
+
+    await transaction.session.updateMany({
+      where: { accountId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+
+    await recordAuditEvent(transaction, {
+      actorId: actor.id,
+      targetType: "Account",
+      targetId: accountId,
+      action: "PASSWORD_RESET",
+      after: { passwordReset: true },
+    });
+
+    return updatedAccount;
   });
 }

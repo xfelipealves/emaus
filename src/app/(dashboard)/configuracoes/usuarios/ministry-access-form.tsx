@@ -6,7 +6,7 @@ import {
   grantMinistryAccessAction,
   revokeMinistryAccessAction,
   type MinistryAccessActionState,
-} from "./actions";
+} from "./ministry-access-actions";
 import type { listLeaderScopeConfiguration } from "@/features/ministerios/access-scope-service";
 
 type LeaderSettings = Awaited<ReturnType<typeof listLeaderScopeConfiguration>>;

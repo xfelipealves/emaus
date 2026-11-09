@@ -6,7 +6,8 @@ import { listLeaderScopeConfiguration } from "@/features/ministerios/access-scop
 import { listMinistries } from "@/features/ministerios/ministry-service";
 import { SESSION_COOKIE_NAME } from "@/lib/session";
 import { CreateAccountForm, DeactivateAccountForm } from "./account-forms";
-import { MinistryAccessForm } from "./ministry-access-form";
+import { AccountResetForm } from "./account-reset-form";
+import { MinistryAccessPanel } from "./ministry-access-panel";
 
 export default async function UsersPage() {
   const token = (await cookies()).get(SESSION_COOKIE_NAME)?.value;
@@ -22,6 +23,9 @@ export default async function UsersPage() {
   const activeMinistries = ministries
     .filter((ministry) => ministry.status === "ACTIVE")
     .map((ministry) => ({ id: ministry.id, name: ministry.name }));
+  const activeAccounts = accounts
+    .filter((account) => account.status === "ACTIVE")
+    .map((account) => ({ id: account.id, personName: account.person.fullName, username: account.username }));
 
   return (
     <div className="mx-auto max-w-6xl">
@@ -50,7 +54,10 @@ export default async function UsersPage() {
         </section>
       </div>
       <div className="mt-6">
-        <MinistryAccessForm leaders={leaders} ministries={activeMinistries} />
+        <AccountResetForm accounts={activeAccounts} defaultAccountId={activeAccounts.at(-1)?.id ?? ""} />
+      </div>
+      <div className="mt-6">
+        <MinistryAccessPanel leaders={leaders} ministries={activeMinistries} />
       </div>
     </div>
   );

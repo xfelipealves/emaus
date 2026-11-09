@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import Link from "next/link";
 import { Button, Input } from "@/components/ui";
 import { APP_NAME } from "@/app/app-identity";
 import { loginAction, type LoginActionState } from "./actions";
@@ -22,6 +23,9 @@ export default function LoginPage() {
         <form action={formAction} className="grid gap-5">
           <Input id="username" name="username" label="Nome de usuário" autoComplete="username" required />
           <Input id="password" name="password" label="Senha" type="password" autoComplete="current-password" required />
+          <Link href="/login/recuperar" className="-mt-2 justify-self-end text-sm font-medium text-[#26766d] underline-offset-4 hover:underline">
+            Esqueceu a senha?
+          </Link>
           {state.error ? (
             <p role="alert" className="rounded-xl bg-[#fff1f1] px-3 py-2 text-sm text-[#b54747]">
               {state.error}

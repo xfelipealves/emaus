@@ -12,7 +12,21 @@ export type LoginActionState = {
   error?: string;
 };
 
+export type PasswordRecoveryActionState = {
+  message?: string;
+};
+
 const invalidCredentialsMessage = "Nome de usuário ou senha inválidos.";
+const passwordRecoveryMessage = "Se você não consegue acessar sua conta, peça a um administrador para redefinir sua senha.";
+
+export async function requestPasswordRecoveryAction(
+  _previousState: PasswordRecoveryActionState,
+  _formData: FormData,
+): Promise<PasswordRecoveryActionState> {
+  void _previousState;
+  void _formData;
+  return { message: passwordRecoveryMessage };
+}
 
 export async function loginAction(
   _previousState: LoginActionState,
