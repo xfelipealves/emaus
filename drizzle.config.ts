@@ -6,5 +6,6 @@ export default defineConfig({
   dialect: "turso",
   dbCredentials: {
     url: process.env.DATABASE_URL ?? "file:./data/emaus.db",
+    authToken: process.env.DATABASE_AUTH_TOKEN,
   },
 });

@@ -8,7 +8,8 @@ const globalForDb = globalThis as unknown as {
   libsql?: ReturnType<typeof createClient>;
 };
 
-const client = globalForDb.libsql ?? createClient({ url });
+// Local/rasp: arquivo SQLite. Vercel: Turso (libsql://…) com DATABASE_AUTH_TOKEN.
+const client = globalForDb.libsql ?? createClient({ url, authToken: process.env.DATABASE_AUTH_TOKEN });
 if (process.env.NODE_ENV !== "production") globalForDb.libsql = client;
 
 if (url.startsWith("file:")) {
