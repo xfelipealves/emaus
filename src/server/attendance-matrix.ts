@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq, gte, inArray, isNull, lt, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, lt, sql } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { addDaysIso, isoDateInTz, startOfDayUtc, todayIso } from "@/lib/dates";
 import { getSettings } from "./settings";
@@ -32,11 +32,15 @@ export async function personAttendanceMatrix(personId: string, weeks = 12) {
   const bounds = weekStarts.map((w) => startOfDayUtc(w, tz).getTime());
   const now = new Date();
 
-  const [memberships, events, records] = await Promise.all([
+  const [memberships, person, events, records] = await Promise.all([
     db
-      .select({ ministryId: schema.membership.ministryId })
+      .select({ ministryId: schema.membership.ministryId, start: schema.membership.startDate, end: schema.membership.endDate })
       .from(schema.membership)
-      .where(and(eq(schema.membership.personId, personId), isNull(schema.membership.endDate))),
+      .where(eq(schema.membership.personId, personId)),
+    db.query.person.findFirst({
+      where: eq(schema.person.id, personId),
+      columns: { createdAt: true, firstVisitDate: true, memberSince: true },
+    }),
     db.query.event.findMany({
       where: and(gte(schema.event.startsAt, new Date(bounds[0])), lt(schema.event.startsAt, now), eq(schema.event.cancelled, false)),
       with: { audience: true, series: true, category: true },
@@ -48,7 +52,13 @@ export async function personAttendanceMatrix(personId: string, weeks = 12) {
       .innerJoin(schema.event, eq(schema.event.id, schema.attendance.eventId))
       .where(and(eq(schema.attendance.personId, personId), gte(schema.event.startsAt, new Date(bounds[0])))),
   ]);
-  const mine = new Set(memberships.map((m) => m.ministryId));
+  // A pessoa só "deveria" estar em encontros a partir de quando chegou à igreja, e nos de
+  // ministério só enquanto participava dele.
+  const arrived = [person?.firstVisitDate, person?.memberSince, person ? isoDateInTz(person.createdAt, tz) : null]
+    .filter((d): d is string => Boolean(d))
+    .sort()[0];
+  const memberOn = (ministryId: string, date: string) =>
+    memberships.some((m) => m.ministryId === ministryId && m.start <= date && (!m.end || date <= m.end));
   const launchedRows = events.length
     ? await db
         .select({ eventId: schema.attendance.eventId, n: sql<number>`count(*)` })
@@ -61,8 +71,9 @@ export async function personAttendanceMatrix(personId: string, weeks = 12) {
 
   const rows = new Map<string, MatrixRow & { order: number }>();
   for (const ev of events) {
-    const forEveryone = ev.audience.length === 0;
-    const forMe = ev.audience.some((a) => mine.has(a.ministryId));
+    const date = isoDateInTz(ev.startsAt, tz);
+    const forEveryone = ev.audience.length === 0 && (!arrived || date >= arrived);
+    const forMe = ev.audience.some((a) => memberOn(a.ministryId, date));
     if (!forEveryone && !forMe && !statusByEvent.has(ev.id)) continue;
 
     const key = ev.seriesId ?? "special";
@@ -73,7 +84,7 @@ export async function personAttendanceMatrix(personId: string, weeks = 12) {
         color: ev.category?.color ?? "ember",
         weeks: weekStarts.map(() => []),
         // Igreja toda primeiro, depois ministérios, depois eventos avulsos.
-        order: ev.seriesId ? (forEveryone ? 0 : 1) : 2,
+        order: ev.seriesId ? (ev.audience.length === 0 ? 0 : 1) : 2,
       });
     }
     const t = ev.startsAt.getTime();
