@@ -1,0 +1,13 @@
+# Nunca enviar dados locais nem segredos para a Vercel.
+data/
+.env
+.env.*
+!.env.example
+.next/
+node_modules/
+.agents/
+.claude/
+.cursor/
+.opencode/
+.windsurf/
+.gitnexus/

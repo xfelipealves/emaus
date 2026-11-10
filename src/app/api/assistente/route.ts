@@ -8,6 +8,9 @@ const body = z.object({
   message: z.string().trim().min(1).max(4000),
 });
 
+// Respostas com várias ferramentas podem levar mais que o limite padrão de funções serverless.
+export const maxDuration = 300;
+
 /** Conversa com o assistente: responde em NDJSON (um evento por linha) enquanto o agente trabalha. */
 export async function POST(request: Request) {
   const user = await getCurrentUser();
