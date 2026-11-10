@@ -86,7 +86,8 @@ export function parseGender(value: string | undefined) {
   return undefined;
 }
 
+/** escapeFormulae: um nome como "=HYPERLINK(...)" não vira fórmula no Excel. */
 export function toCsv(rows: Record<string, string | number | null | undefined>[]) {
   // BOM para o Excel abrir acentos corretamente.
-  return "﻿" + Papa.unparse(rows, { delimiter: ";" });
+  return "﻿" + Papa.unparse(rows, { delimiter: ";", escapeFormulae: true });
 }

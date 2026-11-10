@@ -25,3 +25,10 @@ describe("csv", () => {
     expect(parseStatus("Afastado")).toBe("inactive");
   });
 });
+
+describe("toCsv", () => {
+  it("neutraliza fórmulas de planilha", async () => {
+    const { toCsv } = await import("./csv");
+    expect(toCsv([{ Nome: "=HYPERLINK(\"http://x\")" }])).toContain("'=HYPERLINK");
+  });
+});
