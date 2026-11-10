@@ -23,7 +23,7 @@ export default async function MinistryPage({ params }: { params: Promise<{ id: s
   const user = await requireUser();
   const ministry = await getMinistry(user, id);
   if (!ministry) notFound();
-  const [settings, trend, people] = await Promise.all([getSettings(), ministryAttendanceTrend(id), listPeople({ ...user, ministryIds: null })]);
+  const [settings, trend, people] = await Promise.all([getSettings(), ministryAttendanceTrend(id), listPeople(user)]);
   const tz = settings.timezone;
   const active = ministry.memberships.filter((m) => !m.endDate);
   const leaders = active.filter((m) => m.role === "leader");

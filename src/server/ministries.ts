@@ -5,7 +5,7 @@ import { db, schema } from "@/db";
 import { TONES } from "@/lib/labels";
 import { addDaysIso, startOfDayUtc, todayIso } from "@/lib/dates";
 import { recordAudit, recordTimeline } from "./history";
-import { ActionError, type CurrentUser } from "./session";
+import { ActionError, assertCanSeePerson, type CurrentUser } from "./session";
 import { getSettings } from "./settings";
 
 export const ministryInput = z.object({
@@ -160,6 +160,8 @@ export async function addMember(
   if (user.ministryIds && !user.ministryIds.includes(ministryId)) {
     throw new ActionError("Você não tem acesso a este ministério.");
   }
+  // Líder não amplia o próprio escopo trazendo alguém que ele ainda não acompanha.
+  await assertCanSeePerson(user, personId);
   const settings = await getSettings();
   const m = await db.query.ministry.findFirst({ where: eq(schema.ministry.id, ministryId) });
   if (!m) throw new ActionError("Ministério não encontrado.");
@@ -172,12 +174,13 @@ export async function addMember(
   });
   if (active) throw new ActionError("Essa pessoa já participa deste ministério.");
   await db.transaction(async (tx) => {
-    await tx.insert(schema.membership).values({
-      ministryId,
-      personId,
-      role,
-      startDate: todayIso(settings.timezone),
-    });
+    // O índice único de vínculo ativo barra corrida entre dois cliques/abas.
+    const [created] = await tx
+      .insert(schema.membership)
+      .values({ ministryId, personId, role, startDate: todayIso(settings.timezone) })
+      .onConflictDoNothing()
+      .returning();
+    if (!created) throw new ActionError("Essa pessoa já participa deste ministério.");
     await recordTimeline(tx, {
       personId,
       actorId: user.id,

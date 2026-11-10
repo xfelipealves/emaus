@@ -24,6 +24,7 @@ export async function dashboardData(user: CurrentUser) {
     .where(
       and(
         eq(schema.attendance.status, "present"),
+        eq(schema.event.cancelled, false),
         gte(schema.event.startsAt, from),
         lt(schema.event.startsAt, new Date()),
         visible ? inArray(schema.attendance.personId, [...visible]) : undefined,

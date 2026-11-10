@@ -22,9 +22,11 @@ export async function listHouseholds(user: CurrentUser) {
       },
     },
   });
-  return visible
-    ? houses.filter((h) => h.members.some((m) => visible.has(m.id)))
-    : houses;
+  if (!visible) return houses;
+  // Líder vê a família, mas só os membros que estão no escopo dele.
+  return houses
+    .map((h) => ({ ...h, members: h.members.filter((m) => visible.has(m.id)) }))
+    .filter((h) => h.members.length > 0);
 }
 
 export async function getHousehold(user: CurrentUser, id: string) {
@@ -34,8 +36,9 @@ export async function getHousehold(user: CurrentUser, id: string) {
   });
   if (!house) return null;
   const visible = await visiblePersonIds(user);
-  if (visible && !house.members.some((m) => visible.has(m.id))) return null;
-  return house;
+  if (!visible) return house;
+  const members = house.members.filter((m) => visible.has(m.id));
+  return members.length ? { ...house, members } : null;
 }
 
 export async function createHousehold(raw: unknown) {
@@ -72,7 +75,10 @@ export async function setHouseholdMember(
   role: (typeof HOUSEHOLD_ROLES)[number] | null,
 ) {
   await assertCanSeePerson(user, personId);
-  const house = await db.query.household.findFirst({ where: eq(schema.household.id, householdId) });
+  // Líder só mexe em famílias que já enxerga: um id de fora não vira porta de acesso.
+  const house = user.ministryIds
+    ? await getHousehold(user, householdId)
+    : await db.query.household.findFirst({ where: eq(schema.household.id, householdId) });
   if (!house) throw new ActionError("Família não encontrada.");
   await db.transaction(async (tx) => {
     if (role === null) {

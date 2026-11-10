@@ -1,6 +1,6 @@
 import "server-only";
 import { cache } from "react";
-import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, lte, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db, schema } from "@/db";
 import { GENDERS, HOUSEHOLD_ROLES, PERSON_STATUSES, type PersonStatus } from "@/db/schema";
@@ -8,6 +8,7 @@ import { ageFrom, diffDaysIso, isoDateInTz, todayIso } from "@/lib/dates";
 import { STATUS_LABEL } from "@/lib/labels";
 import { normalizePhone, normalizeSearch } from "@/lib/text";
 import { recordAudit, recordTimeline } from "./history";
+import { getHousehold } from "./households";
 import { ActionError, assertCanSeePerson, type CurrentUser, visiblePersonIds } from "./session";
 import { getSettings } from "./settings";
 
@@ -43,7 +44,14 @@ function presenceStats() {
     })
     .from(schema.attendance)
     .innerJoin(schema.event, eq(schema.event.id, schema.attendance.eventId))
-    .where(eq(schema.attendance.status, "present"))
+    // Só presença efetiva: encontro realizado e não cancelado.
+    .where(
+      and(
+        eq(schema.attendance.status, "present"),
+        eq(schema.event.cancelled, false),
+        lte(schema.event.startsAt, sql`(unixepoch() * 1000)`),
+      ),
+    )
     .groupBy(schema.attendance.personId)
     .as("presence");
 }
@@ -170,7 +178,11 @@ export async function getPerson(user: CurrentUser, id: string) {
   const row = await db.query.person.findFirst({
     where: eq(schema.person.id, id),
     with: {
-      household: { with: { members: true } },
+      household: {
+        with: {
+          members: { columns: { id: true, fullName: true, preferredName: true, status: true, householdRole: true } },
+        },
+      },
       memberships: {
         with: { ministry: true },
         orderBy: desc(schema.membership.startDate),
@@ -180,7 +192,11 @@ export async function getPerson(user: CurrentUser, id: string) {
   if (!row) return null;
   const settings = await getSettings();
   const today = todayIso(settings.timezone);
-  return { ...row, age: ageFrom(row.birthDate, today) };
+  // Familiares fora do escopo do líder não aparecem.
+  const household = row.household && visible
+    ? { ...row.household, members: row.household.members.filter((m) => visible.has(m.id)) }
+    : row.household;
+  return { ...row, household, age: ageFrom(row.birthDate, today) };
 }
 
 export async function personAttendance(personId: string, limit = 60) {
@@ -317,6 +333,9 @@ export async function updatePerson(user: CurrentUser, id: string, raw: unknown) 
   const row = toRow(input);
   // Status muda por changeStatus, que registra o histórico.
   const { status: _status, ...rest } = row;
+  if (user.ministryIds && rest.householdId && rest.householdId !== before.householdId && !(await getHousehold(user, rest.householdId))) {
+    throw new ActionError("Família não encontrada.");
+  }
   await db.transaction(async (tx) => {
     await tx.update(schema.person).set(rest).where(eq(schema.person.id, id));
     if (before.householdId !== rest.householdId && rest.householdId) {
