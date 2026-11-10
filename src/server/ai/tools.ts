@@ -30,7 +30,6 @@ import { addMember, endMembership, getMinistry, listMinistries } from "../minist
 import {
   changeStatus,
   createPerson,
-  deletePerson,
   getPerson,
   listPeople,
   peopleNeedingCare,
@@ -625,17 +624,22 @@ const cancelarEncontro = tool({
 
 const excluirPessoa = tool({
   name: "excluir_pessoa",
-  label: "Excluiu cadastro",
-  write: true,
+  label: "Preparou exclusão",
   description:
-    "Exclui definitivamente um cadastro e todo o histórico. SÓ chame depois que o usuário confirmar explicitamente nesta conversa; passe confirmado=true. Para quem só se afastou, prefira mudar_status para inativo.",
-  schema: z.object({ pessoa_id: z.string(), confirmado: z.literal(true) }),
+    "Para pedidos de exclusão de cadastro. A exclusão é irreversível e precisa ser confirmada por uma pessoa na tela: esta ferramenta NÃO apaga, só devolve o link do perfil e as instruções. Para quem só se afastou, prefira mudar_status para inativo.",
+  schema: z.object({ pessoa_id: z.string() }),
+  // Confirmação gerada pelo próprio modelo não prova intenção humana (texto malicioso num
+  // nome ou anotação poderia induzir a chamada). A exclusão fica só na interface.
   run: async ({ pessoa_id }, ctx) => {
     if (!can.deletePeople(ctx.user)) throw new ActionError("Só administradores excluem cadastros.");
     const p = await getPerson(ctx.user, pessoa_id);
-    await deletePerson(ctx.user, pessoa_id);
-    await audit(ctx, "person.delete", `excluiu o cadastro de ${p?.fullName ?? pessoa_id}`);
-    return { ok: true };
+    if (!p) throw new ActionError("Pessoa não encontrada ou fora do seu acesso.");
+    return {
+      ok: false,
+      pendente: true,
+      instrucoes: "Abra o perfil e use o menu ⋯ → Excluir cadastro para confirmar.",
+      link: personLink(p),
+    };
   },
 });
 

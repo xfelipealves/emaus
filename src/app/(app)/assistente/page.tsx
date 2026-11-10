@@ -3,7 +3,8 @@ import { KeyRound, Sparkles } from "lucide-react";
 import type { Metadata } from "next";
 import { PageHeader } from "@/components/app/page-header";
 import { db, schema } from "@/db";
-import { isAiConfigured } from "@/server/ai/agent";
+import { canReuseConversation, isAiConfigured } from "@/server/ai/agent";
+import { redirect } from "next/navigation";
 import { TOOL_BY_NAME } from "@/server/ai/tools";
 import { requireUser } from "@/server/session";
 import { Chat, type ChatTurn } from "./chat";
@@ -123,15 +124,18 @@ export default async function AssistantPage({ searchParams }: { searchParams: Pr
 
   const conversations = await db.query.aiConversation.findMany({
     where: eq(schema.aiConversation.userId, user.id),
-    columns: { id: true, title: true, updatedAt: true },
+    columns: { id: true, title: true, updatedAt: true, scopeKey: true },
     orderBy: desc(schema.aiConversation.updatedAt),
     limit: 50,
   });
+  const reusable = conversations.filter((conv) => canReuseConversation(user, conv)).map(({ scopeKey: _s, ...conv }) => conv);
   const current = c
     ? await db.query.aiConversation.findFirst({
         where: and(eq(schema.aiConversation.id, c), eq(schema.aiConversation.userId, user.id)),
       })
     : null;
+  // Conversa de quando o acesso era outro: o conteúdo pode ter dados que hoje não são dele.
+  if (current && !canReuseConversation(user, current)) redirect("/assistente");
   const runs = current
     ? await db
         .select({ id: schema.aiRun.id, rating: schema.aiRun.rating })
@@ -145,7 +149,7 @@ export default async function AssistantPage({ searchParams }: { searchParams: Pr
       key={current?.id ?? "new"}
       userName={user.name.split(" ")[0]}
       isLeader={user.role === "leader"}
-      conversations={conversations}
+      conversations={reusable}
       conversationId={current?.id ?? null}
       initialTurns={current ? toTurns(current.messages as Stored[], runs) : []}
       initialPrompt={!current ? q : undefined}

@@ -1,6 +1,6 @@
 import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull, lt, or } from "drizzle-orm";
 import OpenAI from "openai";
 import { z } from "zod";
 import { db, schema } from "@/db";
@@ -178,7 +178,7 @@ Como trabalhar:
 Operações que alteram dados:
 - Você pode cadastrar, atualizar, registrar presença, criar acompanhamentos, mexer em ministérios e encontros quando o usuário pedir. Faça direto quando o pedido for claro.
 - Se houver ambiguidade (duas pessoas com nome parecido, encontro incerto), pergunte antes de alterar. Antes de cadastrar alguém, confira com buscar_pessoas se já existe.
-- Exclusão de cadastro é irreversível: descreva o que será apagado e só chame excluir_pessoa depois de o usuário confirmar explicitamente.
+- Exclusão de cadastro é irreversível e só pode ser confirmada pelo usuário na tela: use excluir_pessoa para obter o link e explique como confirmar.
 - Depois de alterar dados, diga em uma ou duas frases o que foi feito, com links.
 
 Segurança:
@@ -205,7 +205,20 @@ async function contextBlock(user: CurrentUser) {
 - Usuário: ${user.name}, ${ROLE_LABEL[user.role]}. ${scope}`;
 }
 
+/** Papel + ministérios: se mudar, o histórico (com dados de antes) não pode mais ser reaberto. */
+export function scopeKey(user: CurrentUser) {
+  return `${user.role}:${user.ministryIds ? [...user.ministryIds].sort().join(",") : "*"}`;
+}
+
+export function canReuseConversation(user: CurrentUser, conv: { scopeKey: string | null }) {
+  // Conversas antigas, sem registro de escopo, só continuam para administradores.
+  return conv.scopeKey === null ? user.role === "admin" : conv.scopeKey === scopeKey(user);
+}
+
+const LOCK_MS = 5 * 60_000;
+
 async function loadConversation(user: CurrentUser, conversationId: string | null, prompt: string, provider: AiProvider) {
+  const lockUntil = new Date(Date.now() + LOCK_MS);
   if (conversationId) {
     const conv = await db.query.aiConversation.findFirst({
       where: and(eq(schema.aiConversation.id, conversationId), eq(schema.aiConversation.userId, user.id)),
@@ -214,10 +227,28 @@ async function loadConversation(user: CurrentUser, conversationId: string | null
     if (conv.provider !== provider.kind) {
       throw new ActionError("Esta conversa foi feita com outro provedor de IA. Comece uma nova conversa.");
     }
-    return conv;
+    if (!canReuseConversation(user, conv)) {
+      throw new ActionError("Seu acesso mudou desde esta conversa. Comece uma nova conversa.");
+    }
+    // Trava: duas perguntas simultâneas na mesma conversa sobrescreveriam o histórico uma da outra.
+    const [locked] = await db
+      .update(schema.aiConversation)
+      .set({ lockedUntil: lockUntil })
+      .where(
+        and(
+          eq(schema.aiConversation.id, conv.id),
+          or(isNull(schema.aiConversation.lockedUntil), lt(schema.aiConversation.lockedUntil, new Date())),
+        ),
+      )
+      .returning();
+    if (!locked) throw new ActionError("Esta conversa ainda está respondendo a pergunta anterior. Aguarde um instante.");
+    return locked;
   }
   const title = prompt.replace(/\s+/g, " ").trim().slice(0, 70);
-  const [conv] = await db.insert(schema.aiConversation).values({ userId: user.id, title, provider: provider.kind }).returning();
+  const [conv] = await db
+    .insert(schema.aiConversation)
+    .values({ userId: user.id, title, provider: provider.kind, scopeKey: scopeKey(user), lockedUntil: lockUntil })
+    .returning();
   return conv;
 }
 
@@ -228,6 +259,10 @@ type TurnState = {
   toolCalls: ToolCallLog[];
   iterations: number;
   stopReason: string | null;
+  /** Alguma ferramenta já gravou dados nesta rodada. */
+  wrote: boolean;
+  /** Tamanho do histórico no último ponto consistente (todas as ferramentas respondidas). */
+  safeLength: number;
 };
 
 /** Valida e executa uma chamada de ferramenta pedida pelo modelo. */
@@ -251,6 +286,7 @@ async function runTool(
   }
   try {
     const out = await def.run(parsed.data as never, ctx);
+    if (def.write) state.wrote = true;
     emit({ type: "tool_result", id: call.id, ok: true });
     state.toolCalls.push({ name: def.name, ok: true, write: def.write });
     return { content: JSON.stringify(out), isError: false };
@@ -337,6 +373,7 @@ async function anthropicLoop(
       results.push({ type: "tool_result", tool_use_id: use.id, content: r.content, is_error: r.isError || undefined });
     }
     messages.push({ role: "user", content: results });
+    state.safeLength = messages.length;
   }
 }
 
@@ -479,6 +516,7 @@ async function openaiLoop(
       }
       messages.push({ role: "tool", tool_call_id: c.id, content });
     }
+    state.safeLength = messages.length;
   }
 }
 
@@ -553,6 +591,7 @@ async function responsesLoop(
       const r = await runTool({ id: call.call_id, name: call.name, input }, ctx, state, emit);
       items.push({ type: "function_call_output", call_id: call.call_id, output: r.isError ? `Erro: ${r.content}` : r.content });
     }
+    state.safeLength = items.length;
   }
 }
 
@@ -591,7 +630,14 @@ export async function runAgent(opts: {
   messages.push({ role: "user", content: prompt });
 
   const ctx: ToolContext = { user, conversationId: conv.id };
-  const state: TurnState = { usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, toolCalls: [], iterations: 0, stopReason: null };
+  const state: TurnState = {
+    usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+    toolCalls: [],
+    iterations: 0,
+    stopReason: null,
+    wrote: false,
+    safeLength: turnStart,
+  };
   const context = await contextBlock(user);
   let error: string | null = null;
 
@@ -609,12 +655,14 @@ export async function runAgent(opts: {
   } catch (err) {
     error = err instanceof Error ? err.message : String(err);
     if (!(err instanceof ActionError)) console.error("[assistente]", err);
-    emit({ type: "error", message: friendlyError(err, Boolean(opts.signal?.aborted)) });
-    // Descarta a rodada inteira: uma chamada de ferramenta sem resultado invalidaria as próximas.
-    messages.length = turnStart;
+    const kept = state.wrote ? " As alterações já feitas foram mantidas; confira antes de pedir de novo." : "";
+    emit({ type: "error", message: friendlyError(err, Boolean(opts.signal?.aborted)) + kept });
+    // Volta ao último ponto consistente. Se algo já foi gravado, o histórico guarda isso
+    // (senão o usuário repetiria o pedido e duplicaria a operação); senão descarta a rodada.
+    messages.length = state.wrote ? state.safeLength : turnStart;
   }
 
-  await db.update(schema.aiConversation).set({ messages }).where(eq(schema.aiConversation.id, conv.id));
+  await db.update(schema.aiConversation).set({ messages, lockedUntil: null }).where(eq(schema.aiConversation.id, conv.id));
 
   const latencyMs = Date.now() - started;
   const u = state.usage;
