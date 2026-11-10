@@ -205,6 +205,8 @@ export const membership = sqliteTable(
   (t) => [
     index("membership_person_idx").on(t.personId),
     index("membership_ministry_idx").on(t.ministryId),
+    // No máximo um vínculo ativo por pessoa em cada ministério.
+    uniqueIndex("membership_active_uq").on(t.personId, t.ministryId).where(sql`${t.endDate} is null`),
   ],
 );
 
@@ -255,6 +257,11 @@ export const eventSeries = sqliteTable("event_series", {
     .$type<string[]>()
     .notNull()
     .default(sql`'[]'`),
+  /** Datas de ocorrências excluídas, para não serem recriadas. */
+  excludedDates: text("excluded_dates", { mode: "json" })
+    .$type<string[]>()
+    .notNull()
+    .default(sql`'[]'`),
   ...timestamps,
 });
 
@@ -270,6 +277,8 @@ export const event = sqliteTable(
     seriesId: text("series_id").references(() => eventSeries.id, {
       onDelete: "set null",
     }),
+    /** Data original (YYYY-MM-DD) da ocorrência na série; null em encontros avulsos. */
+    occurrenceDate: text("occurrence_date"),
     startsAt: integer("starts_at", { mode: "timestamp_ms" }).notNull(),
     endsAt: integer("ends_at", { mode: "timestamp_ms" }),
     location: text("location"),
@@ -289,6 +298,8 @@ export const event = sqliteTable(
   (t) => [
     index("event_starts_idx").on(t.startsAt),
     index("event_series_idx").on(t.seriesId),
+    // Uma ocorrência por data em cada série: geração concorrente não duplica.
+    uniqueIndex("event_series_occurrence_uq").on(t.seriesId, t.occurrenceDate),
   ],
 );
 
@@ -547,6 +558,10 @@ export const aiConversation = sqliteTable(
     title: text("title").notNull().default("Nova conversa"),
     /** Formato do histórico: "anthropic" ou "openai" (chat completions). */
     provider: text("provider").notNull().default("anthropic"),
+    /** Papel e ministérios do dono quando a conversa começou; muda → histórico fica bloqueado. */
+    scopeKey: text("scope_key"),
+    /** Trava contra duas perguntas simultâneas na mesma conversa. */
+    lockedUntil: integer("locked_until", { mode: "timestamp_ms" }),
     /** Histórico no formato da API (MessageParam[]), incluindo blocos de ferramenta. */
     messages: text("messages", { mode: "json" }).$type<unknown[]>().notNull().default(sql`'[]'`),
     ...timestamps,
@@ -584,3 +599,10 @@ export const aiRunRelations = relations(aiRun, ({ one }) => ({
   user: one(user, { fields: [aiRun.userId], references: [user.id] }),
   conversation: one(aiConversation, { fields: [aiRun.conversationId], references: [aiConversation.id] }),
 }));
+
+/** Limite de tentativas compartilhado entre instâncias (Vercel). */
+export const rateLimit = sqliteTable("rate_limit", {
+  key: text("key").primaryKey(),
+  count: integer("count").notNull(),
+  resetAt: integer("reset_at").notNull(),
+});

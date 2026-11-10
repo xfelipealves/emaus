@@ -36,6 +36,13 @@
       "when": 1794254300000,
       "tag": "0004_ai_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1794322727781,
+      "tag": "0005_review_hardening",
+      "breakpoints": true
     }
   ]
 }
