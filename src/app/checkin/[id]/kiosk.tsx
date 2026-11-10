@@ -21,11 +21,22 @@ type P = { id: string; fullName: string; preferredName: string | null; status: P
 export function Kiosk({ eventId, churchName, title, when, people }: { eventId: string; churchName: string; title: string; when: string; people: P[] }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
-  const [present, setPresent] = useState(() => new Set(people.filter((p) => p.present).map((p) => p.id)));
+  // Presentes = confirmados pelo servidor (props) + marcados aqui antes do próximo refresh.
+  const [marked, setMarked] = useState<Set<string>>(() => new Set());
+  const present = useMemo(
+    () => new Set([...people.filter((p) => p.present).map((p) => p.id), ...marked]),
+    [people, marked],
+  );
   const [welcome, setWelcome] = useState<string | null>(null);
   const [visitorOpen, setVisitorOpen] = useState(false);
   const [pending, start] = useTransition();
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Outros aparelhos (QR, lista de presença) também marcam: sincroniza a cada 30 s.
+  useEffect(() => {
+    const t = setInterval(() => router.refresh(), 30_000);
+    return () => clearInterval(t);
+  }, [router]);
 
   useEffect(() => {
     if (!welcome) return;
@@ -50,7 +61,7 @@ export function Kiosk({ eventId, churchName, title, when, people }: { eventId: s
     start(async () => {
       const r = await setAttendanceAction(eventId, p.id, "present", "kiosk");
       if (!r.ok) return void toast.error(r.error);
-      setPresent((s) => new Set(s).add(p.id));
+      setMarked((s) => new Set(s).add(p.id));
       setWelcome(`Que bom te ver, ${firstName(displayName(p))}!`);
       setQuery("");
       inputRef.current?.focus();
@@ -152,6 +163,7 @@ export function Kiosk({ eventId, churchName, title, when, people }: { eventId: s
         onSubmit={async (name, phone) => {
           const r = await quickVisitorAction(eventId, name, phone, "kiosk");
           if (!r.ok) return toast.error(r.error);
+          setMarked((s) => new Set(s).add(r.data.id));
           setVisitorOpen(false);
           setQuery("");
           setWelcome(`Seja muito bem-vindo, ${firstName(name)}!`);
