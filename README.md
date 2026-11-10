@@ -126,16 +126,25 @@ drizzle/                  migrations SQL
 deploy/                   unidade systemd e script de deploy no Raspberry
 ```
 
-## Deploy no Raspberry
+## Deploy (Vercel + Turso)
 
-```bash
-deploy/deploy-rasp.sh          # rsync + npm ci + migrate + build + restart
-deploy/deploy-rasp.sh --seed   # idem, recriando o banco demo (APAGA os dados)
-```
+Produção: **https://emaus-vert.vercel.app** — Vercel na região São Paulo (`gru1`) e banco
+Turso (libSQL hospedado) em `aws-sa-east-1`.
 
-Na primeira vez, instale `deploy/emaus.service` em `/etc/systemd/system/` e rode
-`sudo systemctl daemon-reload && sudo systemctl enable --now emaus`. O app escuta em
-`127.0.0.1:3100`; a exposição na tailnet continua via `tailscale serve --https=8444`.
+- Push na `main` publica em produção automaticamente; push em outras branches gera prévia.
+- Variáveis de produção na Vercel: `DATABASE_URL` (`libsql://…`), `DATABASE_AUTH_TOKEN`,
+  `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` e as chaves de IA (`OPENAI_API_KEY`, `GROQ_API_KEY`).
+- Mudou o schema? Gere a migration (`npm run db:generate`) e aplique no Turso **antes** do push:
+
+  ```bash
+  DATABASE_URL=libsql://emaus-xfelipealves.aws-sa-east-1.turso.io \
+  DATABASE_AUTH_TOKEN=$(turso db tokens create emaus) npm run db:migrate
+  ```
+
+- Backup do banco: `turso db shell emaus .dump > backup.sql`.
+
+O Raspberry (`deploy/`) foi a hospedagem anterior; o serviço está desligado e o banco antigo
+ficou como backup em `~/services/emaus/data/` no rasp.
 
 ## Documentação de produto
 
