@@ -3,11 +3,12 @@
 import { and, eq } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { runAction } from "@/server/action";
-import { requireUser } from "@/server/session";
+import { ActionError, requireUser } from "@/server/session";
 
 export async function rateRunAction(runId: string, rating: 1 | -1 | null) {
   return runAction(async () => {
     const user = await requireUser();
+    if (rating !== null && rating !== 1 && rating !== -1) throw new ActionError("Avaliação inválida.");
     await db
       .update(schema.aiRun)
       .set({ rating })

@@ -41,3 +41,9 @@ export function formToObject(form: FormData) {
   }
   return out;
 }
+
+/** Tipos de TypeScript somem em runtime: valida valores de enum recebidos pelas actions. */
+export function oneOf<const T extends readonly string[]>(values: T, value: unknown, label = "valor"): T[number] {
+  if (typeof value === "string" && (values as readonly string[]).includes(value)) return value as T[number];
+  throw new ActionError(`${label} inválido.`);
+}

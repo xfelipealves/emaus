@@ -1,8 +1,8 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import type { HouseholdRole } from "@/db/schema";
-import { formToObject, runAction } from "@/server/action";
+import { HOUSEHOLD_ROLES, type HouseholdRole } from "@/db/schema";
+import { formToObject, oneOf, runAction } from "@/server/action";
 import { createHousehold, deleteHousehold, setHouseholdMember, updateHousehold } from "@/server/households";
 import { ActionError, requireUser } from "@/server/session";
 
@@ -32,5 +32,8 @@ export async function deleteHouseholdAction(id: string) {
 }
 
 export async function setMemberAction(householdId: string, personId: string, role: HouseholdRole | null) {
-  return runAction(async () => setHouseholdMember(await requireUser(), householdId, personId, role), role ? "Membro adicionado" : "Membro removido");
+  return runAction(
+    async () => setHouseholdMember(await requireUser(), householdId, personId, role === null ? null : oneOf(HOUSEHOLD_ROLES, role, "Papel")),
+    role ? "Membro adicionado" : "Membro removido",
+  );
 }

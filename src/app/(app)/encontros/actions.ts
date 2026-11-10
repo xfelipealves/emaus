@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { formToObject, runAction } from "@/server/action";
+import { formToObject, oneOf, runAction } from "@/server/action";
 import {
   addQuickVisitor,
   createEvent,
@@ -38,7 +38,15 @@ export async function setAttendanceAction(
   status: "present" | "absent" | null,
   method: "manual" | "kiosk" = "manual",
 ) {
-  return runAction(async () => setAttendance(await requireUser(), eventId, personId, status, method));
+  return runAction(async () =>
+    setAttendance(
+      await requireUser(),
+      eventId,
+      personId,
+      status === null ? null : oneOf(["present", "absent"] as const, status, "Status"),
+      oneOf(["manual", "kiosk"] as const, method, "Método"),
+    ),
+  );
 }
 
 export async function markAllAbsentAction(eventId: string) {
@@ -50,7 +58,7 @@ export async function markAllAbsentAction(eventId: string) {
 
 export async function quickVisitorAction(eventId: string, fullName: string, phone: string, method: "manual" | "kiosk" = "manual") {
   return runAction(async () => {
-    const p = await addQuickVisitor(await requireUser(), eventId, { fullName, phone }, method);
+    const p = await addQuickVisitor(await requireUser(), eventId, { fullName, phone }, oneOf(["manual", "kiosk"] as const, method, "Método"));
     return { id: p.id, fullName: p.fullName };
   }, "Visitante registrado e marcado presente");
 }
@@ -67,7 +75,7 @@ export async function cancelEventAction(eventId: string, cancelled: boolean) {
 }
 
 export async function deleteEventAction(eventId: string, scope: "one" | "future") {
-  const result = await runAction(async () => deleteEvent(await requireEventManager(), eventId, scope));
+  const result = await runAction(async () => deleteEvent(await requireEventManager(), eventId, oneOf(["one", "future"] as const, scope, "Escopo")));
   if (result.ok) redirect("/encontros");
   return result;
 }

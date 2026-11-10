@@ -2,8 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import type { HouseholdRole, PersonStatus } from "@/db/schema";
-import { formToObject, runAction } from "@/server/action";
+import { HOUSEHOLD_ROLES, type HouseholdRole, PERSON_STATUSES, type PersonStatus } from "@/db/schema";
+
+const MEMBER_ROLES = ["member", "leader"] as const;
+import { formToObject, oneOf, runAction } from "@/server/action";
 import { addNote, completeFollowUp, createFollowUp, deleteFollowUp, deleteNote, editNote, reopenFollowUp, toggleNotePin } from "@/server/care";
 import { createHousehold, setHouseholdMember } from "@/server/households";
 import { importPeople } from "@/server/import";
@@ -31,7 +33,7 @@ export async function updatePersonAction(id: string, form: FormData) {
 export async function changeStatusAction(id: string, status: PersonStatus, reason?: string) {
   return runAction(async () => {
     const user = await requireUser();
-    await changeStatus(user, id, status, reason);
+    await changeStatus(user, id, oneOf(PERSON_STATUSES, status, "Status"), reason);
   }, "Status atualizado");
 }
 
@@ -79,7 +81,7 @@ export async function deleteFollowUpAction(id: string) {
 }
 
 export async function addToMinistryAction(personId: string, ministryId: string, role: "member" | "leader") {
-  return runAction(async () => addMember(await requireUser(), ministryId, personId, role), "Vínculo criado");
+  return runAction(async () => addMember(await requireUser(), ministryId, personId, oneOf(MEMBER_ROLES, role, "Função")), "Vínculo criado");
 }
 
 export async function endMembershipAction(membershipId: string) {
@@ -87,7 +89,7 @@ export async function endMembershipAction(membershipId: string) {
 }
 
 export async function setMembershipRoleAction(membershipId: string, role: "member" | "leader") {
-  return runAction(async () => setMembershipRole(await requireUser(), membershipId, role), "Função atualizada");
+  return runAction(async () => setMembershipRole(await requireUser(), membershipId, oneOf(MEMBER_ROLES, role, "Função")), "Função atualizada");
 }
 
 export async function setHouseholdAction(personId: string, householdId: string | null, role: HouseholdRole | null, newHouseholdName?: string) {
@@ -96,7 +98,7 @@ export async function setHouseholdAction(personId: string, householdId: string |
     let target = householdId;
     if (!target && newHouseholdName) target = (await createHousehold({ name: newHouseholdName })).id;
     if (!target) throw new ActionError("Escolha uma família.");
-    await setHouseholdMember(user, target, personId, role);
+    await setHouseholdMember(user, target, personId, role === null ? null : oneOf(HOUSEHOLD_ROLES, role, "Papel"));
     revalidatePath("/familias");
     return { householdId: target };
   }, role ? "Família atualizada" : "Removido da família");
