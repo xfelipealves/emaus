@@ -25,7 +25,8 @@ export const auth = betterAuth({
   session: {
     expiresIn: 60 * 60 * 24 * 30,
     updateAge: 60 * 60 * 24,
-    cookieCache: { enabled: true, maxAge: 60 * 5 },
+    // Sem cache em cookie: "encerrar sessões" e desativar conta valem na hora.
+    cookieCache: { enabled: false },
   },
   user: {
     additionalFields: {

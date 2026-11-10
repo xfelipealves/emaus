@@ -6,7 +6,7 @@ import { getSettings } from "@/server/settings";
 
 export async function GET() {
   const user = await getCurrentUser();
-  if (!user) return new Response("Não autenticado", { status: 401 });
+  if (!user || user.mustChangePassword) return new Response("Não autenticado", { status: 401 });
   if (user.role === "leader") return new Response("Sem permissão", { status: 403 });
   const settings = await getSettings();
   const csv = toCsv(await exportPeopleRows(user));
