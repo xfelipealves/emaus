@@ -1,151 +1,195 @@
+<div align="center">
+
 # Emaús
 
-> Acompanhamento de pessoas e da vida comunitária da igreja.
-> “Fica conosco, porque é tarde, e já declinou o dia.” — Lucas 24:29
+### Community care, powered by a tool-calling LLM assistant.
 
-O Emaús reúne em um só lugar quem caminha com a igreja: cadastro de pessoas e famílias,
-ministérios, encontros com presença e o cuidado pastoral de quem se afastou.
+A full-stack application for church leaders to manage people, attendance, ministries, and pastoral follow-ups — and work with those records through natural language.
 
-## Para quem é
+![Next.js](https://img.shields.io/badge/Next.js-16-111827?logo=nextdotjs)
+![React](https://img.shields.io/badge/React-19-149ECA?logo=react)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)
+![Database](https://img.shields.io/badge/SQLite%20%2F%20Turso-libSQL-4F7661)
+![AI](https://img.shields.io/badge/LLM-Tool%20Calling-8B5E3C)
 
-O Emaús é uma ferramenta **da liderança**, não um app para toda a igreja. Só pastores,
-secretaria e líderes têm conta, criadas por um administrador. A congregação só interage pelo
-check-in por QR Code (e, se a igreja permitir, pelo autocadastro de visitantes).
+[LLM architecture](docs/ai-assistant.md) · [Getting started](#run-locally) · [Engineering guide](docs/development.md) · [Product requirements](docs/product)
 
-- Contas nascem com **senha provisória**: a troca é obrigatória no primeiro acesso.
-- **Líderes** veem apenas as pessoas dos ministérios liberados para eles.
-- **Anotações confidenciais** ficam visíveis só para administradores (pastores).
-- Administradores veem o último acesso de cada conta e podem encerrar sessões.
-- Login com limite de tentativas; o app fica fora de buscadores (`noindex`).
+</div>
 
-## O que tem
+![Emaús dashboard with attendance trends, upcoming events, and pastoral care priorities](docs/media/dashboard.png)
 
-- **Painel pastoral** — pessoas ativas, média semanal de presença com tendência, gráfico de
-  12 semanas, quem está sumido, visitantes recentes (e se voltaram) e aniversariantes.
-- **Pessoas** — lista com busca instantânea (sem acento, por nome ou telefone), filtros por
-  status e ministério, perfil com linha do tempo, anotações fixáveis, grade de frequência de
-  20 semanas, ministérios e família. WhatsApp em um toque.
-- **Famílias** — agrupe a casa toda; papéis (responsável, cônjuge, filhos).
-- **Ministérios** — participantes, líderes, histórico de vínculos e engajamento semanal.
-- **Encontros** — lista e calendário, séries recorrentes (semanal, quinzenal, mensal) geradas
-  automaticamente, público por ministério.
-- **Presença** — lista otimizada para celular (toque em ✓ / ✕), visitante rápido sem sair
-  da tela, “marcar pendentes como ausentes”, correções auditadas.
-- **Modo recepção** — tela cheia para tablet na entrada: a pessoa digita o nome e confirma.
-- **Check-in por QR Code** — projete o QR; a pessoa confirma pelo celular (pelo telefone
-  cadastrado) e visitantes se cadastram sozinhos. Só aceita registros com o check-in aberto.
-- **Cuidado pastoral** — acompanhamentos (ligar, visitar, orar…) com responsável e prazo;
-  lista de quem passou do limite de dias sem presença.
-- **Importar / exportar CSV** — reconhece colunas comuns em português, datas DD/MM/AAAA,
-  cria famílias e ignora duplicados. Exportação abre direto no Excel.
-- **Permissões** — Administrador, Secretaria e Líder (vê só os ministérios liberados).
-- **Auditoria** — correções de presença, mudanças de status, contas e exclusões.
-- **PWA** — instalável no celular, tema claro/escuro, busca global com ⌘K.
+> The application UI and assistant speak Brazilian Portuguese. This guide is in English. Screenshots use generated demo people and attendance, captured in an isolated local database without the optional WhatsApp roster.
 
-## Assistente (IA)
+## From records to action
 
-Em **Assistente** (ou ⌘K → "Perguntar…"), a liderança conversa em português com o Emaús:
-"quem do New Mind faltou nos dois últimos sábados?", "marca presença do Davi no último culto",
-"cria um acompanhamento para eu ligar para os visitantes que vieram só uma vez".
+Emaús connects day-to-day administration with the work of caring for a community. Leaders can see who stopped attending, check a visitor’s return history, record attendance, and assign a follow-up without piecing together spreadsheets and chat messages.
 
-- **Agente com ferramentas**: 12 consultas e 12 operações
-  sobre o banco (`src/server/ai/tools.ts`). Em vez de embeddings, a recuperação é feita por
-  ferramentas que consultam os dados estruturados — sempre frescos e exatos.
-- Tudo roda **com o acesso de quem pergunta**: líderes só alcançam seus ministérios, notas
-  confidenciais só chegam a pastores, e cada alteração entra na auditoria como "via assistente".
-  Exclusão de cadastro exige confirmação explícita na conversa.
-- **LLMOps** em Configurações → IA: perguntas, custo estimado, latência (p50/p95), taxa de erro,
-  uso de cache, ferramentas mais usadas, uso por pessoa e avaliações 👍/👎 de cada resposta.
-- **Provedores:** recomendado `OPENAI_API_KEY` (`gpt-6-luna` pela Responses API, ~US$ 0,002 por pergunta); grátis com `GROQ_API_KEY` (padrão `qwen/qwen3.8-27b`), `CEREBRAS_API_KEY` ou
-  `GEMINI_API_KEY`; pago e mais capaz com `ANTHROPIC_API_KEY` (Claude Opus 5.5); ou qualquer API
-  compatível com OpenAI. Nos planos grátis o assistente entra em modo enxuto (menos histórico,
-  resultados menores, espera e repete quando bate o limite por minuto). Veja `.env.example`.
+Its LLM assistant works with the same application data and permissions. It can answer multi-step questions and execute supported operations through typed server-side tools.
 
-## Stack
+| Ask in Portuguese | What the assistant can do |
+| --- | --- |
+| “Quem do New Mind faltou nos dois últimos sábados?” | Find the ministry, identify the relevant events, and inspect attendance. |
+| “Quais visitantes vieram só uma vez?” | Retrieve visitor records and their attendance history. |
+| “Crie um acompanhamento para ligar para a Ana.” | Resolve the person, then create a follow-up through the domain layer. |
+| “Marque a presença do Davi no último culto.” | Resolve the person and event, then record attendance with an audit entry. |
 
-Next.js 16 (App Router, Server Actions) · React 19 · TypeScript · Tailwind CSS 4 ·
-shadcn/ui (Base UI) · Drizzle ORM + SQLite (libSQL) · Better Auth · Recharts · Vitest.
+These are example requests, not recorded model outputs. Ambiguous names or events should be clarified before a write.
 
-Sem Docker e sem servidor de banco: os dados ficam em `data/emaus.db` (SQLite em modo WAL).
-Para fazer backup, copie esse arquivo (de preferência com o serviço parado ou via
-`sqlite3 data/emaus.db ".backup backup.db"`).
+## The LLM integration
 
-## Rodando localmente
+**24 typed tools: 12 queries, 11 mutations, and 1 deletion handoff.** The model retrieves structured data through application functions; there is no vector database or embedding pipeline in this implementation.
+
+```mermaid
+flowchart LR
+    U[Authenticated user] --> R[Assistant API · NDJSON stream]
+    R --> A[LLM agent · bounded tool loop]
+    A <--> P[Configured model provider]
+    A --> V[Tool lookup + Zod validation]
+    V --> D[Domain services + user permissions]
+    D <--> DB[(SQLite / Turso)]
+    D --> AU[Audit trail for mutations]
+    A --> M[Run metrics + conversation history]
+    R --> UI[Live text + tool status in the UI]
+```
+
+- **Provider adapters:** OpenAI Responses API, Anthropic, and OpenAI-compatible chat APIs, with presets for Groq, Cerebras, and Gemini.
+- **Permission-aware retrieval:** tools execute as the signed-in user; ministry leaders are scoped to their assigned ministries, and confidential notes are restricted to administrators.
+- **Visible execution:** the interface streams text and tool progress, then displays the run’s estimated cost and response time.
+- **Bounded execution:** a maximum of 12 agent iterations per turn, request validation, per-user rate limiting, and provider retry handling.
+- **Conversation integrity:** history belongs to its user and access scope; concurrent turns are locked. Completed writes remain saved if a later step fails.
+- **Human confirmation for deletion:** the deletion tool returns a profile link and instructions; deletion happens through the application’s confirmation UI.
+- **LLMOps:** an admin dashboard tracks estimated spend, token and cache usage, p50/p95 latency, errors, tool usage, users, and response feedback.
+
+Read the [assistant engineering guide](docs/ai-assistant.md) for the tool catalog, streaming contract, provider configuration, privacy boundaries, and limitations.
+
+## A look inside
+
+### Search, open a profile, inspect attendance
+
+![Walkthrough of people search, profile details, and attendance history](docs/media/people-workflow.gif)
+
+### Community overview to individual care
+
+![Tour from the pastoral dashboard to people and attendance](docs/media/product-tour.gif)
+
+The GIFs are sequences of real UI captures; the [media notes](docs/media/README.md) describe their source and reproduction.
+
+<details>
+<summary><strong>View full-size screenshots</strong></summary>
+
+**People directory** — search, status filters, ministry filters, and CSV import/export.
+
+![People directory](docs/media/people.png)
+
+**Person profile** — household relationships, notes, follow-ups, and recent activity.
+
+![Person profile](docs/media/person-profile.png)
+
+**Attendance history** — event-by-event participation and weekly patterns.
+
+![Attendance matrix](docs/media/attendance.png)
+
+</details>
+
+## Product capabilities
+
+| Area | Capabilities |
+| --- | --- |
+| People & families | Member and visitor records, household roles, search, status history, timelines, pinned and confidential notes. |
+| Ministries | Membership periods, leaders, scoped access, and engagement summaries. |
+| Events | Calendar and list views, categories, recurring series, and ministry audiences. |
+| Attendance | Mobile roll call, quick visitor registration, audited corrections, reception kiosk, and public QR check-in while registration is open. |
+| Pastoral care | Absence indicators and follow-ups with an owner, due date, and completion status. |
+| Administration | Admin, secretary, and leader roles; provisional passwords; account/session management; audit history. |
+| Everyday use | Installable PWA, light/dark themes, global search with ⌘K, and CSV import/export. |
+
+Accounts are created by administrators. Congregation members interact through public check-in flows rather than general application accounts.
+
+## Run locally
+
+Use Node.js 22 or newer and npm. Start with a fresh clone and a local SQLite database; no Docker or external database is required.
 
 ```bash
-cp .env.example .env          # e gere um BETTER_AUTH_SECRET: openssl rand -base64 32
-npm install
+git clone https://github.com/xfelipealves/emaus.git
+cd emaus
+npm ci
+cp .env.example .env
+mkdir -p data
+openssl rand -base64 32
+```
+
+Paste the generated value into `BETTER_AUTH_SECRET` in `.env`. Keep `DATABASE_URL=file:./data/emaus.db` and `BETTER_AUTH_URL=http://localhost:3000` for local development.
+
+```bash
 npm run db:migrate
-npm run db:seed               # opcional: APAGA o banco e carrega a igreja demo
+npm run db:seed
 npm run dev
 ```
 
-### Pessoas reais dos ministérios (WhatsApp)
+Open **http://localhost:3000**. The optional seed creates the initial demo accounts:
 
-```bash
-node scripts/extract-whatsapp-roster.mjs   # lê WhatsApp Desktop + nchat deste Mac
-npm run db:seed                            # usa data/roster.json se existir
+| Username | Role | Default demo password |
+| --- | --- | --- |
+| `admin` | Administrator | `emaus2026` |
+| `secretaria` | Secretary | `emaus2026` |
+| `lider` | Ministry leader | `emaus2026` |
+
+> **The seed deletes existing application records.** Run it only against a disposable local database. Set `SEED_PASSWORD` before seeding to replace the default password. Demo credentials are for the seeded local scenario; they are not an invitation to access a hosted instance.
+
+Without `data/roster.json`, the people in the seed are generated. If that optional local file exists, the seed imports real roster names; omit it when making public demonstrations.
+
+### Enable the assistant
+
+The rest of the application runs without an LLM key. To enable the assistant, set a provider’s server-side key in `.env`, restart the server, and open **Assistente**. For example:
+
+```dotenv
+OPENAI_API_KEY=your-provider-key
+EMAUS_AI_PROVIDER=openai
+# Optional: override the model configured in src/server/ai/agent.ts
+# EMAUS_AI_MODEL=your-tool-capable-model-id
 ```
 
-O script grava em `data/roster.json` (fora do git) só nome, ministérios e função de quem está
-nos grupos dos ministérios e tem o contato salvo na agenda — sem telefones nem mensagens.
-Admins dos grupos, a Supervisão e a Liderança New Mind viram líderes. O restante da
-congregação continua fictício, e anotações, acompanhamentos e afastamentos nunca são
-gerados para pessoas reais. A frequência é simulada.
+Administrators can select configured providers and models under **Configurações → IA**. See [all configuration options](docs/ai-assistant.md#provider-configuration) and [`.env.example`](.env.example). Model availability, provider limits, and pricing depend on your account; in-app costs are estimates from the repository’s configured price table.
 
-Contas do cenário demo: `admin`, `secretaria` e `lider` — senha `emaus2026`
-(ou o valor de `SEED_PASSWORD`).
+## Stack and structure
 
-## Scripts
+**Next.js 16 · React 19 · TypeScript · Tailwind CSS 4 · shadcn/ui / Base UI · Drizzle ORM · SQLite / libSQL · Better Auth · Recharts · Vitest**
 
-| Comando | O que faz |
+```text
+src/app/                 App Router pages, Server Actions, and API routes
+src/components/          UI primitives and domain components
+src/server/              Server-side queries, authorization, and business operations
+src/server/ai/           Provider adapters, agent loop, and typed tools
+src/db/                  Drizzle schema, client, migrations runner, and demo seed
+src/lib/                 Authentication, dates, recurrence, CSV, and text utilities
+drizzle/                 Versioned SQL migrations
+docs/                    Engineering guides, product requirements, and media
+deploy/                  Legacy Raspberry Pi deployment scripts
+```
+
+## Development commands
+
+| Command | Purpose |
 | --- | --- |
-| `npm run dev` | servidor de desenvolvimento |
-| `npm run build` / `npm start` | build e servidor de produção |
-| `npm run db:generate` | gera migration a partir de `src/db/schema.ts` |
-| `npm run db:migrate` | aplica migrations pendentes |
-| `npm run db:seed` | recria o cenário demo (destrutivo) |
-| `npm run db:studio` | Drizzle Studio para inspecionar o banco |
-| `npm test` | testes unitários (datas, recorrência, CSV) |
-| `npm run lint` / `npm run typecheck` | qualidade |
+| `npm run dev` | Start the development server. |
+| `npm run build` / `npm start` | Build and serve production output. |
+| `npm test` | Run unit tests for date handling, recurrence, and CSV behavior. |
+| `npm run typecheck` / `npm run lint` | Check TypeScript and ESLint. |
+| `npm run db:generate` | Generate SQL migrations from the schema. |
+| `npm run db:migrate` | Apply committed migrations. |
+| `npm run db:seed` | Replace data with the demo scenario (destructive). |
+| `npm run db:studio` | Open Drizzle Studio. |
 
-## Estrutura
+See the [development guide](docs/development.md) for environment loading, testing boundaries, deployment, backups, and troubleshooting. The current unit suite does not establish end-to-end coverage of the assistant or authorization flows.
 
-```
-src/
-  app/(auth)/login        login
-  app/(app)/…             telas autenticadas (painel, pessoas, famílias, ministérios,
-                          encontros, cuidado, configurações) + server actions
-  app/checkin/[id]        modo recepção (tela cheia)
-  app/c/[token]           check-in público por QR
-  components/             design system (ui/ = shadcn) e componentes de domínio
-  db/                     schema Drizzle, cliente, migrate e seed
-  server/                 regras de negócio e consultas (sempre no servidor)
-  lib/                    utilitários puros: datas com fuso, recorrência, CSV, textos
-drizzle/                  migrations SQL
-deploy/                   unidade systemd e script de deploy no Raspberry
-```
+## Documentation
 
-## Deploy (Vercel + Turso)
+- [LLM assistant: architecture, tools, observability, and limitations](docs/ai-assistant.md)
+- [Development, database operations, and deployment](docs/development.md)
+- [Screenshot and GIF provenance](docs/media/README.md)
+- [Original product requirements in Portuguese](docs/product)
+- [Historical September 2026 E2E review](docs/2026-09-25-levantamento-e2e-perfis.md) — refers to an earlier implementation, not current validation.
 
-Produção: **https://emaus-vert.vercel.app** — Vercel na região São Paulo (`gru1`) e banco
-Turso (libSQL hospedado) em `aws-sa-east-1`.
+## Source availability
 
-- Push na `main` publica em produção automaticamente; push em outras branches gera prévia.
-- Variáveis de produção na Vercel: `DATABASE_URL` (`libsql://…`), `DATABASE_AUTH_TOKEN`,
-  `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` e as chaves de IA (`OPENAI_API_KEY`, `GROQ_API_KEY`).
-- Mudou o schema? Gere a migration (`npm run db:generate`) e aplique no Turso **antes** do push:
-
-  ```bash
-  DATABASE_URL=libsql://emaus-xfelipealves.aws-sa-east-1.turso.io \
-  DATABASE_AUTH_TOKEN=$(turso db tokens create emaus) npm run db:migrate
-  ```
-
-- Backup do banco: `turso db shell emaus .dump > backup.sql`.
-
-O Raspberry (`deploy/`) foi a hospedagem anterior; o serviço está desligado e o banco antigo
-ficou como backup em `~/services/emaus/data/` no rasp.
-
-## Documentação de produto
-
-As regras de negócio originais continuam em [`docs/product`](docs/product).
+This repository is publicly viewable. No open-source license is currently included; public visibility alone does not grant a license to reuse or redistribute the code. Application data, credentials, and provider keys are not part of the repository.
