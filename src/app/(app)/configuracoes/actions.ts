@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db, schema } from "@/db";
+import { isDemoMode, DEMO_MANAGEMENT_MESSAGE } from "@/lib/demo";
 import { availableProviders, EFFORTS, PROVIDER_IDS, PROVIDERS } from "@/server/ai/agent";
 import { formToObject, runAction } from "@/server/action";
 import { deleteCategory, saveCategory } from "@/server/events";
@@ -82,6 +83,7 @@ const aiSettingsInput = z.object({
 export async function saveAiSettingsAction(raw: unknown) {
   return runAction(async () => {
     const user = await requireRole("admin");
+    if (isDemoMode()) throw new ActionError(DEMO_MANAGEMENT_MESSAGE);
     const input = aiSettingsInput.parse(raw);
     if (!availableProviders().find((p) => p.id === input.provider)?.configured) {
       throw new ActionError("Esse provedor não tem chave configurada no servidor.");

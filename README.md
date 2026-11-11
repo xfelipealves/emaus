@@ -12,13 +12,21 @@ A full-stack application for church leaders to manage people, attendance, minist
 ![Database](https://img.shields.io/badge/SQLite%20%2F%20Turso-libSQL-4F7661)
 ![AI](https://img.shields.io/badge/LLM-Tool%20Calling-8B5E3C)
 
-[LLM architecture](docs/ai-assistant.md) · [Getting started](#run-locally) · [Engineering guide](docs/development.md) · [Product requirements](docs/product)
+[Try the live demo](https://emaus-vert.vercel.app) · [LLM architecture](docs/ai-assistant.md) · [Getting started](#run-locally) · [Engineering guide](docs/development.md) · [Product requirements](docs/product)
 
 </div>
 
 ![Emaús dashboard with attendance trends, upcoming events, and pastoral care priorities](docs/media/dashboard.png)
 
 > The application UI and assistant speak Brazilian Portuguese. This guide is in English. Screenshots use generated demo people and attendance, captured in an isolated local database without the optional WhatsApp roster.
+
+## Try the public demo
+
+**[Open Emaús →](https://emaus-vert.vercel.app)** · Username: **`admin`** · Password: **`admin`**
+
+The hosted demo uses a separate database with generated people and attendance. Changes are shared between visitors; do not enter real personal information. Account changes and AI provider settings are protected, and assistant usage is limited across the demo to 3 requests per minute and 100 per rolling 24-hour window. Ordinary person, event, and care workflows remain interactive.
+
+The short password is provisioned only for this disposable demo. Regular installations retain the eight-character password policy. The repository stays public until the owner decides to make it private again.
 
 ## From records to action
 
@@ -34,6 +42,8 @@ Its LLM assistant works with the same application data and permissions. It can a
 | “Marque a presença do Davi no último culto.” | Resolve the person and event, then record attendance with an audit entry. |
 
 These are example requests, not recorded model outputs. Ambiguous names or events should be clarified before a write.
+
+![A real assistant response with a successful database tool call over synthetic demo records](docs/media/assistant.png)
 
 ## The LLM integration
 
@@ -54,7 +64,7 @@ flowchart LR
 
 - **Provider adapters:** OpenAI Responses API, Anthropic, and OpenAI-compatible chat APIs, with presets for Groq, Cerebras, and Gemini.
 - **Permission-aware retrieval:** tools execute as the signed-in user; ministry leaders are scoped to their assigned ministries, and confidential notes are restricted to administrators.
-- **Visible execution:** the interface streams text and tool progress, then displays the run’s estimated cost and response time.
+- **Visible execution:** the interface streams text and tool progress; administrators can inspect estimated cost and response time in the AI dashboard.
 - **Bounded execution:** a maximum of 12 agent iterations per turn, request validation, per-user rate limiting, and provider retry handling.
 - **Conversation integrity:** history belongs to its user and access scope; concurrent turns are locked. Completed writes remain saved if a later step fails.
 - **Human confirmation for deletion:** the deletion tool returns a profile link and instructions; deletion happens through the application’s confirmation UI.
@@ -63,6 +73,12 @@ flowchart LR
 Read the [assistant engineering guide](docs/ai-assistant.md) for the tool catalog, streaming contract, provider configuration, privacy boundaries, and limitations.
 
 ## A look inside
+
+### Ask the assistant, watch the tool call, receive linked results
+
+![Real OpenAI assistant run over synthetic data: prompt, streamed response, completed answer](docs/media/assistant-workflow.gif)
+
+This capture used the configured OpenAI adapter and a real `pessoas_sumidas` tool call. It demonstrates one successful run, not a model benchmark or a claim of comprehensive AI test coverage.
 
 ### Search, open a profile, inspect attendance
 

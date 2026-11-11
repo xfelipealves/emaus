@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { LogoMark } from "@/components/app/logo";
+import { isDemoMode } from "@/lib/demo";
 import { getCurrentUser } from "@/server/session";
 import { getSettings } from "@/server/settings";
 import { LoginForm } from "./login-form";
@@ -40,9 +41,17 @@ export default async function LoginPage() {
             Entre para acompanhar a caminhada da sua comunidade.
           </p>
           <LoginForm />
-          <p className="mt-8 text-xs text-muted-foreground">
-            Esqueceu a senha? Peça a um administrador para redefini-la em Configurações → Usuários.
-          </p>
+          {isDemoMode() && (
+            <div className="mt-6 rounded-xl border bg-muted/50 p-4 text-sm">
+              <p className="font-medium">Demonstração pública</p>
+              <p className="mt-1 text-muted-foreground">Entre com usuário <strong>admin</strong> e senha <strong>admin</strong>. Os dados são fictícios e compartilhados. Não cadastre informações pessoais reais.</p>
+            </div>
+          )}
+          {!isDemoMode() && (
+            <p className="mt-8 text-xs text-muted-foreground">
+              Esqueceu a senha? Peça a um administrador para redefini-la em Configurações → Usuários.
+            </p>
+          )}
         </div>
       </section>
     </main>

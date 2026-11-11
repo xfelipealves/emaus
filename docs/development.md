@@ -61,6 +61,16 @@ This repository’s existing setup deploys pushes to `main` to production and ot
 
 `deploy/emaus.service` and `deploy/deploy-rasp.sh` are the legacy persistent-host deployment path. Review hostname, destination, environment, and service settings before using them; the script can seed destructively when passed `--seed`.
 
+## Public demo deployment
+
+The public URL uses the separate `emaus-public-demo` Turso database. The previous `emaus` database is preserved. Production has `EMAUS_DEMO_MODE=true` and its own authentication secret, so old application sessions do not carry over.
+
+The demo seed was created in an isolated local directory without a roster export, using `SEED_PASSWORD=admin`, then imported into the new database. This uses the seed’s internal password hashing; it does not lower the normal password validation policy. The public account is `admin` / `admin`.
+
+Demo mode displays a persistent disclosure, blocks account-management operations through both application actions and the auth API, protects AI provider settings, and limits aggregate assistant requests to 3 per minute and 100 per rolling 24-hour window. Changes to synthetic community records are shared. There is no scheduled reset; maintainers can recreate the disposable demo from a fresh synthetic seed when necessary. Do not seed the preserved database.
+
+To return to the private installation, securely restore its database URL/token and authentication configuration, disable `EMAUS_DEMO_MODE`, and redeploy. The public demo password must never be used for an installation containing real records.
+
 ## Backups
 
 For a consistent local SQLite backup while the database is in use, use SQLite’s backup command:

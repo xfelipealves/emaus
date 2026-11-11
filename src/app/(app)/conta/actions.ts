@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { headers } from "next/headers";
 import { db, schema } from "@/db";
 import { auth } from "@/lib/auth";
+import { isDemoMode, DEMO_MANAGEMENT_MESSAGE } from "@/lib/demo";
 import { runAction } from "@/server/action";
 import { recordAudit } from "@/server/history";
 import { ActionError, getCurrentUser } from "@/server/session";
@@ -11,6 +12,7 @@ import { passwordRule } from "@/server/users";
 
 export async function changeOwnPasswordAction(currentPassword: string, newPassword: string) {
   return runAction(async () => {
+    if (isDemoMode()) throw new ActionError(DEMO_MANAGEMENT_MESSAGE);
     // getCurrentUser: no primeiro acesso requireUser redirecionaria para cá mesmo.
     const user = await getCurrentUser();
     if (!user) throw new ActionError("Sessão expirada. Entre novamente.");

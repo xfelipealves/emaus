@@ -14,6 +14,8 @@ The assistant is an application agent over structured church-management data. Th
 6. Tool results return to the model for another iteration. Execution is capped at 12 iterations per turn.
 7. The agent saves conversation history and run metrics and emits a final event. Successful mutations receive audit records attributed to the user and marked “Via assistente”.
 
+Public demo mode additionally caps aggregate assistant usage at 3 requests per minute and 100 per rolling 24-hour window, and prevents visitors from changing the configured provider/model.
+
 The route exports a 300-second maximum duration. Actual execution limits depend on the deployment platform and plan.
 
 ## Tool catalog
@@ -127,4 +129,4 @@ Use only synthetic data and an isolated database. With your own configured provi
 6. Concurrent messages, provider failures, and cancellation leave history and completed writes understandable.
 7. A changed access scope prevents reopening old conversations, and run metrics and feedback remain visible to the appropriate user.
 
-These are suggested verification scenarios, not a claim that a live-provider evaluation was run for this documentation update.
+These are suggested verification scenarios. This update included a successful read-only OpenAI smoke test over synthetic data, not a completed model-evaluation suite.

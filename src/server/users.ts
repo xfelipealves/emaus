@@ -5,6 +5,7 @@ import { db, schema } from "@/db";
 import { ROLES } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { ROLE_LABEL } from "@/lib/labels";
+import { isDemoMode, DEMO_MANAGEMENT_MESSAGE } from "@/lib/demo";
 import { recordAudit } from "./history";
 import { ActionError, type CurrentUser } from "./session";
 
@@ -24,6 +25,10 @@ export const userInput = z.object({
 });
 
 export const passwordRule = z.string().min(8, "A senha precisa ter ao menos 8 caracteres").max(128);
+
+function requireMutableAccounts() {
+  if (isDemoMode()) throw new ActionError(DEMO_MANAGEMENT_MESSAGE);
+}
 
 export async function listUsers() {
   const seen = await db
@@ -61,6 +66,7 @@ export async function createUserAccount(
   raw: unknown,
   password: string,
 ) {
+  requireMutableAccounts();
   const input = userInput.parse(raw);
   passwordRule.parse(password);
   await ensureUnique(input.username, input.email);
@@ -110,6 +116,7 @@ async function adminCount() {
 }
 
 export async function updateUserAccount(actor: CurrentUser, id: string, raw: unknown) {
+  requireMutableAccounts();
   const input = userInput.parse(raw);
   const before = await db.query.user.findFirst({ where: eq(schema.user.id, id) });
   if (!before) throw new ActionError("Usuário não encontrado.");
@@ -143,6 +150,7 @@ export async function updateUserAccount(actor: CurrentUser, id: string, raw: unk
 }
 
 export async function setUserActive(actor: CurrentUser, id: string, active: boolean) {
+  requireMutableAccounts();
   if (actor.id === id && !active) throw new ActionError("Você não pode desativar a própria conta.");
   const before = await db.query.user.findFirst({ where: eq(schema.user.id, id) });
   if (!before) throw new ActionError("Usuário não encontrado.");
@@ -161,6 +169,7 @@ export async function setUserActive(actor: CurrentUser, id: string, active: bool
 }
 
 export async function resetUserPassword(actor: CurrentUser, id: string, password: string) {
+  requireMutableAccounts();
   passwordRule.parse(password);
   const target = await db.query.user.findFirst({ where: eq(schema.user.id, id) });
   if (!target) throw new ActionError("Usuário não encontrado.");
@@ -181,6 +190,7 @@ export async function resetUserPassword(actor: CurrentUser, id: string, password
 }
 
 export async function revokeUserSessions(actor: CurrentUser, id: string) {
+  requireMutableAccounts();
   const target = await db.query.user.findFirst({ where: eq(schema.user.id, id) });
   if (!target) throw new ActionError("Usuário não encontrado.");
   if (actor.id === id) throw new ActionError("Use “Sair” para encerrar a sua própria sessão.");

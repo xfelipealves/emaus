@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isDemoMode } from "@/lib/demo";
 import { type AgentEvent, isAiConfigured, runAgent } from "@/server/ai/agent";
 import { rateLimit } from "@/server/rate-limit";
 import { getCurrentUser } from "@/server/session";
@@ -16,6 +17,12 @@ export async function POST(request: Request) {
   const user = await getCurrentUser();
   if (!user || user.mustChangePassword) return new Response("Não autenticado", { status: 401 });
   if (!(await isAiConfigured())) return Response.json({ error: "IA não configurada" }, { status: 503 });
+  if (isDemoMode() && (
+    !(await rateLimit("demo:ai:minute", 3)) ||
+    !(await rateLimit("demo:ai:day", 100, 86_400_000))
+  )) {
+    return Response.json({ error: "Limite da demonstração atingido. Tente novamente mais tarde." }, { status: 429 });
+  }
   if (!(await rateLimit(`ai:${user.id}`, 20))) {
     return Response.json({ error: "Muitas perguntas seguidas. Aguarde um minuto." }, { status: 429 });
   }

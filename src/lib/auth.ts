@@ -1,13 +1,21 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { APIError } from "better-auth/api";
+import { APIError, createAuthMiddleware } from "better-auth/api";
 import { nextCookies } from "better-auth/next-js";
 import { username } from "better-auth/plugins";
 import { eq } from "drizzle-orm";
 import { db, schema } from "@/db";
+import { demoAllowsAuthPath, DEMO_MANAGEMENT_MESSAGE } from "@/lib/demo";
 
 export const auth = betterAuth({
   appName: "Emaús",
+  hooks: {
+    before: createAuthMiddleware(async (ctx) => {
+      if (!demoAllowsAuthPath(ctx.path ?? "")) {
+        throw new APIError("FORBIDDEN", { message: DEMO_MANAGEMENT_MESSAGE });
+      }
+    }),
+  },
   database: drizzleAdapter(db, { provider: "sqlite", schema }),
   emailAndPassword: {
     enabled: true,

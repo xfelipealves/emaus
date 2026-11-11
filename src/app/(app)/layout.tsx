@@ -9,6 +9,7 @@ import { listPeople } from "@/server/people";
 import { requireUser } from "@/server/session";
 import { getSettings } from "@/server/settings";
 import { displayName } from "@/lib/text";
+import { isDemoMode } from "@/lib/demo";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
@@ -32,6 +33,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       />
       <SidebarInset className="min-w-0">
         <div className="mx-auto w-full max-w-6xl px-4 pt-6 pb-28 sm:px-6 md:pt-8 md:pb-12 lg:px-10">
+          {isDemoMode() && (
+            <div role="status" className="mb-6 rounded-xl border bg-muted/50 px-4 py-3 text-sm text-muted-foreground">
+              Demonstração pública · Dados fictícios e compartilhados. Não cadastre informações pessoais reais. Contas e configuração de IA estão protegidas.
+            </div>
+          )}
           {children}
         </div>
       </SidebarInset>
