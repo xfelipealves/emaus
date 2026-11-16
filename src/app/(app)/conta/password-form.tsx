@@ -9,17 +9,26 @@ import { Spinner } from "@/components/ui/spinner";
 import { useAction } from "@/hooks/use-action";
 import { changeOwnPasswordAction } from "./actions";
 
-export function PasswordForm({ firstAccess }: { firstAccess: boolean }) {
+/** `action`/`home`: a plataforma reaproveita o formulário com a própria ação e o próprio início. */
+export function PasswordForm({
+  firstAccess,
+  action = changeOwnPasswordAction,
+  home = "/",
+}: {
+  firstAccess: boolean;
+  action?: typeof changeOwnPasswordAction;
+  home?: string;
+}) {
   const router = useRouter();
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [confirm, setConfirm] = useState("");
-  const change = useAction(changeOwnPasswordAction, {
+  const change = useAction(action, {
     onSuccess: () => {
       setCurrent("");
       setNext("");
       setConfirm("");
-      if (firstAccess) router.replace("/");
+      if (firstAccess) router.replace(home);
     },
   });
   const mismatch = confirm.length > 0 && confirm !== next;

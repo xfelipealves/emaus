@@ -1,9 +1,14 @@
 "use server";
 
+import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
+import { db, schema } from "@/db";
+import { auth } from "@/lib/auth";
 import { formToObject, runAction } from "@/server/action";
 import { createChurch, setChurchActive, setChurchBudget, setPlatformBudget } from "@/server/platform";
-import { requirePlatformAdmin } from "@/server/session";
+import { ActionError, requirePlatformAdmin } from "@/server/session";
+import { passwordRule } from "@/server/users";
 
 export async function createChurchAction(form: FormData) {
   return runAction(async () => {
@@ -33,4 +38,22 @@ export async function savePlatformBudgetAction(form: FormData) {
     await setPlatformBudget(formToObject(form));
     revalidatePath("/plataforma", "layout");
   }, "Limite global salvo");
+}
+
+/** Troca da própria senha da conta de operador (inclusive a provisória do primeiro acesso). */
+export async function changeOperatorPasswordAction(currentPassword: string, newPassword: string) {
+  return runAction(async () => {
+    const account = await requirePlatformAdmin({ pendingPassword: true });
+    passwordRule.parse(newPassword);
+    if (newPassword === currentPassword) throw new ActionError("A nova senha precisa ser diferente da atual.");
+    try {
+      await auth.api.changePassword({
+        body: { currentPassword, newPassword, revokeOtherSessions: true },
+        headers: await headers(),
+      });
+    } catch {
+      throw new ActionError("Senha atual incorreta.");
+    }
+    await db.update(schema.user).set({ mustChangePassword: false }).where(eq(schema.user.id, account.id));
+  }, "Senha alterada");
 }

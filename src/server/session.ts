@@ -75,13 +75,15 @@ export async function requireUser(opts?: { pendingPassword?: boolean }) {
 }
 
 /** Painel da plataforma: só quem opera o Emaús, nunca a partir de dados de uma igreja. */
-export async function requirePlatformAdmin() {
+export async function requirePlatformAdmin(opts?: { pendingPassword?: boolean }) {
   const account = await getAccount();
   if (!account) redirect("/login");
   // Conta de igreja: explica e oferece trocar de conta, em vez de voltar calado para o início.
   if (!account.platformAdmin) redirect("/plataforma-sem-acesso");
-  // A troca de senha mora em /conta, dentro da igreja; conta só da plataforma troca pelo script.
-  if (account.mustChangePassword && account.churchId) redirect("/conta?primeiro-acesso=1");
+  // Senha provisória: quem tem igreja troca em /conta; conta só da plataforma, em /plataforma/conta.
+  if (account.mustChangePassword && (account.churchId || !opts?.pendingPassword)) {
+    redirect(account.churchId ? "/conta?primeiro-acesso=1" : "/plataforma/conta");
+  }
   return account;
 }
 
