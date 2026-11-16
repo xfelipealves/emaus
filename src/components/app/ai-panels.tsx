@@ -6,7 +6,9 @@ import { cn } from "@/lib/utils";
 
 type Insights = Awaited<ReturnType<typeof aiInsights>>;
 
-export const usd = (v: number) => `US$ ${v < 1 ? v.toFixed(3) : v.toFixed(2)}`;
+/** Valores de IA são frações de centavo: mostra dígitos suficientes para não virar "0.000". */
+export const usd = (v: number) =>
+  v === 0 ? "US$ 0" : `US$ ${v >= 1 ? v.toFixed(2) : v >= 0.01 ? v.toFixed(3) : v.toPrecision(2)}`;
 const secs = (ms: number) => `${(ms / 1000).toFixed(1)}s`;
 const pct = (part: number, total: number) => (total ? `${Math.round((part / total) * 100)}%` : "—");
 
@@ -107,7 +109,7 @@ function LatencyTable({
 export function StepTables({ tools, models }: { tools: Insights["tools"]; models: Insights["models"] }) {
   return (
     <div className="grid gap-4 lg:grid-cols-2">
-      <Section title="Ferramentas" description="Cada ação que a IA executou: volume, falhas e tempo">
+      <Section title="Ferramentas" description="Cada ação que a IA executou: volume, falhas e tempo (registrado por passo desde 16/11/2026)">
         <LatencyTable rows={tools} label={(n) => TOOL_BY_NAME.get(n)?.label ?? n} />
       </Section>
       <Section title="Chamadas ao modelo" description="Tempo de cada chamada ao provedor e custo">

@@ -78,7 +78,8 @@ export async function requireUser(opts?: { pendingPassword?: boolean }) {
 export async function requirePlatformAdmin() {
   const account = await getAccount();
   if (!account) redirect("/login");
-  if (!account.platformAdmin) redirect("/");
+  // Conta de igreja: explica e oferece trocar de conta, em vez de voltar calado para o início.
+  if (!account.platformAdmin) redirect("/plataforma-sem-acesso");
   // A troca de senha mora em /conta, dentro da igreja; conta só da plataforma troca pelo script.
   if (account.mustChangePassword && account.churchId) redirect("/conta?primeiro-acesso=1");
   return account;
