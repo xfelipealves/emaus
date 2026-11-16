@@ -1,7 +1,8 @@
 import { CircleAlert, Download, ThumbsDown, ThumbsUp } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { AiStatCards, BudgetMeter, DailyBars, ErrorKinds, StepTables, usd } from "@/components/app/ai-panels";
+import { AiKpis, BarList, BudgetMeter, dayProgress, ErrorKinds, Satisfaction, StepTables, TokenMix, usd } from "@/components/app/ai-panels";
+import { AiTrendCard, LatencyHistogram, UsageHeatmap } from "@/components/charts/ai-charts";
 import { Section } from "@/components/app/page-header";
 import { ToneBadge } from "@/components/app/tone";
 import { Button } from "@/components/ui/button";
@@ -54,15 +55,33 @@ export default async function AiOpsPage() {
         <span>· últimos 30 dias</span>
       </div>
 
-      <AiStatCards totals={insights.totals} />
+      <AiKpis insights={insights} />
 
       <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
-        <DailyBars daily={insights.daily} />
+        <AiTrendCard daily={insights.daily} totals={insights.totals} />
         <Section title="Limite de hoje" description="Os tetos são definidos pela equipe do Emaús">
           <div className="space-y-4 px-5 pb-5">
-            <BudgetMeter label="Igreja" line={budget.church} />
+            <BudgetMeter label="Igreja" line={budget.church} progress={dayProgress(settings.timezone)} />
             <BudgetMeter label="Por pessoa (teto)" line={{ spent: 0, cap: budget.user.cap }} />
           </div>
+        </Section>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <TokenMix tokens={insights.tokens} cacheHit={insights.totals.cacheHit} />
+        <Satisfaction totals={insights.totals} />
+        <LatencyHistogram bins={insights.latencyBins} p50={insights.totals.p50} p95={insights.totals.p95} />
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-[3fr_2fr]">
+        <UsageHeatmap grid={insights.heatmap} />
+        <Section title="Uso por pessoa" description="Quem mais pergunta ao assistente">
+          <BarList
+            empty="Ninguém usou o assistente no período."
+            rows={[...byUser.entries()]
+              .sort((a, b) => b[1].runs - a[1].runs)
+              .map(([name, s]) => ({ key: name, label: name, value: s.runs, display: `${s.runs}`, note: usd(s.cost) }))}
+          />
         </Section>
       </div>
 
@@ -103,22 +122,6 @@ export default async function AiOpsPage() {
             </li>
           ))}
           {queue.length === 0 && <li className="px-5 py-4 text-sm text-muted-foreground">Nenhuma avaliação negativa para revisar.</li>}
-        </ul>
-      </Section>
-
-      <Section title="Uso por pessoa">
-        <ul className="divide-y border-t">
-          {[...byUser.entries()]
-            .sort((a, b) => b[1].runs - a[1].runs)
-            .map(([name, s]) => (
-              <li key={name} className="flex justify-between px-5 py-2.5 text-sm">
-                <span>{name}</span>
-                <span className="text-muted-foreground tabular">
-                  {s.runs} perguntas · {usd(s.cost)}
-                </span>
-              </li>
-            ))}
-          {byUser.size === 0 && <li className="px-5 py-4 text-sm text-muted-foreground">—</li>}
         </ul>
       </Section>
 

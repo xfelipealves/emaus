@@ -2,7 +2,8 @@ import { ArrowLeft } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { AiStatCards, BudgetMeter, DailyBars, ErrorKinds, StepTables } from "@/components/app/ai-panels";
+import { AiKpis, BudgetMeter, dayProgress, ErrorKinds, Satisfaction, StepTables, TokenMix } from "@/components/app/ai-panels";
+import { AiTrendCard, LatencyHistogram, UsageHeatmap } from "@/components/charts/ai-charts";
 import { PageHeader, Section, StatCard } from "@/components/app/page-header";
 import { ToneBadge } from "@/components/app/tone";
 import { formatDate, formatRelative } from "@/lib/dates";
@@ -70,14 +71,20 @@ export default async function PlatformChurchPage({ params }: { params: Promise<{
 
       <Section title="Limites diários de IA" description="Ao atingir o teto, o assistente da igreja pausa até o dia seguinte">
         <div className="space-y-3 px-5 pb-4">
-          <BudgetMeter label="Gasto de hoje" line={budget.church} />
+          <BudgetMeter label="Gasto de hoje" line={budget.church} progress={dayProgress(church.timezone)} />
         </div>
         <ChurchBudgetForm churchId={church.id} church={church.aiDailyBudgetUsd} user={church.aiUserDailyBudgetUsd} />
       </Section>
 
       <h2 className="pt-2 font-display text-2xl">Assistente de IA · 30 dias</h2>
-      <AiStatCards totals={insights.totals} />
-      <DailyBars daily={insights.daily} />
+      <AiKpis insights={insights} />
+      <AiTrendCard daily={insights.daily} totals={insights.totals} />
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <TokenMix tokens={insights.tokens} cacheHit={insights.totals.cacheHit} />
+        <Satisfaction totals={insights.totals} />
+        <LatencyHistogram bins={insights.latencyBins} p50={insights.totals.p50} p95={insights.totals.p95} />
+      </div>
+      <UsageHeatmap grid={insights.heatmap} />
       <StepTables tools={insights.tools} models={insights.models} />
       <ErrorKinds errors={insights.errorKinds} />
     </div>

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { AiStatCards, BudgetMeter, DailyBars, ErrorKinds, StepTables, usd } from "@/components/app/ai-panels";
+import { AiKpis, BarList, BudgetMeter, dayProgress, ErrorKinds, Satisfaction, StepTables, TokenMix, usd } from "@/components/app/ai-panels";
+import { AiTrendCard, LatencyHistogram, UsageHeatmap } from "@/components/charts/ai-charts";
 import { PageHeader, Section } from "@/components/app/page-header";
 import { PLATFORM_TIMEZONE } from "@/server/ai/budget";
 import { aiInsights } from "@/server/ai/insights";
@@ -25,33 +25,47 @@ export default async function PlatformAiPage() {
         title="IA em todas as igrejas"
         description="Custo, cache, latência e falhas do assistente nos últimos 30 dias. Só medidas: as perguntas ficam dentro de cada igreja."
       />
-      <AiStatCards totals={insights.totals} />
+      <AiKpis insights={insights} />
       <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
-        <DailyBars daily={insights.daily} />
+        <AiTrendCard daily={insights.daily} totals={insights.totals} />
         <Section title="Teto global" description="Somando todas as igrejas; o dia vira à meia-noite de Brasília">
           <div className="px-5 pb-4">
-            <BudgetMeter label="Gasto de hoje" line={{ spent: today?.cost ?? 0, cap: platform.aiDailyBudgetUsd }} />
+            <BudgetMeter
+              label="Gasto de hoje"
+              line={{ spent: today?.cost ?? 0, cap: platform.aiDailyBudgetUsd }}
+              progress={dayProgress(PLATFORM_TIMEZONE)}
+            />
           </div>
           <PlatformBudgetForm value={platform.aiDailyBudgetUsd} />
         </Section>
       </div>
-      <Section title="Custo por igreja">
-        <ul className="divide-y border-t">
-          {ranked.map((c) => (
-            <li key={c.id} className="flex justify-between gap-3 px-5 py-2.5 text-sm">
-              <Link href={`/plataforma/igrejas/${c.id}`} className="text-primary hover:underline">
-                {c.name}
-              </Link>
-              <span className="tabular text-muted-foreground">
-                {c.metrics.aiRuns} perguntas · {usd(c.metrics.aiCost)}
-                {c.metrics.aiBad > 0 && ` · ${c.metrics.aiBad} 👎`}
-                {c.metrics.aiErrors > 0 && <span className="text-destructive"> · {c.metrics.aiErrors} erros</span>}
-              </span>
-            </li>
-          ))}
-          {ranked.length === 0 && <li className="px-5 py-4 text-sm text-muted-foreground">Nenhum uso no período.</li>}
-        </ul>
-      </Section>
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <TokenMix tokens={insights.tokens} cacheHit={insights.totals.cacheHit} />
+        <Satisfaction totals={insights.totals} />
+        <LatencyHistogram bins={insights.latencyBins} p50={insights.totals.p50} p95={insights.totals.p95} />
+      </div>
+      <div className="grid gap-4 xl:grid-cols-[3fr_2fr]">
+        <UsageHeatmap grid={insights.heatmap} />
+        <Section title="Custo por igreja" description="Quem mais usa o assistente no período">
+          <BarList
+            empty="Nenhum uso no período."
+            rows={ranked.map((c) => ({
+              key: c.id,
+              label: c.name,
+              href: `/plataforma/igrejas/${c.id}`,
+              value: c.metrics.aiCost,
+              display: usd(c.metrics.aiCost),
+              note: (
+                <>
+                  {c.metrics.aiRuns} perguntas
+                  {c.metrics.aiBad > 0 && ` · ${c.metrics.aiBad} 👎`}
+                  {c.metrics.aiErrors > 0 && <span className="text-destructive"> · {c.metrics.aiErrors} erros</span>}
+                </>
+              ),
+            }))}
+          />
+        </Section>
+      </div>
       <StepTables tools={insights.tools} models={insights.models} />
       <ErrorKinds errors={insights.errorKinds} />
     </div>

@@ -100,6 +100,12 @@
   --chart-3: var(--c-sage);
   --chart-4: var(--c-sky);
   --chart-5: var(--c-plum);
+
+  /* Séries dos painéis de IA: validadas para daltonismo nesta ordem (vizinhas se distinguem). */
+  --ai-1: oklch(0.52 0.15 255);
+  --ai-2: oklch(0.65 0.16 55);
+  --ai-3: oklch(0.48 0.17 320);
+  --ai-4: oklch(0.62 0.15 150);
 }
 
 .dark {
@@ -138,6 +144,11 @@
   --c-rose: oklch(0.72 0.13 10);
   --c-teal: oklch(0.72 0.08 195);
   --c-slate: oklch(0.7 0.02 260);
+
+  --ai-1: oklch(0.6 0.15 255);
+  --ai-2: oklch(0.66 0.15 55);
+  --ai-3: oklch(0.56 0.17 320);
+  --ai-4: oklch(0.67 0.15 150);
 }
 
 [data-tone="ember"] { --tone: var(--c-ember); }
