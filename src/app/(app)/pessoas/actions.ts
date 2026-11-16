@@ -96,7 +96,10 @@ export async function setHouseholdAction(personId: string, householdId: string |
   return runAction(async () => {
     const user = await requireUser();
     let target = householdId;
-    if (!target && newHouseholdName) target = (await createHousehold({ name: newHouseholdName })).id;
+    if (!target && newHouseholdName) {
+      if (user.role === "leader") throw new ActionError("Sem permissão para criar famílias.");
+      target = (await createHousehold({ name: newHouseholdName })).id;
+    }
     if (!target) throw new ActionError("Escolha uma família.");
     await setHouseholdMember(user, target, personId, role === null ? null : oneOf(HOUSEHOLD_ROLES, role, "Papel"));
     revalidatePath("/familias");

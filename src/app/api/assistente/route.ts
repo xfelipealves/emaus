@@ -17,8 +17,10 @@ export async function POST(request: Request) {
   const user = await getCurrentUser();
   if (!user || user.mustChangePassword) return new Response("Não autenticado", { status: 401 });
   if (!(await isAiConfigured())) return Response.json({ error: "IA não configurada" }, { status: 503 });
+  // Por visitante (chaves sem ":" ganham o IP) e um teto global de custo por dia.
   if (isDemoMode() && (
-    !(await rateLimit("demo:ai:minute", 3)) ||
+    !(await rateLimit("demo-ai-minute", 3)) ||
+    !(await rateLimit("demo-ai-day", 20, 86_400_000)) ||
     !(await rateLimit("demo:ai:day", 100, 86_400_000))
   )) {
     return Response.json({ error: "Limite da demonstração atingido. Tente novamente mais tarde." }, { status: 429 });
@@ -30,9 +32,18 @@ export async function POST(request: Request) {
   if (!parsed.success) return Response.json({ error: "Mensagem inválida" }, { status: 400 });
 
   const encoder = new TextEncoder();
+  let closed = false;
   const stream = new ReadableStream({
     async start(controller) {
-      const emit = (event: AgentEvent) => controller.enqueue(encoder.encode(JSON.stringify(event) + "\n"));
+      // Cliente fechou a aba ou clicou em parar: enqueue lançaria e o agente não salvaria o histórico.
+      const emit = (event: AgentEvent) => {
+        if (closed) return;
+        try {
+          controller.enqueue(encoder.encode(JSON.stringify(event) + "\n"));
+        } catch {
+          closed = true;
+        }
+      };
       try {
         await runAgent({
           user,
@@ -45,8 +56,11 @@ export async function POST(request: Request) {
         console.error("[assistente]", err);
         emit({ type: "error", message: err instanceof Error ? err.message : "Falha no assistente." });
       } finally {
-        controller.close();
+        if (!closed) controller.close();
       }
+    },
+    cancel() {
+      closed = true;
     },
   });
 

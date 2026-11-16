@@ -21,6 +21,8 @@ import { NAV } from "./nav-items";
 import { PersonAvatar } from "./tone";
 
 const EVENT = "emaus:command";
+/** Marca, nesta aba, que a pergunta veio do ⌘K (o assistente só envia sozinho nesse caso). */
+export const ASK_KEY = "emaus:ask";
 
 export function openCommandMenu() {
   window.dispatchEvent(new Event(EVENT));
@@ -71,6 +73,9 @@ export function CommandMenu({ people, isAdmin }: { people: CommandPerson[]; isAd
             <CommandItem
               value={`assistente ${search}`}
               onSelect={() => {
+                try {
+                  sessionStorage.setItem(ASK_KEY, search.trim());
+                } catch {}
                 go(`/assistente?q=${encodeURIComponent(search.trim())}`);
                 setSearch("");
               }}

@@ -152,7 +152,7 @@ export default async function AssistantPage({ searchParams }: { searchParams: Pr
       conversations={reusable}
       conversationId={current?.id ?? null}
       initialTurns={current ? toTurns(current.messages as Stored[], runs) : []}
-      initialPrompt={!current ? q : undefined}
+      initialPrompt={!current ? q?.slice(0, 4000) : undefined}
       icon={<Sparkles className="size-5" />}
     />
   );

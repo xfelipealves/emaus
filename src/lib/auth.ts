@@ -6,6 +6,7 @@ import { username } from "better-auth/plugins";
 import { eq } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { demoAllowsAuthPath, DEMO_MANAGEMENT_MESSAGE } from "@/lib/demo";
+import { consumeRateLimit } from "@/server/rate-limit-store";
 
 export const auth = betterAuth({
   appName: "Emaús",
@@ -29,6 +30,13 @@ export const auth = betterAuth({
     window: 60,
     max: 100,
     customRules: { "/sign-in/username": { window: 300, max: 8 } },
+    // No banco, não na memória: na Vercel cada instância teria a sua contagem, zerada a cada cold start.
+    customStorage: {
+      consume: async (key, rule) => {
+        const r = await consumeRateLimit(`auth:${key}`, rule.max, rule.window * 1000);
+        return { allowed: r.allowed, retryAfter: r.allowed ? null : Math.ceil(r.retryAfterMs / 1000) };
+      },
+    },
   },
   session: {
     expiresIn: 60 * 60 * 24 * 30,
@@ -45,14 +53,7 @@ export const auth = betterAuth({
     },
   },
   databaseHooks: {
-    // App restrito à liderança: poucas tentativas de login por IP.
-  rateLimit: {
-    enabled: true,
-    window: 60,
-    max: 100,
-    customRules: { "/sign-in/username": { window: 300, max: 8 } },
-  },
-  session: {
+    session: {
       create: {
         before: async (session) => {
           const account = await db.query.user.findFirst({

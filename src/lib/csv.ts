@@ -86,8 +86,18 @@ export function parseGender(value: string | undefined) {
   return undefined;
 }
 
-/** escapeFormulae: um nome como "=HYPERLINK(...)" não vira fórmula no Excel. */
+// O escapeFormulae do Papa não pega valores com quebra de linha e estraga telefones "+55 ...".
+const FORMULA_START = /^[=+\-@\t\r]/;
+const PHONE_LIKE = /^[+-]?[\d\s().-]+$/;
+
+/** Um valor como "=HYPERLINK(...)" não vira fórmula no Excel: ganha um apóstrofo na frente. */
+export function neutralizeFormula<T>(value: T): T | string {
+  if (typeof value !== "string" || !FORMULA_START.test(value) || PHONE_LIKE.test(value)) return value;
+  return "'" + value;
+}
+
 export function toCsv(rows: Record<string, string | number | null | undefined>[]) {
+  const safe = rows.map((row) => Object.fromEntries(Object.entries(row).map(([k, v]) => [k, neutralizeFormula(v)])));
   // BOM para o Excel abrir acentos corretamente.
-  return "﻿" + Papa.unparse(rows, { delimiter: ";", escapeFormulae: true });
+  return "﻿" + Papa.unparse(safe, { delimiter: ";" });
 }

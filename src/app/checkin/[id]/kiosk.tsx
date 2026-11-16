@@ -23,6 +23,13 @@ export function Kiosk({ eventId, churchName, title, when, people }: { eventId: s
   const [query, setQuery] = useState("");
   // Presentes = confirmados pelo servidor (props) + marcados aqui antes do próximo refresh.
   const [marked, setMarked] = useState<Set<string>>(() => new Set());
+  // Quando o servidor responde, ele manda: uma presença desmarcada em outro aparelho some daqui também.
+  // Visitantes recém-cadastrados ainda não estão em `people` e continuam marcados.
+  const [synced, setSynced] = useState(people);
+  if (synced !== people) {
+    setSynced(people);
+    setMarked((s) => new Set([...s].filter((id) => !people.some((p) => p.id === id))));
+  }
   const present = useMemo(
     () => new Set([...people.filter((p) => p.present).map((p) => p.id), ...marked]),
     [people, marked],
@@ -34,7 +41,9 @@ export function Kiosk({ eventId, churchName, title, when, people }: { eventId: s
 
   // Outros aparelhos (QR, lista de presença) também marcam: sincroniza a cada 30 s.
   useEffect(() => {
-    const t = setInterval(() => router.refresh(), 30_000);
+    const t = setInterval(() => {
+      if (document.visibilityState === "visible") router.refresh();
+    }, 30_000);
     return () => clearInterval(t);
   }, [router]);
 

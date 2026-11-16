@@ -215,7 +215,8 @@ export function canReuseConversation(user: CurrentUser, conv: { scopeKey: string
   return conv.scopeKey === null ? user.role === "admin" : conv.scopeKey === scopeKey(user);
 }
 
-const LOCK_MS = 5 * 60_000;
+// Folga sobre o maxDuration da rota (300 s): a trava não vence com a função ainda gravando.
+const LOCK_MS = 6 * 60_000;
 
 async function loadConversation(user: CurrentUser, conversationId: string | null, prompt: string, provider: AiProvider) {
   const lockUntil = new Date(Date.now() + LOCK_MS);
@@ -263,6 +264,8 @@ type TurnState = {
   wrote: boolean;
   /** Tamanho do histórico no último ponto consistente (todas as ferramentas respondidas). */
   safeLength: number;
+  /** Grava o histórico até safeLength: se a função morrer, o que foi gravado não some do histórico. */
+  checkpoint: () => Promise<void>;
 };
 
 /** Valida e executa uma chamada de ferramenta pedida pelo modelo. */
@@ -285,8 +288,9 @@ async function runTool(
     return fail(`Parâmetros inválidos: ${parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")}`);
   }
   try {
-    const out = await def.run(parsed.data as never, ctx);
+    // Antes de rodar: uma escrita pode ter sido feita mesmo que a ferramenta falhe depois.
     if (def.write) state.wrote = true;
+    const out = await def.run(parsed.data as never, ctx);
     emit({ type: "tool_result", id: call.id, ok: true });
     state.toolCalls.push({ name: def.name, ok: true, write: def.write });
     return { content: JSON.stringify(out), isError: false };
@@ -374,6 +378,7 @@ async function anthropicLoop(
     }
     messages.push({ role: "user", content: results });
     state.safeLength = messages.length;
+    await state.checkpoint();
   }
 }
 
@@ -517,6 +522,7 @@ async function openaiLoop(
       messages.push({ role: "tool", tool_call_id: c.id, content });
     }
     state.safeLength = messages.length;
+    await state.checkpoint();
   }
 }
 
@@ -592,6 +598,7 @@ async function responsesLoop(
       items.push({ type: "function_call_output", call_id: call.call_id, output: r.isError ? `Erro: ${r.content}` : r.content });
     }
     state.safeLength = items.length;
+    await state.checkpoint();
   }
 }
 
@@ -637,11 +644,18 @@ export async function runAgent(opts: {
     stopReason: null,
     wrote: false,
     safeLength: turnStart,
+    checkpoint: async () => {
+      if (!state.wrote) return;
+      await db
+        .update(schema.aiConversation)
+        .set({ messages: messages.slice(0, state.safeLength) })
+        .where(eq(schema.aiConversation.id, conv.id));
+    },
   };
-  const context = await contextBlock(user);
   let error: string | null = null;
 
   try {
+    const context = await contextBlock(user);
     if (provider.kind === "anthropic") {
       await anthropicLoop(provider, messages as Anthropic.Beta.BetaMessageParam[], context, ctx, state, emit, opts.signal);
     } else if (provider.kind === "openai-responses") {
@@ -662,7 +676,13 @@ export async function runAgent(opts: {
     messages.length = state.wrote ? state.safeLength : turnStart;
   }
 
-  await db.update(schema.aiConversation).set({ messages, lockedUntil: null }).where(eq(schema.aiConversation.id, conv.id));
+  try {
+    await db.update(schema.aiConversation).set({ messages, lockedUntil: null }).where(eq(schema.aiConversation.id, conv.id));
+  } catch (err) {
+    // Sem isso a conversa ficaria travada até LOCK_MS vencer.
+    await db.update(schema.aiConversation).set({ lockedUntil: null }).where(eq(schema.aiConversation.id, conv.id)).catch(() => {});
+    throw err;
+  }
 
   const latencyMs = Date.now() - started;
   const u = state.usage;

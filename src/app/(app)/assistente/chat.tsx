@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { toast } from "sonner";
+import { ASK_KEY } from "@/components/app/command-menu";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
@@ -147,11 +148,21 @@ export function Chat({
     }
   }
 
-  // Pergunta vinda da busca global (⌘K → "Perguntar ao assistente").
+  // Pergunta vinda da busca global (⌘K → "Perguntar ao assistente"). Só envia sozinha se o próprio
+  // ⌘K marcou a pergunta nesta aba; um link externo com ?q= só preenche o campo (as ferramentas gravam dados).
   useEffect(() => {
     if (initialPrompt && !autoSent.current) {
       autoSent.current = true;
-      void send(initialPrompt);
+      let fromMenu = false;
+      try {
+        fromMenu = sessionStorage.getItem(ASK_KEY) === initialPrompt;
+        sessionStorage.removeItem(ASK_KEY);
+      } catch {}
+      if (fromMenu) void send(initialPrompt);
+      else {
+        setInput(initialPrompt);
+        textarea.current?.focus();
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialPrompt]);

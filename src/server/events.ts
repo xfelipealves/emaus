@@ -429,11 +429,12 @@ export async function extendSeries() {
   const series = await db.query.eventSeries.findMany();
   for (const s of series) {
     if (s.endDate && s.endDate < today) continue;
+    // Pela data original da ocorrência: um encontro remarcado não abre buracos nem duplica a série.
     const last = await db.query.event.findFirst({
       where: eq(schema.event.seriesId, s.id),
-      orderBy: desc(schema.event.startsAt),
+      orderBy: [desc(schema.event.occurrenceDate), desc(schema.event.startsAt)],
     });
-    const lastDate = last ? isoDateInTz(last.startsAt, settings.timezone) : null;
+    const lastDate = last ? last.occurrenceDate ?? isoDateInTz(last.startsAt, settings.timezone) : null;
     // Só escreve quando falta menos de uma semana de agenda gerada: páginas não pagam escrita à toa.
     if (lastDate && lastDate >= addDaysIso(horizon, -7)) continue;
     const dates = occurrences({

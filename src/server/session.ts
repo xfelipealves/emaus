@@ -40,14 +40,15 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   };
 });
 
-export async function requireUser() {
+/**
+ * Senha definida pelo administrador: troca obrigatória antes de usar o app. Só /conta passa
+ * `pendingPassword` — o caminho da requisição não serve de critério, pois uma server action
+ * pode ser enviada a qualquer URL.
+ */
+export async function requireUser(opts?: { pendingPassword?: boolean }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
-  // Senha definida pelo administrador: troca obrigatória antes de usar o app.
-  if (user.mustChangePassword) {
-    const path = (await headers()).get("x-pathname") ?? "";
-    if (!path.startsWith("/conta")) redirect("/conta?primeiro-acesso=1");
-  }
+  if (user.mustChangePassword && !opts?.pendingPassword) redirect("/conta?primeiro-acesso=1");
   return user;
 }
 

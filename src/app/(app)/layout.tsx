@@ -1,5 +1,6 @@
 import { and, eq, isNull, sql } from "drizzle-orm";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
+import { redirect } from "next/navigation";
 import { AppSidebar } from "@/components/app/app-sidebar";
 import { CommandMenu } from "@/components/app/command-menu";
 import { MobileNav } from "@/components/app/mobile-nav";
@@ -12,10 +13,15 @@ import { displayName } from "@/lib/text";
 import { isDemoMode } from "@/lib/demo";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const user = await requireUser();
+  // O layout também envolve /conta; as demais páginas barram a senha provisória no próprio requireUser.
+  const user = await requireUser({ pendingPassword: true });
+  if (user.mustChangePassword && !((await headers()).get("x-pathname") ?? "").startsWith("/conta")) {
+    redirect("/conta?primeiro-acesso=1");
+  }
   const [settings, people, [followUps], cookieStore] = await Promise.all([
     getSettings(),
-    listPeople(user),
+    // Senha provisória: nada de dados pastorais antes da troca.
+    user.mustChangePassword ? [] : listPeople(user),
     db
       .select({ n: sql<number>`count(*)` })
       .from(schema.followUp)

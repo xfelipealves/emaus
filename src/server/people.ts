@@ -5,6 +5,7 @@ import { z } from "zod";
 import { db, schema } from "@/db";
 import { GENDERS, HOUSEHOLD_ROLES, PERSON_STATUSES, type PersonStatus } from "@/db/schema";
 import { ageFrom, diffDaysIso, isoDateInTz, todayIso } from "@/lib/dates";
+import { DEMO_MANAGEMENT_MESSAGE, isDemoMode } from "@/lib/demo";
 import { STATUS_LABEL } from "@/lib/labels";
 import { normalizePhone, normalizeSearch } from "@/lib/text";
 import { recordAudit, recordTimeline } from "./history";
@@ -398,6 +399,10 @@ export async function changeStatus(
 export async function deletePerson(user: CurrentUser, id: string) {
   const before = await db.query.person.findFirst({ where: eq(schema.person.id, id) });
   if (!before) throw new ActionError("Pessoa não encontrada.");
+  // Na demonstração as contas são protegidas: não desvincula a pessoa de uma conta compartilhada.
+  if (isDemoMode() && (await db.query.user.findFirst({ where: eq(schema.user.personId, id), columns: { id: true } }))) {
+    throw new ActionError(DEMO_MANAGEMENT_MESSAGE);
+  }
   await db.transaction(async (tx) => {
     await tx.update(schema.user).set({ personId: null }).where(eq(schema.user.personId, id));
     await tx.delete(schema.person).where(eq(schema.person.id, id));

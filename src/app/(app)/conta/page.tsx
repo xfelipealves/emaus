@@ -11,7 +11,7 @@ import { PasswordForm } from "./password-form";
 export const metadata: Metadata = { title: "Minha conta" };
 
 export default async function AccountPage({ searchParams }: { searchParams: Promise<{ "primeiro-acesso"?: string }> }) {
-  const user = await requireUser();
+  const user = await requireUser({ pendingPassword: true });
   const firstAccess = user.mustChangePassword || (await searchParams)["primeiro-acesso"] === "1";
   const ministries = user.ministryIds?.length
     ? await db.select().from(schema.ministry).where(inArray(schema.ministry.id, user.ministryIds))

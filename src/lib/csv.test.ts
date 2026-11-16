@@ -30,5 +30,12 @@ describe("toCsv", () => {
   it("neutraliza fórmulas de planilha", async () => {
     const { toCsv } = await import("./csv");
     expect(toCsv([{ Nome: "=HYPERLINK(\"http://x\")" }])).toContain("'=HYPERLINK");
+    expect(toCsv([{ Nome: "=HYPERLINK(\"http://x\")\nAna" }])).toContain("'=HYPERLINK");
+    expect(toCsv([{ Nome: "-2+3+cmd|' /C calc'!A0" }])).toContain("'-2+3");
+  });
+
+  it("mantém telefones como estão", async () => {
+    const { toCsv } = await import("./csv");
+    expect(toCsv([{ Celular: "+55 62 99999-0000" }])).not.toContain("'+55");
   });
 });
