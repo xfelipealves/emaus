@@ -99,7 +99,7 @@ export default async function AssistantPage({ searchParams }: { searchParams: Pr
   const user = await requireUser();
   const { c, q } = await searchParams;
 
-  if (!(await isAiConfigured())) {
+  if (!(await isAiConfigured(user.churchId))) {
     return (
       <>
         <PageHeader title="Assistente" description="Pergunte em linguagem natural sobre pessoas, presença e agenda — e peça para ele fazer as tarefas." />
@@ -123,7 +123,7 @@ export default async function AssistantPage({ searchParams }: { searchParams: Pr
   }
 
   const conversations = await db.query.aiConversation.findMany({
-    where: eq(schema.aiConversation.userId, user.id),
+    where: and(eq(schema.aiConversation.userId, user.id), eq(schema.aiConversation.churchId, user.churchId)),
     columns: { id: true, title: true, updatedAt: true, scopeKey: true },
     orderBy: desc(schema.aiConversation.updatedAt),
     limit: 50,
@@ -131,7 +131,11 @@ export default async function AssistantPage({ searchParams }: { searchParams: Pr
   const reusable = conversations.filter((conv) => canReuseConversation(user, conv)).map(({ scopeKey: _s, ...conv }) => conv);
   const current = c
     ? await db.query.aiConversation.findFirst({
-        where: and(eq(schema.aiConversation.id, c), eq(schema.aiConversation.userId, user.id)),
+        where: and(
+          eq(schema.aiConversation.id, c),
+          eq(schema.aiConversation.userId, user.id),
+          eq(schema.aiConversation.churchId, user.churchId),
+        ),
       })
     : null;
   // Conversa de quando o acesso era outro: o conteúdo pode ter dados que hoje não são dele.

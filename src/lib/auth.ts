@@ -1,18 +1,27 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { APIError, createAuthMiddleware } from "better-auth/api";
+import { APIError, createAuthMiddleware, getSessionFromCtx } from "better-auth/api";
 import { nextCookies } from "better-auth/next-js";
 import { username } from "better-auth/plugins";
 import { eq } from "drizzle-orm";
 import { db, schema } from "@/db";
-import { demoAllowsAuthPath, DEMO_MANAGEMENT_MESSAGE } from "@/lib/demo";
+import { demoAllowsAuthPath, DEMO_MANAGEMENT_MESSAGE, isDemoMode } from "@/lib/demo";
 import { consumeRateLimit } from "@/server/rate-limit-store";
 
 export const auth = betterAuth({
   appName: "Emaús",
   hooks: {
     before: createAuthMiddleware(async (ctx) => {
-      if (!demoAllowsAuthPath(ctx.path ?? "")) {
+      if (demoAllowsAuthPath(ctx.path ?? "")) return;
+      // Só as contas compartilhadas da igreja de demonstração ficam travadas; as demais seguem normais.
+      const session = await getSessionFromCtx(ctx).catch(() => null);
+      const church = session && (await db.query.user.findFirst({
+        where: eq(schema.user.id, session.user.id),
+        columns: {},
+        with: { church: { columns: { demo: true } } },
+      }))?.church;
+      // Sem sessão (ex.: redefinição por token) só barra quando este deploy hospeda a demonstração.
+      if (session ? church?.demo : isDemoMode()) {
         throw new APIError("FORBIDDEN", { message: DEMO_MANAGEMENT_MESSAGE });
       }
     }),
@@ -50,6 +59,8 @@ export const auth = betterAuth({
       active: { type: "boolean", input: false, defaultValue: true },
       mustChangePassword: { type: "boolean", input: false, defaultValue: false },
       personId: { type: "string", input: false, required: false },
+      churchId: { type: "string", input: false, required: false },
+      platformAdmin: { type: "boolean", input: false, defaultValue: false },
     },
   },
   databaseHooks: {
@@ -58,11 +69,17 @@ export const auth = betterAuth({
         before: async (session) => {
           const account = await db.query.user.findFirst({
             where: eq(schema.user.id, session.userId),
-            columns: { active: true },
+            columns: { active: true, platformAdmin: true },
+            with: { church: { columns: { active: true } } },
           });
           if (!account?.active) {
             throw new APIError("FORBIDDEN", {
               message: "Esta conta está desativada.",
+            });
+          }
+          if (!account.church?.active && !account.platformAdmin) {
+            throw new APIError("FORBIDDEN", {
+              message: "O acesso desta igreja está suspenso. Fale com o suporte do Emaús.",
             });
           }
         },

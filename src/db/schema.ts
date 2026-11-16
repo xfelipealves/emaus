@@ -14,6 +14,12 @@ const id = () =>
     .primaryKey()
     .$defaultFn(() => crypto.randomUUID());
 
+/** Igreja (tenant) dona da linha: toda consulta a estas tabelas filtra por ela. */
+const churchId = () =>
+  text("church_id")
+    .notNull()
+    .references(() => church.id, { onDelete: "cascade" });
+
 const timestamps = {
   createdAt: integer("created_at", { mode: "timestamp_ms" })
     .notNull()
@@ -54,8 +60,12 @@ export const user = sqliteTable("user", {
   personId: text("person_id").references(() => person.id, {
     onDelete: "set null",
   }),
+  /** Igreja da conta; null só em contas exclusivas da plataforma. */
+  churchId: text("church_id").references(() => church.id, { onDelete: "cascade" }),
+  /** Opera a plataforma: vê e administra todas as igrejas em /plataforma. */
+  platformAdmin: integer("platform_admin", { mode: "boolean" }).notNull().default(false),
   ...timestamps,
-});
+}, (t) => [index("user_church_idx").on(t.churchId)]);
 
 export const session = sqliteTable(
   "session",
@@ -108,8 +118,10 @@ export const verification = sqliteTable("verification", {
 
 /* ───────────────────────── Igreja ───────────────────────── */
 
-export const churchSettings = sqliteTable("church_settings", {
-  id: integer("id").primaryKey(),
+export const church = sqliteTable("church", {
+  id: id(),
+  /** Identificador curto e único, usado no painel da plataforma. */
+  slug: text("slug").notNull().unique(),
   name: text("name").notNull().default("Minha Igreja"),
   timezone: text("timezone").notNull().default("America/Sao_Paulo"),
   /** Dias sem presença para alguém entrar em "precisa de cuidado". */
@@ -120,6 +132,21 @@ export const churchSettings = sqliteTable("church_settings", {
   aiProvider: text("ai_provider"),
   aiModel: text("ai_model"),
   aiEffort: text("ai_effort"),
+  /** Teto de gasto com IA por dia (US$), da igreja toda e de cada usuário; null = sem teto. */
+  aiDailyBudgetUsd: real("ai_daily_budget_usd"),
+  aiUserDailyBudgetUsd: real("ai_user_daily_budget_usd"),
+  /** Desativada: ninguém da igreja entra, e os dados ficam guardados. */
+  active: integer("active", { mode: "boolean" }).notNull().default(true),
+  /** Demonstração pública: contas compartilhadas e configuração de IA ficam travadas. */
+  demo: integer("demo", { mode: "boolean" }).notNull().default(false),
+  ...timestamps,
+});
+
+/** Configuração da plataforma (linha única): vale para todas as igrejas. */
+export const platformSettings = sqliteTable("platform_settings", {
+  id: integer("id").primaryKey(),
+  /** Teto de gasto com IA por dia (US$) somando todas as igrejas; null = sem teto. */
+  aiDailyBudgetUsd: real("ai_daily_budget_usd"),
   ...timestamps,
 });
 
@@ -127,16 +154,18 @@ export const churchSettings = sqliteTable("church_settings", {
 
 export const household = sqliteTable("household", {
   id: id(),
+  churchId: churchId(),
   name: text("name").notNull(),
   address: text("address"),
   phone: text("phone"),
   ...timestamps,
-});
+}, (t) => [index("household_church_idx").on(t.churchId)]);
 
 export const person = sqliteTable(
   "person",
   {
     id: id(),
+    churchId: churchId(),
     fullName: text("full_name").notNull(),
     preferredName: text("preferred_name"),
     status: text("status", { enum: PERSON_STATUSES })
@@ -165,7 +194,7 @@ export const person = sqliteTable(
     ...timestamps,
   },
   (t) => [
-    index("person_status_idx").on(t.status),
+    index("person_church_status_idx").on(t.churchId, t.status),
     index("person_name_idx").on(t.fullName),
     index("person_phone_idx").on(t.phoneDigits),
     index("person_household_idx").on(t.householdId),
@@ -176,17 +205,19 @@ export const person = sqliteTable(
 
 export const ministry = sqliteTable("ministry", {
   id: id(),
+  churchId: churchId(),
   name: text("name").notNull(),
   description: text("description"),
   color: text("color").notNull().default("ember"),
   archived: integer("archived", { mode: "boolean" }).notNull().default(false),
   ...timestamps,
-});
+}, (t) => [index("ministry_church_idx").on(t.churchId)]);
 
 export const membership = sqliteTable(
   "membership",
   {
     id: id(),
+    churchId: churchId(),
     personId: text("person_id")
       .notNull()
       .references(() => person.id, { onDelete: "cascade" }),
@@ -203,6 +234,7 @@ export const membership = sqliteTable(
     ...timestamps,
   },
   (t) => [
+    index("membership_church_idx").on(t.churchId),
     index("membership_person_idx").on(t.personId),
     index("membership_ministry_idx").on(t.ministryId),
     // No máximo um vínculo ativo por pessoa em cada ministério.
@@ -229,15 +261,17 @@ export const userMinistryAccess = sqliteTable(
 
 export const eventCategory = sqliteTable("event_category", {
   id: id(),
+  churchId: churchId(),
   name: text("name").notNull(),
   color: text("color").notNull().default("ember"),
   ...timestamps,
-});
+}, (t) => [index("event_category_church_idx").on(t.churchId)]);
 
 export const RECURRENCES = ["weekly", "biweekly", "monthly"] as const;
 
 export const eventSeries = sqliteTable("event_series", {
   id: id(),
+  churchId: churchId(),
   title: text("title").notNull(),
   categoryId: text("category_id").references(() => eventCategory.id, {
     onDelete: "set null",
@@ -263,12 +297,13 @@ export const eventSeries = sqliteTable("event_series", {
     .notNull()
     .default(sql`'[]'`),
   ...timestamps,
-});
+}, (t) => [index("event_series_church_idx").on(t.churchId)]);
 
 export const event = sqliteTable(
   "event",
   {
     id: id(),
+    churchId: churchId(),
     title: text("title").notNull(),
     description: text("description"),
     categoryId: text("category_id").references(() => eventCategory.id, {
@@ -296,7 +331,7 @@ export const event = sqliteTable(
     ...timestamps,
   },
   (t) => [
-    index("event_starts_idx").on(t.startsAt),
+    index("event_church_starts_idx").on(t.churchId, t.startsAt),
     index("event_series_idx").on(t.seriesId),
     // Uma ocorrência por data em cada série: geração concorrente não duplica.
     uniqueIndex("event_series_occurrence_uq").on(t.seriesId, t.occurrenceDate),
@@ -326,6 +361,7 @@ export const attendance = sqliteTable(
   "attendance",
   {
     id: id(),
+    churchId: churchId(),
     eventId: text("event_id")
       .notNull()
       .references(() => event.id, { onDelete: "cascade" }),
@@ -344,6 +380,7 @@ export const attendance = sqliteTable(
   (t) => [
     uniqueIndex("attendance_event_person_uq").on(t.eventId, t.personId),
     index("attendance_person_idx").on(t.personId),
+    index("attendance_church_idx").on(t.churchId),
   ],
 );
 
@@ -353,6 +390,7 @@ export const note = sqliteTable(
   "note",
   {
     id: id(),
+    churchId: churchId(),
     personId: text("person_id")
       .notNull()
       .references(() => person.id, { onDelete: "cascade" }),
@@ -366,13 +404,14 @@ export const note = sqliteTable(
     editedAt: integer("edited_at", { mode: "timestamp_ms" }),
     ...timestamps,
   },
-  (t) => [index("note_person_idx").on(t.personId)],
+  (t) => [index("note_person_idx").on(t.personId), index("note_church_idx").on(t.churchId)],
 );
 
 export const followUp = sqliteTable(
   "follow_up",
   {
     id: id(),
+    churchId: churchId(),
     personId: text("person_id")
       .notNull()
       .references(() => person.id, { onDelete: "cascade" }),
@@ -394,6 +433,7 @@ export const followUp = sqliteTable(
   },
   (t) => [
     index("follow_up_person_idx").on(t.personId),
+    index("follow_up_church_idx").on(t.churchId),
     index("follow_up_assignee_idx").on(t.assigneeId, t.doneAt),
   ],
 );
@@ -411,6 +451,7 @@ export const timelineEvent = sqliteTable(
   "timeline_event",
   {
     id: id(),
+    churchId: churchId(),
     personId: text("person_id")
       .notNull()
       .references(() => person.id, { onDelete: "cascade" }),
@@ -424,13 +465,14 @@ export const timelineEvent = sqliteTable(
       .notNull()
       .$defaultFn(() => new Date()),
   },
-  (t) => [index("timeline_person_idx").on(t.personId, t.occurredAt)],
+  (t) => [index("timeline_person_idx").on(t.personId, t.occurredAt), index("timeline_church_idx").on(t.churchId)],
 );
 
 export const auditLog = sqliteTable(
   "audit_log",
   {
     id: id(),
+    churchId: churchId(),
     actorId: text("actor_id").references(() => user.id, {
       onDelete: "set null",
     }),
@@ -444,7 +486,7 @@ export const auditLog = sqliteTable(
   },
   (t) => [
     index("audit_entity_idx").on(t.entity, t.entityId),
-    index("audit_created_idx").on(t.createdAt),
+    index("audit_church_created_idx").on(t.churchId, t.createdAt),
   ],
 );
 
@@ -521,6 +563,7 @@ export const followUpRelations = relations(followUp, ({ one }) => ({
 
 export const userRelations = relations(user, ({ one, many }) => ({
   person: one(person, { fields: [user.personId], references: [person.id] }),
+  church: one(church, { fields: [user.churchId], references: [church.id] }),
   ministryAccess: many(userMinistryAccess),
 }));
 
@@ -552,6 +595,7 @@ export const aiConversation = sqliteTable(
   "ai_conversation",
   {
     id: id(),
+    churchId: churchId(),
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
@@ -574,6 +618,7 @@ export const aiRun = sqliteTable(
   "ai_run",
   {
     id: id(),
+    churchId: churchId(),
     conversationId: text("conversation_id").references(() => aiConversation.id, { onDelete: "set null" }),
     userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
     model: text("model").notNull(),
@@ -588,16 +633,61 @@ export const aiRun = sqliteTable(
     toolCalls: text("tool_calls", { mode: "json" }).$type<{ name: string; ok: boolean; write: boolean }[]>().notNull().default(sql`'[]'`),
     stopReason: text("stop_reason"),
     error: text("error"),
+    /** Texto final mostrado ao usuário (base dos casos de avaliação). */
+    answer: text("answer"),
     /** 1 = útil, -1 = não ajudou */
     rating: integer("rating"),
+    /** O que faltou, escrito por quem deu 👎. */
+    ratingNote: text("rating_note"),
+    /** Um administrador já revisou a avaliação negativa. */
+    reviewedAt: integer("reviewed_at", { mode: "timestamp_ms" }),
     createdAt: timestamps.createdAt,
   },
-  (t) => [index("ai_run_created_idx").on(t.createdAt), index("ai_run_user_idx").on(t.userId)],
+  (t) => [
+    index("ai_run_created_idx").on(t.createdAt),
+    index("ai_run_church_created_idx").on(t.churchId, t.createdAt),
+    index("ai_run_user_idx").on(t.userId),
+  ],
 );
 
-export const aiRunRelations = relations(aiRun, ({ one }) => ({
+/**
+ * Cada passo de uma execução: uma chamada ao modelo ou a uma ferramenta, com tokens, custo,
+ * tempo e erro. Só medidas, nunca o conteúdo (perguntas e dados pessoais ficam fora).
+ */
+export const aiStep = sqliteTable(
+  "ai_step",
+  {
+    id: id(),
+    churchId: churchId(),
+    runId: text("run_id")
+      .notNull()
+      .references(() => aiRun.id, { onDelete: "cascade" }),
+    seq: integer("seq").notNull(),
+    kind: text("kind", { enum: ["model", "tool"] }).notNull(),
+    /** Modelo (kind = model) ou ferramenta (kind = tool). */
+    name: text("name").notNull(),
+    inputTokens: integer("input_tokens").notNull().default(0),
+    outputTokens: integer("output_tokens").notNull().default(0),
+    cacheReadTokens: integer("cache_read_tokens").notNull().default(0),
+    cacheWriteTokens: integer("cache_write_tokens").notNull().default(0),
+    costUsd: real("cost_usd").notNull().default(0),
+    latencyMs: integer("latency_ms").notNull(),
+    ok: integer("ok", { mode: "boolean" }).notNull(),
+    write: integer("write", { mode: "boolean" }).notNull().default(false),
+    error: text("error"),
+    createdAt: timestamps.createdAt,
+  },
+  (t) => [index("ai_step_run_idx").on(t.runId), index("ai_step_church_created_idx").on(t.churchId, t.createdAt)],
+);
+
+export const aiRunRelations = relations(aiRun, ({ one, many }) => ({
   user: one(user, { fields: [aiRun.userId], references: [user.id] }),
   conversation: one(aiConversation, { fields: [aiRun.conversationId], references: [aiConversation.id] }),
+  steps: many(aiStep),
+}));
+
+export const aiStepRelations = relations(aiStep, ({ one }) => ({
+  run: one(aiRun, { fields: [aiStep.runId], references: [aiRun.id] }),
 }));
 
 /** Limite de tentativas compartilhado entre instâncias (Vercel). */

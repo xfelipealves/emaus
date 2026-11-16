@@ -4,11 +4,11 @@ import { db, schema } from "@/db";
 import { addDaysIso, daysUntilBirthday, startOfDayUtc, todayIso } from "@/lib/dates";
 import { weekBuckets } from "./ministries";
 import { listPeople, peopleNeedingCare } from "./people";
-import { type CurrentUser, visiblePersonIds } from "./session";
+import { type CurrentUser, inChurch, visiblePersonIds } from "./session";
 import { getSettings } from "./settings";
 
 export async function dashboardData(user: CurrentUser) {
-  const settings = await getSettings();
+  const settings = await getSettings(user.churchId);
   const tz = settings.timezone;
   const today = todayIso(tz);
   const visible = await visiblePersonIds(user);
@@ -23,6 +23,7 @@ export async function dashboardData(user: CurrentUser) {
     .innerJoin(schema.event, eq(schema.event.id, schema.attendance.eventId))
     .where(
       and(
+        inChurch(user, schema.attendance),
         eq(schema.attendance.status, "present"),
         eq(schema.event.cancelled, false),
         gte(schema.event.startsAt, from),
@@ -61,7 +62,7 @@ export async function dashboardData(user: CurrentUser) {
   const [openFollowUps] = await db
     .select({ n: sql<number>`count(*)` })
     .from(schema.followUp)
-    .where(and(sql`${schema.followUp.doneAt} is null`, eq(schema.followUp.assigneeId, user.id)));
+    .where(and(inChurch(user, schema.followUp), sql`${schema.followUp.doneAt} is null`, eq(schema.followUp.assigneeId, user.id)));
 
   return {
     settings,

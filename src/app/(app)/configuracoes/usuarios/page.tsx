@@ -11,7 +11,7 @@ export const metadata: Metadata = { title: "Usuários" };
 
 export default async function UsersPage() {
   const user = await requireUser();
-  const [users, ministries, people] = await Promise.all([listUsers(), listMinistries(user), listPeople(user)]);
+  const [users, ministries, people] = await Promise.all([listUsers(user.churchId), listMinistries(user), listPeople(user)]);
   return (
     <UsersManager
       currentUserId={user.id}

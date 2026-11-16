@@ -103,7 +103,7 @@ export function CommandMenu({ people, isAdmin }: { people: CommandPerson[]; isAd
         <CommandSeparator />
         <CommandGroup heading="Páginas">
           {NAV.flatMap((g) => g.items)
-            .filter((i) => !i.adminOnly || isAdmin)
+            .filter((i) => (!i.adminOnly || isAdmin) && !i.platformOnly)
             .map((item) => (
               <CommandItem key={item.href} onSelect={() => go(item.href)}>
                 <item.icon /> {item.label}

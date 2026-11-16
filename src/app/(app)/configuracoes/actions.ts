@@ -1,10 +1,10 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db, schema } from "@/db";
-import { isDemoMode, DEMO_MANAGEMENT_MESSAGE } from "@/lib/demo";
+import { DEMO_MANAGEMENT_MESSAGE } from "@/lib/demo";
 import { availableProviders, EFFORTS, PROVIDER_IDS, PROVIDERS } from "@/server/ai/agent";
 import { formToObject, runAction } from "@/server/action";
 import { deleteCategory, saveCategory } from "@/server/events";
@@ -30,8 +30,8 @@ export async function saveSettingsAction(form: FormData) {
   return runAction(async () => {
     const user = await requireRole("admin");
     const input = settingsInput.parse(formToObject(form));
-    await db.update(schema.churchSettings).set(input).where(eq(schema.churchSettings.id, 1));
-    await recordAudit(db, { actorId: user.id, entity: "settings", entityId: "1", action: "update", summary: "Configurações da igreja atualizadas", after: input });
+    await db.update(schema.church).set(input).where(eq(schema.church.id, user.churchId));
+    await recordAudit(db, { churchId: user.churchId, actorId: user.id, entity: "settings", entityId: user.churchId, action: "update", summary: "Configurações da igreja atualizadas", after: input });
     revalidatePath("/", "layout");
   }, "Configurações salvas");
 }
@@ -62,15 +62,13 @@ export async function resetPasswordAction(id: string, password: string) {
 
 export async function saveCategoryAction(id: string | null, form: FormData) {
   return runAction(async () => {
-    await requireRole("admin");
-    await saveCategory(id, formToObject(form));
+    await saveCategory(await requireRole("admin"), id, formToObject(form));
   }, "Categoria salva");
 }
 
 export async function deleteCategoryAction(id: string) {
   return runAction(async () => {
-    await requireRole("admin");
-    await deleteCategory(id);
+    await deleteCategory(await requireRole("admin"), id);
   }, "Categoria excluída");
 }
 
@@ -83,23 +81,36 @@ const aiSettingsInput = z.object({
 export async function saveAiSettingsAction(raw: unknown) {
   return runAction(async () => {
     const user = await requireRole("admin");
-    if (isDemoMode()) throw new ActionError(DEMO_MANAGEMENT_MESSAGE);
+    if (user.demo) throw new ActionError(DEMO_MANAGEMENT_MESSAGE);
     const input = aiSettingsInput.parse(raw);
     if (!availableProviders().find((p) => p.id === input.provider)?.configured) {
       throw new ActionError("Esse provedor não tem chave configurada no servidor.");
     }
     await db
-      .update(schema.churchSettings)
+      .update(schema.church)
       .set({ aiProvider: input.provider, aiModel: input.model || null, aiEffort: input.effort ?? null })
-      .where(eq(schema.churchSettings.id, 1));
+      .where(eq(schema.church.id, user.churchId));
     await recordAudit(db, {
+      churchId: user.churchId,
       actorId: user.id,
       entity: "settings",
-      entityId: "1",
+      entityId: user.churchId,
       action: "ai.provider",
       summary: `IA alterada para ${PROVIDERS[input.provider].label}${input.model ? ` (${input.model})` : ""}`,
       after: input,
     });
     revalidatePath("/configuracoes/ia");
   }, "IA atualizada");
+}
+
+/** Tira a resposta com 👎 da fila de revisão (continua nos casos exportados). */
+export async function markRunReviewedAction(runId: string) {
+  return runAction(async () => {
+    const user = await requireRole("admin");
+    await db
+      .update(schema.aiRun)
+      .set({ reviewedAt: new Date() })
+      .where(and(eq(schema.aiRun.id, runId), eq(schema.aiRun.churchId, user.churchId)));
+    revalidatePath("/configuracoes/ia");
+  }, "Marcada como revisada");
 }

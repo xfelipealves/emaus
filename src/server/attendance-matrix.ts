@@ -2,6 +2,7 @@ import "server-only";
 import { and, eq, gte, inArray, lt, sql } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { addDaysIso, isoDateInTz, startOfDayUtc, todayIso } from "@/lib/dates";
+import { type CurrentUser, inChurch } from "./session";
 import { getSettings } from "./settings";
 
 export type MatrixCell = {
@@ -24,8 +25,8 @@ export type MatrixRow = {
  * Chamada da pessoa nas últimas N semanas: uma linha por tipo de encontro que ela
  * deveria frequentar (igreja toda + ministérios atuais) ou em que tem registro.
  */
-export async function personAttendanceMatrix(personId: string, weeks = 12) {
-  const settings = await getSettings();
+export async function personAttendanceMatrix(user: CurrentUser, personId: string, weeks = 12) {
+  const settings = await getSettings(user.churchId);
   const tz = settings.timezone;
   const today = todayIso(tz);
   const weekStarts = Array.from({ length: weeks }, (_, k) => addDaysIso(today, -(weeks - 1 - k) * 7 - 6));
@@ -36,13 +37,13 @@ export async function personAttendanceMatrix(personId: string, weeks = 12) {
     db
       .select({ ministryId: schema.membership.ministryId, start: schema.membership.startDate, end: schema.membership.endDate })
       .from(schema.membership)
-      .where(eq(schema.membership.personId, personId)),
+      .where(and(inChurch(user, schema.membership), eq(schema.membership.personId, personId))),
     db.query.person.findFirst({
-      where: eq(schema.person.id, personId),
+      where: and(eq(schema.person.id, personId), inChurch(user, schema.person)),
       columns: { createdAt: true, firstVisitDate: true, memberSince: true },
     }),
     db.query.event.findMany({
-      where: and(gte(schema.event.startsAt, new Date(bounds[0])), lt(schema.event.startsAt, now), eq(schema.event.cancelled, false)),
+      where: and(inChurch(user, schema.event), gte(schema.event.startsAt, new Date(bounds[0])), lt(schema.event.startsAt, now), eq(schema.event.cancelled, false)),
       with: { audience: true, series: true, category: true },
       orderBy: schema.event.startsAt,
     }),
@@ -50,7 +51,7 @@ export async function personAttendanceMatrix(personId: string, weeks = 12) {
       .select({ eventId: schema.attendance.eventId, status: schema.attendance.status })
       .from(schema.attendance)
       .innerJoin(schema.event, eq(schema.event.id, schema.attendance.eventId))
-      .where(and(eq(schema.attendance.personId, personId), gte(schema.event.startsAt, new Date(bounds[0])))),
+      .where(and(inChurch(user, schema.attendance), eq(schema.attendance.personId, personId), gte(schema.event.startsAt, new Date(bounds[0])))),
   ]);
   // A pessoa só "deveria" estar em encontros a partir de quando chegou à igreja, e nos de
   // ministério só enquanto participava dele.

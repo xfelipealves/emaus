@@ -8,7 +8,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { useAction } from "@/hooks/use-action";
 import { saveSettingsAction } from "./actions";
 
-const ZONES = ["America/Sao_Paulo", "America/Manaus", "America/Cuiaba", "America/Belem", "America/Fortaleza", "America/Recife", "America/Bahia", "America/Porto_Velho", "America/Rio_Branco", "America/Noronha", "Europe/Lisbon"];
+export const ZONES = ["America/Sao_Paulo", "America/Manaus", "America/Cuiaba", "America/Belem", "America/Fortaleza", "America/Recife", "America/Bahia", "America/Porto_Velho", "America/Rio_Branco", "America/Noronha", "Europe/Lisbon"];
 
 export function ChurchForm({ settings }: { settings: { name: string; timezone: string; careThresholdDays: number; allowSelfRegistration: boolean } }) {
   const save = useAction(saveSettingsAction);

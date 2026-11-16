@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { ToneBadge } from "@/components/app/tone";
 import { formatDateTime } from "@/lib/dates";
+import { requireUser } from "@/server/session";
 import { getSettings } from "@/server/settings";
 import { listAudit } from "@/server/users";
 
@@ -17,7 +18,8 @@ const ENTITY: Record<string, { label: string; tone: string }> = {
 };
 
 export default async function AuditPage() {
-  const [entries, settings] = await Promise.all([listAudit(300), getSettings()]);
+  const user = await requireUser();
+  const [entries, settings] = await Promise.all([listAudit(user, 300), getSettings(user.churchId)]);
   return (
     <div className="space-y-3">
       <p className="text-sm text-muted-foreground">Correções de presença, mudanças de status, contas e exclusões. Os 300 registros mais recentes.</p>

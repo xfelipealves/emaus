@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import type { AgentEvent } from "@/server/ai/agent";
-import { deleteConversationAction, rateRunAction } from "./actions";
+import { deleteConversationAction, rateRunAction, rateRunNoteAction } from "./actions";
 
 type ToolPart = { kind: "tool"; id: string; label: string; write: boolean; input: unknown; ok: boolean | null; error?: string };
 type TextPart = { kind: "text"; text: string };
@@ -304,8 +304,39 @@ function Turn({ turn, onRate }: { turn: ChatTurn; onRate: (v: 1 | -1) => void })
             </Button>
           </div>
         )}
+        {turn.rating === -1 && turn.runId && <RatingNote runId={turn.runId} />}
       </div>
     </div>
+  );
+}
+
+/** Depois do 👎: o que faltou vira parte do caso de avaliação que a liderança revisa. */
+function RatingNote({ runId }: { runId: string }) {
+  const [note, setNote] = useState("");
+  const [sent, setSent] = useState(false);
+  if (sent) return <p className="text-xs text-muted-foreground">Obrigado! Isso ajuda a melhorar o assistente.</p>;
+  return (
+    <form
+      className="flex max-w-md gap-2"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        if (!note.trim()) return;
+        const r = await rateRunNoteAction(runId, note);
+        if (r.ok) setSent(true);
+        else toast.error(r.error);
+      }}
+    >
+      <input
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        maxLength={500}
+        placeholder="O que faltou ou veio errado? (opcional)"
+        className="h-8 min-w-0 flex-1 rounded-lg border bg-background px-2.5 text-sm"
+      />
+      <Button type="submit" size="sm" variant="outline" disabled={!note.trim()}>
+        Enviar
+      </Button>
+    </form>
   );
 }
 

@@ -28,7 +28,7 @@ import { isActive, NAV } from "./nav-items";
 import { PersonAvatar } from "./tone";
 import { openCommandMenu } from "./command-menu";
 
-export type ShellUser = { id: string; name: string; role: Role; username: string | null };
+export type ShellUser = { id: string; name: string; role: Role; username: string | null; platformAdmin?: boolean };
 
 export function AppSidebar({
   user,
@@ -61,7 +61,9 @@ export function AppSidebar({
       </SidebarHeader>
       <SidebarContent>
         {NAV.map((group) => {
-          const items = group.items.filter((i) => !i.adminOnly || user.role === "admin");
+          const items = group.items.filter(
+            (i) => (!i.adminOnly || user.role === "admin") && (!i.platformOnly || user.platformAdmin),
+          );
           if (!items.length) return null;
           return (
             <SidebarGroup key={group.label}>

@@ -20,11 +20,11 @@ export default async function CarePage({ searchParams }: { searchParams: Promise
   const user = await requireUser();
   const { quem } = await searchParams;
   const [settings, open, done, care, assignees, people] = await Promise.all([
-    getSettings(),
+    getSettings(user.churchId),
     listFollowUps(user, { assigneeId: quem === "todos" ? undefined : user.id }),
     listFollowUps(user, { done: true }),
     peopleNeedingCare(user),
-    listAssignees(),
+    listAssignees(user),
     listPeople(user),
   ]);
   const today = todayIso(settings.timezone);

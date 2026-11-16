@@ -9,8 +9,10 @@ export const metadata: Metadata = { title: "Check-in", robots: { index: false } 
 
 export default async function PublicCheckinPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
-  const [ev, settings] = await Promise.all([getEventByToken(token), getSettings()]);
-  const tz = settings.timezone;
+  const ev = await getEventByToken(token);
+  // A igreja vem do encontro: o QR de uma igreja nunca mostra nada de outra.
+  const settings = ev ? await getSettings(ev.churchId) : null;
+  const tz = settings?.timezone;
   const open = !!ev && ev.checkinOpen && !ev.cancelled;
 
   return (
@@ -19,7 +21,7 @@ export default async function PublicCheckinPage({ params }: { params: Promise<{ 
         <div className="flex items-center gap-3">
           <LogoMark className="size-10" />
           <div className="leading-tight">
-            <div className="font-medium">{settings.name}</div>
+            <div className="font-medium">{settings?.name ?? "Emaús"}</div>
             {ev && <div className="text-xs text-muted-foreground">{upperFirst(formatDate(ev.startsAt, tz, { weekday: "long", day: "numeric", month: "long" }))} · {formatTime(ev.startsAt, tz)}</div>}
           </div>
         </div>

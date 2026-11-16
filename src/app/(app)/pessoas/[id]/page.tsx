@@ -37,15 +37,15 @@ export default async function PersonPage({ params }: { params: Promise<{ id: str
   if (!person) notFound();
 
   const [settings, timeline, attendance, followUps, doneFollowUps, ministries, households, assignees, matrix] = await Promise.all([
-    getSettings(),
-    personTimeline(id, user.role === "admin"),
-    personAttendance(id, 200),
+    getSettings(user.churchId),
+    personTimeline(user, id, user.role === "admin"),
+    personAttendance(user, id, 200),
     listFollowUps(user, { personId: id }),
     listFollowUps(user, { personId: id, done: true }),
     listMinistries(user),
     listHouseholds(user),
-    listAssignees(),
-    personAttendanceMatrix(id),
+    listAssignees(user),
+    personAttendanceMatrix(user, id),
   ]);
   const tz = settings.timezone;
   const today = todayIso(tz);

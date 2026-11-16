@@ -5,7 +5,7 @@ import { db, schema } from "@/db";
 import { TONES } from "@/lib/labels";
 import { addDaysIso, startOfDayUtc, todayIso } from "@/lib/dates";
 import { recordAudit, recordTimeline } from "./history";
-import { ActionError, assertCanSeePerson, type CurrentUser } from "./session";
+import { ActionError, assertCanSeePerson, type CurrentUser, inChurch } from "./session";
 import { getSettings } from "./settings";
 
 export const ministryInput = z.object({
@@ -15,10 +15,16 @@ export const ministryInput = z.object({
 });
 
 function scopeWhere(user: CurrentUser) {
-  if (!user.ministryIds) return undefined;
+  if (!user.ministryIds) return inChurch(user, schema.ministry);
   return user.ministryIds.length
-    ? inArray(schema.ministry.id, user.ministryIds)
+    ? and(inChurch(user, schema.ministry), inArray(schema.ministry.id, user.ministryIds))
     : sql`0`;
+}
+
+/** Ministério da igreja do usuário e dentro do escopo dele. */
+async function findMinistry(user: CurrentUser, id: string) {
+  if (user.ministryIds && !user.ministryIds.includes(id)) return null;
+  return (await db.query.ministry.findFirst({ where: and(eq(schema.ministry.id, id), inChurch(user, schema.ministry)) })) ?? null;
 }
 
 export async function listMinistries(user: CurrentUser, opts: { includeArchived?: boolean } = {}) {
@@ -42,7 +48,7 @@ export async function listMinistries(user: CurrentUser, opts: { includeArchived?
 export async function getMinistry(user: CurrentUser, id: string) {
   if (user.ministryIds && !user.ministryIds.includes(id)) return null;
   const m = await db.query.ministry.findFirst({
-    where: eq(schema.ministry.id, id),
+    where: and(eq(schema.ministry.id, id), inChurch(user, schema.ministry)),
     with: {
       memberships: {
         with: { person: true },
@@ -54,15 +60,15 @@ export async function getMinistry(user: CurrentUser, id: string) {
 }
 
 /** Presença semanal dos membros do ministério nas últimas N semanas. */
-export async function ministryAttendanceTrend(ministryId: string, weeks = 12) {
-  const settings = await getSettings();
+export async function ministryAttendanceTrend(user: CurrentUser, ministryId: string, weeks = 12) {
+  const settings = await getSettings(user.churchId);
   const today = todayIso(settings.timezone);
   const from = startOfDayUtc(addDaysIso(today, -weeks * 7), settings.timezone);
   const memberIds = (
     await db
       .select({ id: schema.membership.personId })
       .from(schema.membership)
-      .where(and(eq(schema.membership.ministryId, ministryId), isNull(schema.membership.endDate)))
+      .where(and(inChurch(user, schema.membership), eq(schema.membership.ministryId, ministryId), isNull(schema.membership.endDate)))
   ).map((r) => r.id);
   if (!memberIds.length) return { memberCount: 0, points: [] as { week: string; present: number }[] };
 
@@ -72,6 +78,7 @@ export async function ministryAttendanceTrend(ministryId: string, weeks = 12) {
     .innerJoin(schema.event, eq(schema.event.id, schema.attendance.eventId))
     .where(
       and(
+        inChurch(user, schema.attendance),
         eq(schema.attendance.status, "present"),
         inArray(schema.attendance.personId, memberIds),
         gte(schema.event.startsAt, from),
@@ -118,9 +125,10 @@ export async function createMinistry(user: CurrentUser, raw: unknown) {
   const input = ministryInput.parse(raw);
   const [created] = await db
     .insert(schema.ministry)
-    .values({ name: input.name, description: input.description ?? null, color: input.color })
+    .values({ churchId: user.churchId, name: input.name, description: input.description ?? null, color: input.color })
     .returning();
   await recordAudit(db, {
+    churchId: user.churchId,
     actorId: user.id,
     entity: "ministry",
     entityId: created.id,
@@ -135,14 +143,15 @@ export async function updateMinistry(user: CurrentUser, id: string, raw: unknown
   await db
     .update(schema.ministry)
     .set({ name: input.name, description: input.description ?? null, color: input.color })
-    .where(eq(schema.ministry.id, id));
+    .where(and(eq(schema.ministry.id, id), inChurch(user, schema.ministry)));
 }
 
 export async function setMinistryArchived(user: CurrentUser, id: string, archived: boolean) {
-  const m = await db.query.ministry.findFirst({ where: eq(schema.ministry.id, id) });
+  const m = await findMinistry(user, id);
   if (!m) throw new ActionError("Ministério não encontrado.");
-  await db.update(schema.ministry).set({ archived }).where(eq(schema.ministry.id, id));
+  await db.update(schema.ministry).set({ archived }).where(eq(schema.ministry.id, m.id));
   await recordAudit(db, {
+    churchId: user.churchId,
     actorId: user.id,
     entity: "ministry",
     entityId: id,
@@ -162,8 +171,8 @@ export async function addMember(
   }
   // Líder não amplia o próprio escopo trazendo alguém que ele ainda não acompanha.
   await assertCanSeePerson(user, personId);
-  const settings = await getSettings();
-  const m = await db.query.ministry.findFirst({ where: eq(schema.ministry.id, ministryId) });
+  const settings = await getSettings(user.churchId);
+  const m = await findMinistry(user, ministryId);
   if (!m) throw new ActionError("Ministério não encontrado.");
   const active = await db.query.membership.findFirst({
     where: and(
@@ -177,11 +186,12 @@ export async function addMember(
     // O índice único de vínculo ativo barra corrida entre dois cliques/abas.
     const [created] = await tx
       .insert(schema.membership)
-      .values({ ministryId, personId, role, startDate: todayIso(settings.timezone) })
+      .values({ churchId: user.churchId, ministryId, personId, role, startDate: todayIso(settings.timezone) })
       .onConflictDoNothing()
       .returning();
     if (!created) throw new ActionError("Essa pessoa já participa deste ministério.");
     await recordTimeline(tx, {
+      churchId: user.churchId,
       personId,
       actorId: user.id,
       kind: "ministry",
@@ -192,7 +202,7 @@ export async function addMember(
 
 export async function setMembershipRole(user: CurrentUser, membershipId: string, role: "member" | "leader") {
   const ms = await db.query.membership.findFirst({
-    where: eq(schema.membership.id, membershipId),
+    where: and(eq(schema.membership.id, membershipId), inChurch(user, schema.membership)),
     with: { ministry: true },
   });
   if (!ms) throw new ActionError("Vínculo não encontrado.");
@@ -202,6 +212,7 @@ export async function setMembershipRole(user: CurrentUser, membershipId: string,
   await db.transaction(async (tx) => {
     await tx.update(schema.membership).set({ role }).where(eq(schema.membership.id, membershipId));
     await recordTimeline(tx, {
+      churchId: user.churchId,
       personId: ms.personId,
       actorId: user.id,
       kind: "ministry",
@@ -211,9 +222,9 @@ export async function setMembershipRole(user: CurrentUser, membershipId: string,
 }
 
 export async function endMembership(user: CurrentUser, membershipId: string) {
-  const settings = await getSettings();
+  const settings = await getSettings(user.churchId);
   const ms = await db.query.membership.findFirst({
-    where: eq(schema.membership.id, membershipId),
+    where: and(eq(schema.membership.id, membershipId), inChurch(user, schema.membership)),
     with: { ministry: true },
   });
   if (!ms || ms.endDate) throw new ActionError("Vínculo não encontrado.");
@@ -226,6 +237,7 @@ export async function endMembership(user: CurrentUser, membershipId: string) {
       .set({ endDate: todayIso(settings.timezone) })
       .where(eq(schema.membership.id, membershipId));
     await recordTimeline(tx, {
+      churchId: user.churchId,
       personId: ms.personId,
       actorId: user.id,
       kind: "ministry",

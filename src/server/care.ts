@@ -4,7 +4,7 @@ import { z } from "zod";
 import { db, schema } from "@/db";
 import { FOLLOW_UP_KIND_LABEL } from "@/lib/labels";
 import { recordTimeline } from "./history";
-import { ActionError, assertCanSeePerson, type CurrentUser, visiblePersonIds } from "./session";
+import { ActionError, assertCanSeePerson, type CurrentUser, inChurch, visiblePersonIds } from "./session";
 
 /* ───────────── Notas ───────────── */
 
@@ -13,12 +13,12 @@ export async function addNote(user: CurrentUser, personId: string, content: stri
   const text = content.trim();
   if (!text) throw new ActionError("Escreva a anotação.");
   if (pastoral && user.role !== "admin") throw new ActionError("Só pastores registram anotações confidenciais.");
-  await db.insert(schema.note).values({ personId, authorId: user.id, content: text, visibility: pastoral ? "pastoral" : "team" });
+  await db.insert(schema.note).values({ churchId: user.churchId, personId, authorId: user.id, content: text, visibility: pastoral ? "pastoral" : "team" });
 }
 
 /** Anotação pastoral é invisível para quem não é administrador. */
 async function visibleNote(user: CurrentUser, noteId: string) {
-  const n = await db.query.note.findFirst({ where: eq(schema.note.id, noteId) });
+  const n = await db.query.note.findFirst({ where: and(eq(schema.note.id, noteId), inChurch(user, schema.note)) });
   if (!n || (n.visibility === "pastoral" && user.role !== "admin")) throw new ActionError("Anotação não encontrada.");
   await assertCanSeePerson(user, n.personId);
   return n;
@@ -62,7 +62,9 @@ export const followUpInput = z.object({
 export async function createFollowUp(user: CurrentUser, raw: unknown) {
   const input = followUpInput.parse(raw);
   await assertCanSeePerson(user, input.personId);
+  if (input.assigneeId) await assertAssignee(user, input.assigneeId);
   await db.insert(schema.followUp).values({
+    churchId: user.churchId,
     personId: input.personId,
     title: input.title,
     kind: input.kind,
@@ -73,7 +75,7 @@ export async function createFollowUp(user: CurrentUser, raw: unknown) {
 }
 
 export async function completeFollowUp(user: CurrentUser, id: string, outcome?: string) {
-  const f = await db.query.followUp.findFirst({ where: eq(schema.followUp.id, id) });
+  const f = await db.query.followUp.findFirst({ where: and(eq(schema.followUp.id, id), inChurch(user, schema.followUp)) });
   if (!f) throw new ActionError("Acompanhamento não encontrado.");
   await assertCanSeePerson(user, f.personId);
   await db.transaction(async (tx) => {
@@ -82,6 +84,7 @@ export async function completeFollowUp(user: CurrentUser, id: string, outcome?: 
       .set({ doneAt: new Date(), outcome: outcome?.trim() || null })
       .where(eq(schema.followUp.id, id));
     await recordTimeline(tx, {
+      churchId: user.churchId,
       personId: f.personId,
       actorId: user.id,
       kind: "follow_up",
@@ -92,14 +95,14 @@ export async function completeFollowUp(user: CurrentUser, id: string, outcome?: 
 }
 
 export async function reopenFollowUp(user: CurrentUser, id: string) {
-  const f = await db.query.followUp.findFirst({ where: eq(schema.followUp.id, id) });
+  const f = await db.query.followUp.findFirst({ where: and(eq(schema.followUp.id, id), inChurch(user, schema.followUp)) });
   if (!f) throw new ActionError("Acompanhamento não encontrado.");
   await assertCanSeePerson(user, f.personId);
   await db.update(schema.followUp).set({ doneAt: null, outcome: null }).where(eq(schema.followUp.id, id));
 }
 
 export async function deleteFollowUp(user: CurrentUser, id: string) {
-  const f = await db.query.followUp.findFirst({ where: eq(schema.followUp.id, id) });
+  const f = await db.query.followUp.findFirst({ where: and(eq(schema.followUp.id, id), inChurch(user, schema.followUp)) });
   if (!f) throw new ActionError("Acompanhamento não encontrado.");
   await assertCanSeePerson(user, f.personId);
   await db.delete(schema.followUp).where(eq(schema.followUp.id, id));
@@ -112,6 +115,7 @@ export async function listFollowUps(
   const visible = await visiblePersonIds(user);
   const rows = await db.query.followUp.findMany({
     where: and(
+      inChurch(user, schema.followUp),
       opts.done ? isNotNull(schema.followUp.doneAt) : isNull(schema.followUp.doneAt),
       opts.assigneeId ? eq(schema.followUp.assigneeId, opts.assigneeId) : undefined,
       opts.personId ? eq(schema.followUp.personId, opts.personId) : undefined,
@@ -128,9 +132,18 @@ export async function listFollowUps(
   return visible ? rows.filter((r) => visible.has(r.personId)) : rows;
 }
 
-export async function listAssignees() {
+/** Responsável precisa ser uma conta ativa da mesma igreja. */
+async function assertAssignee(user: CurrentUser, assigneeId: string) {
+  const found = await db.query.user.findFirst({
+    where: and(eq(schema.user.id, assigneeId), eq(schema.user.churchId, user.churchId), eq(schema.user.active, true)),
+    columns: { id: true },
+  });
+  if (!found) throw new ActionError("Responsável não encontrado.");
+}
+
+export async function listAssignees(user: CurrentUser) {
   return db.query.user.findMany({
-    where: eq(schema.user.active, true),
+    where: and(eq(schema.user.churchId, user.churchId), eq(schema.user.active, true)),
     columns: { id: true, name: true },
     orderBy: asc(schema.user.name),
   });

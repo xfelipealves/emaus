@@ -36,7 +36,7 @@ import {
   personAttendance,
   updatePerson,
 } from "../people";
-import { ActionError, can, type CurrentUser, visiblePersonIds } from "../session";
+import { ActionError, can, type CurrentUser, inChurch, visiblePersonIds } from "../session";
 import { getSettings } from "../settings";
 
 export type ToolContext = { user: CurrentUser; conversationId: string | null };
@@ -66,8 +66,8 @@ const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use AAAA-MM-DD");
 const personLink = (p: { id: string; fullName: string; preferredName?: string | null }) =>
   `[${displayName(p)}](/pessoas/${p.id})`;
 
-async function tz() {
-  return (await getSettings()).timezone;
+async function tz(user: CurrentUser) {
+  return (await getSettings(user.churchId)).timezone;
 }
 
 /* ───────────────────────── Leitura ───────────────────────── */
@@ -113,12 +113,13 @@ const detalhesPessoa = tool({
   run: async ({ pessoa_id }, { user }) => {
     const p = await getPerson(user, pessoa_id);
     if (!p) throw new ActionError("Pessoa não encontrada ou fora do seu acesso.");
-    const zone = await tz();
+    const zone = await tz(user);
     const [attendance, followUps, notes] = await Promise.all([
-      personAttendance(pessoa_id, 15),
+      personAttendance(user, pessoa_id, 15),
       listFollowUps(user, { personId: pessoa_id }),
       db.query.note.findMany({
         where: and(
+          inChurch(user, schema.note),
           eq(schema.note.personId, pessoa_id),
           user.role === "admin" ? undefined : eq(schema.note.visibility, "team"),
         ),
@@ -210,7 +211,7 @@ const listarEncontros = tool({
     ate: isoDate.describe("Data final, inclusiva (AAAA-MM-DD)"),
   }),
   run: async ({ de, ate }, { user }) => {
-    const zone = await tz();
+    const zone = await tz(user);
     const events = await listEvents(user, { from: startOfDayUtc(de, zone), to: startOfDayUtc(addDaysIso(ate, 1), zone) });
     return events.map((e) => ({
       id: e.id,
@@ -240,7 +241,7 @@ const presencaEncontro = tool({
       roster.filter((r) => r.attendance === s && (s !== null || r.inAudience)).map((r) => ({ id: r.id, nome: displayName(r) }));
     return {
       encontro: ev.title,
-      quando: formatDateTime(ev.startsAt, await tz()),
+      quando: formatDateTime(ev.startsAt, await tz(user)),
       cancelado: ev.cancelled,
       presentes: pick("present"),
       ausentes: pick("absent"),
@@ -273,7 +274,7 @@ const precisamDeCuidado = tool({
   description: "Pessoas ativas sem presença há mais dias que o limite de cuidado da igreja, e se já há acompanhamento.",
   schema: z.object({}),
   run: async (_input, { user }) => {
-    const settings = await getSettings();
+    const settings = await getSettings(user.churchId);
     const care = await peopleNeedingCare(user);
     return {
       limite_dias: settings.careThresholdDays,
@@ -297,7 +298,7 @@ const aniversariantes = tool({
   description: "Aniversariantes nos próximos N dias (padrão 7).",
   schema: z.object({ dias: z.number().int().min(0).max(366).optional() }),
   run: async ({ dias }, { user }) => {
-    const zone = await tz();
+    const zone = await tz(user);
     const today = todayIso(zone);
     const people = await listPeople(user);
     return people
@@ -352,6 +353,7 @@ const buscarAnotacoes = tool({
       .innerJoin(schema.person, eq(schema.person.id, schema.note.personId))
       .where(
         and(
+          inChurch(user, schema.note),
           like(sql`lower(${schema.note.content})`, `%${termo.toLowerCase()}%`),
           user.role === "admin" ? undefined : eq(schema.note.visibility, "team"),
           visible ? inArray(schema.person.id, [...visible]) : undefined,
@@ -386,6 +388,7 @@ const listarFamilias = tool({
 
 async function audit(ctx: ToolContext, action: string, summary: string, after?: unknown) {
   await recordAudit(db, {
+    churchId: ctx.user.churchId,
     actorId: ctx.user.id,
     entity: "assistant",
     entityId: ctx.conversationId ?? "-",

@@ -3,6 +3,7 @@ import {
   HeartHandshake,
   House,
   type LucideIcon,
+  MonitorCog,
   Network,
   Settings,
   Sparkles,
@@ -16,6 +17,8 @@ export type NavItem = {
   short?: string;
   icon: LucideIcon;
   adminOnly?: boolean;
+  /** Só para quem opera a plataforma (todas as igrejas). */
+  platformOnly?: boolean;
   badgeKey?: "followUps";
   mobile?: boolean;
 };
@@ -40,7 +43,10 @@ export const NAV: { label: string; items: NavItem[] }[] = [
   },
   {
     label: "Administração",
-    items: [{ href: "/configuracoes", label: "Configurações", icon: Settings, adminOnly: true }],
+    items: [
+      { href: "/configuracoes", label: "Configurações", icon: Settings, adminOnly: true },
+      { href: "/plataforma", label: "Plataforma", icon: MonitorCog, platformOnly: true },
+    ],
   },
 ];
 

@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 
 export default async function HomePage() {
   const user = await requireUser();
-  await extendSeries();
+  await extendSeries(user);
   const [data, upcoming] = await Promise.all([dashboardData(user), upcomingEvents(user, 4)]);
   const tz = data.settings.timezone;
   const hour = Number(new Intl.DateTimeFormat("pt-BR", { hour: "numeric", hourCycle: "h23", timeZone: tz }).format(new Date()));

@@ -2,15 +2,13 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { LogoMark } from "@/components/app/logo";
 import { isDemoMode } from "@/lib/demo";
-import { getCurrentUser } from "@/server/session";
-import { getSettings } from "@/server/settings";
+import { getAccount } from "@/server/session";
 import { LoginForm } from "./login-form";
 
 export const metadata: Metadata = { title: "Entrar" };
 
 export default async function LoginPage() {
-  if (await getCurrentUser()) redirect("/");
-  const settings = await getSettings();
+  if (await getAccount()) redirect("/");
 
   return (
     <main className="grid min-h-svh lg:grid-cols-[1.1fr_1fr]">
@@ -19,7 +17,7 @@ export default async function LoginPage() {
           <LogoMark className="size-10" />
           <div>
             <div className="font-display text-2xl leading-none">Emaús</div>
-            <div className="mt-1 text-xs text-muted-foreground">{settings.name}</div>
+            <div className="mt-1 text-xs text-muted-foreground">Cuidado pastoral para igrejas</div>
           </div>
         </div>
         <Road />

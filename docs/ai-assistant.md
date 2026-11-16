@@ -98,7 +98,7 @@ See the exported `AgentEvent` union and [`chat.tsx`](../src/app/%28app%29/assist
 
 ## Authorization and data boundaries
 
-- Queries and writes use the authenticated `CurrentUser`, including ministry scope.
+- Queries and writes use the authenticated `CurrentUser`, including its church (tenant) and ministry scope. Every tool reaches data through the same church-scoped server functions as the UI.
 - Confidential pastoral notes are filtered for administrators. Model instructions are an additional behavioral guard; server-side access checks enforce access.
 - Conversations are owned by one user. A changed role or ministry scope prevents reuse of history captured under the previous scope. Legacy conversations without a scope key are restricted to administrators.
 - Model instructions tell the assistant to obtain IDs and facts from tools, clarify ambiguity, and treat retrieved names and notes as data rather than instructions.
@@ -115,7 +115,19 @@ The assistant can misunderstand a request or produce an incorrect interpretation
 
 ## Observability
 
-Administrators can open **Configurações → IA** to inspect recent runs, input/output/cache tokens, estimated costs, p50/p95 latency, failures, tool usage, activity per user, and thumbs-up/down feedback. Estimates use the configured price table and are not provider billing reconciliation. Cache usage reflects provider-reported usage; it is not a cache of application query results.
+Each question creates an `ai_run` row when it starts (marked as interrupted until it finishes, so crashed runs show up as failures) and one `ai_step` row per model call and per tool call: kind, name, tokens, cache reads/writes, estimated cost, latency, success, and error message. Steps store measurements only, never prompt text or tool results.
+
+Church administrators open **Configurações → IA** for 30-day usage per day, cost, p50/p95 latency, cache hit rate, per-tool and per-model latency and failure rates, the most common errors, usage per person, and recent runs. Each run opens a trace view with its steps in order. Estimates use the configured price table and are not provider billing reconciliation. Cache usage reflects provider-reported usage; it is not a cache of application query results.
+
+The platform board (`/plataforma`) shows the same aggregates across all churches and per church, without prompts, answers, or feedback text.
+
+## Spend limits
+
+Daily USD caps are checked before each question starts: per church, per person in a church (both set by the platform operator per church), and a global cap across all churches. A day is the church's local day; the global cap uses Brasília time. A question already running finishes even if it crosses the cap. A cap of 0 disables the assistant.
+
+## Evaluation cases
+
+A 👎 opens an optional "what was missing" note. Rated runs keep the final answer text shown to the user. Administrators review 👎 answers in **Configurações → IA** and export cases as JSONL (`/api/ia/avaliacoes`, `?nota=ruim` for 👎 only): prompt, answer, tools used, verdict, and note. Use the export to re-run questions after prompt, tool, or model changes.
 
 ## Verify an assistant change
 

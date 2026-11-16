@@ -25,9 +25,9 @@ export default async function EventPage({ params }: { params: Promise<{ id: stri
   const ev = await getEvent(user, id);
   if (!ev) notFound();
   const [settings, roster, categories, ministries, base] = await Promise.all([
-    getSettings(),
+    getSettings(user.churchId),
     attendanceRoster(user, id),
-    listCategories(),
+    listCategories(user),
     listMinistries(user),
     publicBaseUrl(),
   ]);

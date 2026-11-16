@@ -8,6 +8,7 @@ import { formatDate, todayIso } from "@/lib/dates";
 import { ROLE_LABEL } from "@/lib/labels";
 import { ActionError, type CurrentUser } from "../session";
 import { getSettings } from "../settings";
+import { assertAiBudget } from "./budget";
 import { AI_TOOLS, TOOL_BY_NAME, type ToolContext } from "./tools";
 
 const MAX_ITERATIONS = 12;
@@ -140,8 +141,8 @@ export function availableProviders() {
  * sumiu do .env), o primeiro configurado — EMAUS_AI_PROVIDER, depois OpenAI, Groq,
  * Cerebras, Gemini e Anthropic.
  */
-export async function aiProvider(): Promise<AiProvider | null> {
-  const settings = await getSettings();
+export async function aiProvider(churchId: string): Promise<AiProvider | null> {
+  const settings = await getSettings(churchId);
   if (settings.aiProvider && (PROVIDER_IDS as readonly string[]).includes(settings.aiProvider)) {
     const chosen = buildProvider(settings.aiProvider as ProviderId, settings.aiModel, settings.aiEffort);
     if (chosen) return chosen;
@@ -154,8 +155,8 @@ export async function aiProvider(): Promise<AiProvider | null> {
   return null;
 }
 
-export async function isAiConfigured() {
-  return (await aiProvider()) !== null;
+export async function isAiConfigured(churchId: string) {
+  return (await aiProvider(churchId)) !== null;
 }
 
 export type AgentEvent =
@@ -207,7 +208,7 @@ function toolSchemas() {
 }
 
 async function contextBlock(user: CurrentUser) {
-  const settings = await getSettings();
+  const settings = await getSettings(user.churchId);
   const today = todayIso(settings.timezone);
   const scope = user.ministryIds
     ? `Ele é líder e só enxerga as pessoas dos ministérios liberados para ele (${user.ministryIds.length}).`
@@ -235,7 +236,11 @@ async function loadConversation(user: CurrentUser, conversationId: string | null
   const lockUntil = new Date(Date.now() + LOCK_MS);
   if (conversationId) {
     const conv = await db.query.aiConversation.findFirst({
-      where: and(eq(schema.aiConversation.id, conversationId), eq(schema.aiConversation.userId, user.id)),
+      where: and(
+        eq(schema.aiConversation.id, conversationId),
+        eq(schema.aiConversation.userId, user.id),
+        eq(schema.aiConversation.churchId, user.churchId),
+      ),
     });
     if (!conv) throw new ActionError("Conversa não encontrada.");
     if (conv.provider !== provider.kind) {
@@ -261,16 +266,30 @@ async function loadConversation(user: CurrentUser, conversationId: string | null
   const title = prompt.replace(/\s+/g, " ").trim().slice(0, 70);
   const [conv] = await db
     .insert(schema.aiConversation)
-    .values({ userId: user.id, title, provider: provider.kind, scopeKey: scopeKey(user), lockedUntil: lockUntil })
+    .values({ churchId: user.churchId, userId: user.id, title, provider: provider.kind, scopeKey: scopeKey(user), lockedUntil: lockUntil })
     .returning();
   return conv;
 }
 
 type Usage = { input: number; output: number; cacheRead: number; cacheWrite: number };
 type ToolCallLog = { name: string; ok: boolean; write: boolean };
+/** Um passo do trace (ai_step): só medidas, sem conteúdo. */
+type StepLog = {
+  kind: "model" | "tool";
+  name: string;
+  usage?: Usage;
+  costUsd: number;
+  latencyMs: number;
+  ok: boolean;
+  write?: boolean;
+  error?: string | null;
+};
 type TurnState = {
   usage: Usage;
   toolCalls: ToolCallLog[];
+  steps: StepLog[];
+  /** Início da chamada ao modelo em andamento: se ela falhar, o passo é registrado com o erro. */
+  modelStartedAt: number | null;
   iterations: number;
   stopReason: string | null;
   /** Alguma ferramenta já gravou dados nesta rodada. */
@@ -281,6 +300,26 @@ type TurnState = {
   checkpoint: () => Promise<void>;
 };
 
+const usageCost = (u: Usage, p: Price) =>
+  (u.input * p.input + u.output * p.output + u.cacheRead * p.cacheRead + u.cacheWrite * p.cacheWrite) / 1_000_000;
+
+/** Fecha a chamada ao modelo: soma o uso da rodada e registra o passo. */
+function recordModelCall(state: TurnState, provider: AiProvider, usage: Usage) {
+  state.usage.input += usage.input;
+  state.usage.output += usage.output;
+  state.usage.cacheRead += usage.cacheRead;
+  state.usage.cacheWrite += usage.cacheWrite;
+  state.steps.push({
+    kind: "model",
+    name: provider.model,
+    usage,
+    costUsd: usageCost(usage, provider.price),
+    latencyMs: Date.now() - (state.modelStartedAt ?? Date.now()),
+    ok: true,
+  });
+  state.modelStartedAt = null;
+}
+
 /** Valida e executa uma chamada de ferramenta pedida pelo modelo. */
 async function runTool(
   call: { id: string; name: string; input: unknown },
@@ -290,10 +329,15 @@ async function runTool(
 ): Promise<{ content: string; isError: boolean }> {
   const def = TOOL_BY_NAME.get(call.name);
   emit({ type: "tool", id: call.id, name: call.name, label: def?.label ?? call.name, write: def?.write ?? false, input: call.input });
-  if (!def) return { content: "Ferramenta desconhecida.", isError: true };
+  const started = Date.now();
+  if (!def) {
+    state.steps.push({ kind: "tool", name: call.name.slice(0, 80), costUsd: 0, latencyMs: 0, ok: false, error: "Ferramenta desconhecida." });
+    return { content: "Ferramenta desconhecida.", isError: true };
+  }
   const fail = (msg: string) => {
     emit({ type: "tool_result", id: call.id, ok: false, error: msg });
     state.toolCalls.push({ name: def.name, ok: false, write: def.write });
+    state.steps.push({ kind: "tool", name: def.name, costUsd: 0, latencyMs: Date.now() - started, ok: false, write: def.write, error: msg });
     return { content: msg, isError: true };
   };
   const parsed = def.schema.safeParse(call.input);
@@ -306,6 +350,7 @@ async function runTool(
     const out = await def.run(parsed.data as never, ctx);
     emit({ type: "tool_result", id: call.id, ok: true });
     state.toolCalls.push({ name: def.name, ok: true, write: def.write });
+    state.steps.push({ kind: "tool", name: def.name, costUsd: 0, latencyMs: Date.now() - started, ok: true, write: def.write });
     return { content: JSON.stringify(out), isError: false };
   } catch (e) {
     if (e instanceof ActionError) return fail(e.message);
@@ -342,6 +387,7 @@ async function anthropicLoop(
 
   while (state.iterations < MAX_ITERATIONS) {
     state.iterations++;
+    state.modelStartedAt = Date.now();
     const stream = client.beta.messages.stream(
       {
         model: provider.model,
@@ -370,10 +416,12 @@ async function anthropicLoop(
       continue;
     }
 
-    state.usage.input += message.usage.input_tokens;
-    state.usage.output += message.usage.output_tokens;
-    state.usage.cacheRead += message.usage.cache_read_input_tokens ?? 0;
-    state.usage.cacheWrite += message.usage.cache_creation_input_tokens ?? 0;
+    recordModelCall(state, provider, {
+      input: message.usage.input_tokens,
+      output: message.usage.output_tokens,
+      cacheRead: message.usage.cache_read_input_tokens ?? 0,
+      cacheWrite: message.usage.cache_creation_input_tokens ?? 0,
+    });
     state.stopReason = message.stop_reason;
     messages.push({ role: "assistant", content: message.content });
 
@@ -466,6 +514,7 @@ async function openaiLoop(
 
   while (state.iterations < MAX_ITERATIONS) {
     state.iterations++;
+    state.modelStartedAt = Date.now();
     const stream = await client.chat.completions.create(
       {
         model: provider.model,
@@ -482,6 +531,7 @@ async function openaiLoop(
     let text = "";
     let finish: string | null = null;
     const calls: { id: string; name: string; args: string }[] = [];
+    const usage: Usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
 
     for await (const chunk of stream) {
       const choice = chunk.choices[0];
@@ -500,15 +550,16 @@ async function openaiLoop(
       }
       if (choice?.finish_reason) finish = choice.finish_reason;
       // Groq também devolve uso em x_groq.usage.
-      const usage = chunk.usage ?? (chunk as unknown as { x_groq?: { usage?: OpenAI.CompletionUsage } }).x_groq?.usage;
-      if (usage) {
+      const reported = chunk.usage ?? (chunk as unknown as { x_groq?: { usage?: OpenAI.CompletionUsage } }).x_groq?.usage;
+      if (reported) {
         // prompt_tokens já inclui os tokens vindos de cache.
-        const cached = usage.prompt_tokens_details?.cached_tokens ?? 0;
-        state.usage.input += (usage.prompt_tokens ?? 0) - cached;
-        state.usage.output += usage.completion_tokens ?? 0;
-        state.usage.cacheRead += cached;
+        const cached = reported.prompt_tokens_details?.cached_tokens ?? 0;
+        usage.input += (reported.prompt_tokens ?? 0) - cached;
+        usage.output += reported.completion_tokens ?? 0;
+        usage.cacheRead += cached;
       }
     }
+    recordModelCall(state, provider, usage);
     state.stopReason = finish;
 
     const toolCalls = calls.filter(Boolean).map((c, i) => ({ ...c, id: c.id || `call_${state.iterations}_${i}` }));
@@ -564,6 +615,7 @@ async function responsesLoop(
 
   while (state.iterations < MAX_ITERATIONS) {
     state.iterations++;
+    state.modelStartedAt = Date.now();
     const stream = await client.responses.create(
       {
         model: provider.model,
@@ -590,13 +642,13 @@ async function responsesLoop(
     }
     if (!response) throw new Error("Resposta da IA incompleta.");
 
-    const usage = response.usage;
-    if (usage) {
-      const cached = usage.input_tokens_details?.cached_tokens ?? 0;
-      state.usage.input += usage.input_tokens - cached;
-      state.usage.cacheRead += cached;
-      state.usage.output += usage.output_tokens;
-    }
+    const cached = response.usage?.input_tokens_details?.cached_tokens ?? 0;
+    recordModelCall(state, provider, {
+      input: (response.usage?.input_tokens ?? 0) - cached,
+      output: response.usage?.output_tokens ?? 0,
+      cacheRead: cached,
+      cacheWrite: 0,
+    });
     state.stopReason = response.status ?? null;
     items.push(...(response.output as OpenAI.Responses.ResponseInputItem[]));
 
@@ -632,6 +684,9 @@ function friendlyError(err: unknown, aborted: boolean) {
   return "Algo deu errado ao falar com a IA.";
 }
 
+/** Gravado ao abrir a execução e trocado no fim: se a função morrer no meio, a execução aparece como falha. */
+const INTERRUPTED = "Execução interrompida antes de terminar.";
+
 export async function runAgent(opts: {
   user: CurrentUser;
   conversationId: string | null;
@@ -639,12 +694,25 @@ export async function runAgent(opts: {
   emit: (event: AgentEvent) => void;
   signal?: AbortSignal;
 }) {
-  const { user, prompt, emit } = opts;
-  const provider = await aiProvider();
+  const { user, prompt } = opts;
+  const provider = await aiProvider(user.churchId);
   if (!provider) throw new ActionError("IA não configurada.");
+  await assertAiBudget(user);
   const started = Date.now();
   const conv = await loadConversation(user, opts.conversationId, prompt, provider);
+  // O texto mostrado ao usuário vira a resposta registrada na execução (base dos casos de avaliação).
+  let answer = "";
+  const emit = (event: AgentEvent) => {
+    if (event.type === "text") answer += event.delta;
+    opts.emit(event);
+  };
   emit({ type: "conversation", id: conv.id, title: conv.title });
+
+  const modelLabel = `${provider.label} · ${provider.model}`;
+  const [run] = await db
+    .insert(schema.aiRun)
+    .values({ churchId: user.churchId, conversationId: conv.id, userId: user.id, model: modelLabel, prompt: prompt.slice(0, 2000), error: INTERRUPTED })
+    .returning({ id: schema.aiRun.id });
 
   const messages = conv.messages as (
     | Anthropic.Beta.BetaMessageParam
@@ -654,12 +722,14 @@ export async function runAgent(opts: {
   const turnStart = messages.length;
   // O horário fica no histórico (que é só acrescentado, então o cache segue valendo): o modelo sabe
   // a idade dos resultados de perguntas anteriores e consulta de novo o que outros podem ter mudado.
-  messages.push({ role: "user", content: withSentAt(prompt, (await getSettings()).timezone) });
+  messages.push({ role: "user", content: withSentAt(prompt, (await getSettings(user.churchId)).timezone) });
 
   const ctx: ToolContext = { user, conversationId: conv.id };
   const state: TurnState = {
     usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
     toolCalls: [],
+    steps: [],
+    modelStartedAt: null,
     iterations: 0,
     stopReason: null,
     wrote: false,
@@ -689,6 +759,10 @@ export async function runAgent(opts: {
   } catch (err) {
     error = err instanceof Error ? err.message : String(err);
     if (!(err instanceof ActionError)) console.error("[assistente]", err);
+    // A chamada ao modelo que falhou também entra no trace (com o tempo até a falha).
+    if (state.modelStartedAt !== null) {
+      state.steps.push({ kind: "model", name: provider.model, costUsd: 0, latencyMs: Date.now() - state.modelStartedAt, ok: false, error: error.slice(0, 500) });
+    }
     const kept = state.wrote ? " As alterações já feitas foram mantidas; confira antes de pedir de novo." : "";
     emit({ type: "error", message: friendlyError(err, Boolean(opts.signal?.aborted)) + kept });
     // Volta ao último ponto consistente. Se algo já foi gravado, o histórico guarda isso
@@ -706,26 +780,46 @@ export async function runAgent(opts: {
 
   const latencyMs = Date.now() - started;
   const u = state.usage;
-  const p = provider.price;
-  const costUsd = (u.input * p.input + u.output * p.output + u.cacheRead * p.cacheRead + u.cacheWrite * p.cacheWrite) / 1_000_000;
-  const [run] = await db
-    .insert(schema.aiRun)
-    .values({
-      conversationId: conv.id,
-      userId: user.id,
-      model: `${provider.label} · ${provider.model}`,
-      prompt: prompt.slice(0, 2000),
-      iterations: state.iterations,
-      inputTokens: u.input,
-      outputTokens: u.output,
-      cacheReadTokens: u.cacheRead,
-      cacheWriteTokens: u.cacheWrite,
-      costUsd,
-      latencyMs,
-      toolCalls: state.toolCalls,
-      stopReason: state.stopReason,
-      error,
-    })
-    .returning();
+  const costUsd = usageCost(u, provider.price);
+  await db.batch([
+    db
+      .update(schema.aiRun)
+      .set({
+        iterations: state.iterations,
+        inputTokens: u.input,
+        outputTokens: u.output,
+        cacheReadTokens: u.cacheRead,
+        cacheWriteTokens: u.cacheWrite,
+        costUsd,
+        latencyMs,
+        toolCalls: state.toolCalls,
+        stopReason: state.stopReason,
+        error,
+        answer: answer.slice(0, 8000) || null,
+      })
+      .where(eq(schema.aiRun.id, run.id)),
+    ...(state.steps.length
+      ? [
+          db.insert(schema.aiStep).values(
+            state.steps.map((step, seq) => ({
+              churchId: user.churchId,
+              runId: run.id,
+              seq,
+              kind: step.kind,
+              name: step.name,
+              inputTokens: step.usage?.input ?? 0,
+              outputTokens: step.usage?.output ?? 0,
+              cacheReadTokens: step.usage?.cacheRead ?? 0,
+              cacheWriteTokens: step.usage?.cacheWrite ?? 0,
+              costUsd: step.costUsd,
+              latencyMs: step.latencyMs,
+              ok: step.ok,
+              write: step.write ?? false,
+              error: step.error ?? null,
+            })),
+          ),
+        ]
+      : []),
+  ]);
   emit({ type: "done", runId: run.id, costUsd, latencyMs });
 }

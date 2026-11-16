@@ -5,12 +5,12 @@ import { z } from "zod";
 import { db, schema } from "@/db";
 import { GENDERS, HOUSEHOLD_ROLES, PERSON_STATUSES, type PersonStatus } from "@/db/schema";
 import { ageFrom, diffDaysIso, isoDateInTz, todayIso } from "@/lib/dates";
-import { DEMO_MANAGEMENT_MESSAGE, isDemoMode } from "@/lib/demo";
+import { DEMO_MANAGEMENT_MESSAGE } from "@/lib/demo";
 import { STATUS_LABEL } from "@/lib/labels";
 import { normalizePhone, normalizeSearch } from "@/lib/text";
 import { recordAudit, recordTimeline } from "./history";
 import { getHousehold } from "./households";
-import { ActionError, assertCanSeePerson, type CurrentUser, visiblePersonIds } from "./session";
+import { ActionError, assertCanSeePerson, type CurrentUser, inChurch, visiblePersonIds } from "./session";
 import { getSettings } from "./settings";
 
 const isoDate = z
@@ -35,8 +35,8 @@ export const personInput = z.object({
 });
 export type PersonInput = z.input<typeof personInput>;
 
-/** Subconsulta: última presença e total de presenças por pessoa. */
-function presenceStats() {
+/** Subconsulta: última presença e total de presenças por pessoa da igreja. */
+function presenceStats(user: CurrentUser) {
   return db
     .select({
       personId: schema.attendance.personId,
@@ -48,6 +48,7 @@ function presenceStats() {
     // Só presença efetiva: encontro realizado e não cancelado.
     .where(
       and(
+        inChurch(user, schema.attendance),
         eq(schema.attendance.status, "present"),
         eq(schema.event.cancelled, false),
         lte(schema.event.startsAt, sql`(unixepoch() * 1000)`),
@@ -73,12 +74,12 @@ export async function listPeople(user: CurrentUser, filter: PeopleFilter = {}) {
 }
 
 async function queryPeople(user: CurrentUser, filter: PeopleFilter) {
-  const settings = await getSettings();
+  const settings = await getSettings(user.churchId);
   const today = todayIso(settings.timezone);
   const visible = await visiblePersonIds(user);
-  const presence = presenceStats();
+  const presence = presenceStats(user);
 
-  const where = [];
+  const where = [inChurch(user, schema.person)];
   if (visible) where.push(inArray(schema.person.id, [...visible]));
   if (filter.status && filter.status !== "all") {
     where.push(eq(schema.person.status, filter.status));
@@ -163,7 +164,7 @@ export async function peopleCounts(user: CurrentUser) {
   const rows = await db
     .select({ status: schema.person.status, count: sql<number>`count(*)` })
     .from(schema.person)
-    .where(visible ? inArray(schema.person.id, [...visible]) : undefined)
+    .where(and(inChurch(user, schema.person), visible ? inArray(schema.person.id, [...visible]) : undefined))
     .groupBy(schema.person.status);
   const counts = { all: 0, visitor: 0, member: 0, inactive: 0 };
   for (const r of rows) {
@@ -177,7 +178,7 @@ export async function getPerson(user: CurrentUser, id: string) {
   const visible = await visiblePersonIds(user);
   if (visible && !visible.has(id)) return null;
   const row = await db.query.person.findFirst({
-    where: eq(schema.person.id, id),
+    where: and(eq(schema.person.id, id), inChurch(user, schema.person)),
     with: {
       household: {
         with: {
@@ -191,7 +192,7 @@ export async function getPerson(user: CurrentUser, id: string) {
     },
   });
   if (!row) return null;
-  const settings = await getSettings();
+  const settings = await getSettings(user.churchId);
   const today = todayIso(settings.timezone);
   // Familiares fora do escopo do líder não aparecem.
   const household = row.household && visible
@@ -200,7 +201,7 @@ export async function getPerson(user: CurrentUser, id: string) {
   return { ...row, household, age: ageFrom(row.birthDate, today) };
 }
 
-export async function personAttendance(personId: string, limit = 60) {
+export async function personAttendance(user: CurrentUser, personId: string, limit = 60) {
   return db
     .select({
       eventId: schema.event.id,
@@ -214,28 +215,29 @@ export async function personAttendance(personId: string, limit = 60) {
     .from(schema.attendance)
     .innerJoin(schema.event, eq(schema.event.id, schema.attendance.eventId))
     .leftJoin(schema.eventCategory, eq(schema.eventCategory.id, schema.event.categoryId))
-    .where(eq(schema.attendance.personId, personId))
+    .where(and(inChurch(user, schema.attendance), eq(schema.attendance.personId, personId)))
     .orderBy(desc(schema.event.startsAt))
     .limit(limit);
 }
 
-export async function personTimeline(personId: string, includePastoral: boolean) {
+export async function personTimeline(user: CurrentUser, personId: string, includePastoral: boolean) {
   const [events, notes, attendances] = await Promise.all([
     db.query.timelineEvent.findMany({
-      where: eq(schema.timelineEvent.personId, personId),
+      where: and(inChurch(user, schema.timelineEvent), eq(schema.timelineEvent.personId, personId)),
       with: { actor: { columns: { name: true } } },
       orderBy: desc(schema.timelineEvent.occurredAt),
       limit: 200,
     }),
     db.query.note.findMany({
       where: and(
+        inChurch(user, schema.note),
         eq(schema.note.personId, personId),
         includePastoral ? undefined : eq(schema.note.visibility, "team"),
       ),
       with: { author: { columns: { name: true } } },
       orderBy: [desc(schema.note.pinned), desc(schema.note.createdAt)],
     }),
-    personAttendance(personId, 100),
+    personAttendance(user, personId, 100),
   ]);
 
   type Item =
@@ -296,10 +298,16 @@ function toRow(input: z.output<typeof personInput>) {
   };
 }
 
+/** Família informada num formulário precisa ser da igreja (e, para líder, visível a ele). */
+async function assertHousehold(user: CurrentUser, householdId: string | null) {
+  if (householdId && !(await getHousehold(user, householdId))) throw new ActionError("Família não encontrada.");
+}
+
 export async function createPerson(user: CurrentUser, raw: unknown) {
   const input = personInput.parse(raw);
-  const settings = await getSettings();
+  const settings = await getSettings(user.churchId);
   const row = toRow(input);
+  await assertHousehold(user, row.householdId);
   if (row.status === "visitor" && !row.firstVisitDate) {
     row.firstVisitDate = todayIso(settings.timezone);
   }
@@ -307,8 +315,9 @@ export async function createPerson(user: CurrentUser, raw: unknown) {
     row.memberSince = todayIso(settings.timezone);
   }
   return db.transaction(async (tx) => {
-    const [created] = await tx.insert(schema.person).values(row).returning();
+    const [created] = await tx.insert(schema.person).values({ ...row, churchId: user.churchId }).returning();
     await recordTimeline(tx, {
+      churchId: user.churchId,
       personId: created.id,
       actorId: user.id,
       kind: "registered",
@@ -317,6 +326,7 @@ export async function createPerson(user: CurrentUser, raw: unknown) {
     // Líder cadastra dentro do próprio escopo: já entra no primeiro ministério liberado.
     if (user.ministryIds?.length) {
       await tx.insert(schema.membership).values({
+        churchId: user.churchId,
         personId: created.id,
         ministryId: user.ministryIds[0],
         startDate: todayIso(settings.timezone),
@@ -329,14 +339,12 @@ export async function createPerson(user: CurrentUser, raw: unknown) {
 export async function updatePerson(user: CurrentUser, id: string, raw: unknown) {
   await assertCanSeePerson(user, id);
   const input = personInput.parse(raw);
-  const before = await db.query.person.findFirst({ where: eq(schema.person.id, id) });
+  const before = await db.query.person.findFirst({ where: and(eq(schema.person.id, id), inChurch(user, schema.person)) });
   if (!before) throw new ActionError("Pessoa não encontrada.");
   const row = toRow(input);
   // Status muda por changeStatus, que registra o histórico.
   const { status: _status, ...rest } = row;
-  if (user.ministryIds && rest.householdId && rest.householdId !== before.householdId && !(await getHousehold(user, rest.householdId))) {
-    throw new ActionError("Família não encontrada.");
-  }
+  if (rest.householdId !== before.householdId) await assertHousehold(user, rest.householdId);
   await db.transaction(async (tx) => {
     await tx.update(schema.person).set(rest).where(eq(schema.person.id, id));
     if (before.householdId !== rest.householdId && rest.householdId) {
@@ -344,6 +352,7 @@ export async function updatePerson(user: CurrentUser, id: string, raw: unknown) 
         where: eq(schema.household.id, rest.householdId),
       });
       await recordTimeline(tx, {
+        churchId: user.churchId,
         personId: id,
         actorId: user.id,
         kind: "household",
@@ -361,8 +370,8 @@ export async function changeStatus(
   reason?: string,
 ) {
   await assertCanSeePerson(user, id);
-  const settings = await getSettings();
-  const before = await db.query.person.findFirst({ where: eq(schema.person.id, id) });
+  const settings = await getSettings(user.churchId);
+  const before = await db.query.person.findFirst({ where: and(eq(schema.person.id, id), inChurch(user, schema.person)) });
   if (!before) throw new ActionError("Pessoa não encontrada.");
   if (before.status === status) return;
   await db.transaction(async (tx) => {
@@ -378,6 +387,7 @@ export async function changeStatus(
       })
       .where(eq(schema.person.id, id));
     await recordTimeline(tx, {
+      churchId: user.churchId,
       personId: id,
       actorId: user.id,
       kind: "status",
@@ -385,6 +395,7 @@ export async function changeStatus(
       detail: reason ?? null,
     });
     await recordAudit(tx, {
+      churchId: user.churchId,
       actorId: user.id,
       entity: "person",
       entityId: id,
@@ -397,16 +408,17 @@ export async function changeStatus(
 }
 
 export async function deletePerson(user: CurrentUser, id: string) {
-  const before = await db.query.person.findFirst({ where: eq(schema.person.id, id) });
+  const before = await db.query.person.findFirst({ where: and(eq(schema.person.id, id), inChurch(user, schema.person)) });
   if (!before) throw new ActionError("Pessoa não encontrada.");
   // Na demonstração as contas são protegidas: não desvincula a pessoa de uma conta compartilhada.
-  if (isDemoMode() && (await db.query.user.findFirst({ where: eq(schema.user.personId, id), columns: { id: true } }))) {
+  if (user.demo && (await db.query.user.findFirst({ where: eq(schema.user.personId, id), columns: { id: true } }))) {
     throw new ActionError(DEMO_MANAGEMENT_MESSAGE);
   }
   await db.transaction(async (tx) => {
     await tx.update(schema.user).set({ personId: null }).where(eq(schema.user.personId, id));
     await tx.delete(schema.person).where(eq(schema.person.id, id));
     await recordAudit(tx, {
+      churchId: user.churchId,
       actorId: user.id,
       entity: "person",
       entityId: id,
@@ -419,13 +431,13 @@ export async function deletePerson(user: CurrentUser, id: string) {
 
 /** Pessoas ativas sem presença há mais que o limite de cuidado. */
 export async function peopleNeedingCare(user: CurrentUser) {
-  const settings = await getSettings();
+  const settings = await getSettings(user.churchId);
   const people = await listPeople(user);
   const today = todayIso(settings.timezone);
   const openFollowUps = await db
     .select({ personId: schema.followUp.personId })
     .from(schema.followUp)
-    .where(isNull(schema.followUp.doneAt));
+    .where(and(inChurch(user, schema.followUp), isNull(schema.followUp.doneAt)));
   const withFollowUp = new Set(openFollowUps.map((f) => f.personId));
 
   return people

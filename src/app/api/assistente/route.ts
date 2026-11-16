@@ -16,7 +16,7 @@ export const maxDuration = 300;
 export async function POST(request: Request) {
   const user = await getCurrentUser();
   if (!user || user.mustChangePassword) return new Response("Não autenticado", { status: 401 });
-  if (!(await isAiConfigured())) return Response.json({ error: "IA não configurada" }, { status: 503 });
+  if (!(await isAiConfigured(user.churchId))) return Response.json({ error: "IA não configurada" }, { status: 503 });
   // Por visitante (chaves sem ":" ganham o IP) e um teto global de custo por dia.
   if (isDemoMode() && (
     !(await rateLimit("demo-ai-minute", 3)) ||

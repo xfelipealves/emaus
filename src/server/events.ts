@@ -8,7 +8,7 @@ import { TONES } from "@/lib/labels";
 import { occurrences } from "@/lib/recurrence";
 import { normalizePhone } from "@/lib/text";
 import { recordAudit, recordTimeline } from "./history";
-import { ActionError, type CurrentUser, visiblePersonIds } from "./session";
+import { ActionError, type CurrentUser, inChurch, visiblePersonIds } from "./session";
 import { getSettings } from "./settings";
 
 /** Data civil real (rejeita 2026-02-31, que o Date normalizaria para março). */
@@ -44,6 +44,10 @@ export const categoryInput = z.object({
 const SERIES_HORIZON_DAYS = 7 * 12;
 
 function eventScope(user: CurrentUser) {
+  return and(inChurch(user, schema.event), leaderScope(user));
+}
+
+function leaderScope(user: CurrentUser) {
   if (!user.ministryIds) return undefined;
   // Líder vê encontros da igreja toda e dos seus ministérios.
   const audience = db
@@ -144,6 +148,7 @@ export async function attendanceRoster(user: CurrentUser, eventId: string) {
         .from(schema.membership)
         .where(
           and(
+            inChurch(user, schema.membership),
             inArray(schema.membership.ministryId, audienceIds),
             sql`${schema.membership.endDate} is null`,
           ),
@@ -162,7 +167,7 @@ export async function attendanceRoster(user: CurrentUser, eventId: string) {
       householdId: schema.person.householdId,
     })
     .from(schema.person)
-    .where(ne(schema.person.status, "inactive"))
+    .where(and(inChurch(user, schema.person), ne(schema.person.status, "inactive")))
     .orderBy(asc(sql`lower(${schema.person.fullName})`));
 
   const extraIds = records.map((r) => r.personId).filter((id) => !people.some((p) => p.id === id));
@@ -178,7 +183,7 @@ export async function attendanceRoster(user: CurrentUser, eventId: string) {
           householdId: schema.person.householdId,
         })
         .from(schema.person)
-        .where(inArray(schema.person.id, extraIds))
+        .where(and(inChurch(user, schema.person), inArray(schema.person.id, extraIds)))
     : [];
 
   const eligibleSet = eligible ? new Set(eligible) : null;
@@ -223,6 +228,12 @@ export async function setAttendance(
   }
   const ev = await assertEventAccess(user, eventId);
   if (ev.cancelled) throw new ActionError("Este encontro foi cancelado.");
+  // A pessoa precisa ser da mesma igreja do encontro (vale também para o QR, sem usuário).
+  const person = await db.query.person.findFirst({
+    where: and(eq(schema.person.id, personId), eq(schema.person.churchId, ev.churchId)),
+    columns: { id: true },
+  });
+  if (!person) throw new ActionError("Pessoa não encontrada.");
 
   await db.transaction(async (tx) => {
     const existing = await tx.query.attendance.findFirst({
@@ -240,6 +251,7 @@ export async function setAttendance(
         .where(eq(schema.attendance.id, existing.id));
     } else {
       await tx.insert(schema.attendance).values({
+        churchId: ev.churchId,
         eventId,
         personId,
         status,
@@ -252,6 +264,7 @@ export async function setAttendance(
     if (existing) {
       const label = { present: "presente", absent: "ausente" } as const;
       await recordAudit(tx, {
+        churchId: ev.churchId,
         actorId: user?.id ?? null,
         entity: "attendance",
         entityId: eventId,
@@ -273,7 +286,7 @@ export async function markAllAbsent(user: CurrentUser, eventId: string) {
   // Uma presença lançada no meio do caminho (QR, outro aparelho) prevalece.
   await db
     .insert(schema.attendance)
-    .values(pending.map((p) => ({ eventId, personId: p.id, status: "absent" as const, recordedById: user.id })))
+    .values(pending.map((p) => ({ churchId: user.churchId, eventId, personId: p.id, status: "absent" as const, recordedById: user.id })))
     .onConflictDoNothing();
   return pending.length;
 }
@@ -286,8 +299,8 @@ export async function addQuickVisitor(
 ) {
   const name = input.fullName.trim();
   if (name.length < 2) throw new ActionError("Informe o nome do visitante.");
-  const settings = await getSettings();
   const ev = await assertEventAccess(user, eventId);
+  const settings = await getSettings(ev.churchId);
   if (ev.cancelled) throw new ActionError("Este encontro foi cancelado.");
   const digits = input.phone ? normalizePhone(input.phone) : "";
 
@@ -295,6 +308,7 @@ export async function addQuickVisitor(
     const [created] = await tx
       .insert(schema.person)
       .values({
+        churchId: ev.churchId,
         fullName: name,
         status: "visitor",
         phone: input.phone?.trim() || null,
@@ -303,6 +317,7 @@ export async function addQuickVisitor(
       })
       .returning();
     await recordTimeline(tx, {
+      churchId: ev.churchId,
       personId: created.id,
       actorId: user?.id ?? null,
       kind: "registered",
@@ -310,6 +325,7 @@ export async function addQuickVisitor(
       detail: method === "qr" ? "Cadastro feito pelo próprio visitante via QR Code" : null,
     });
     await tx.insert(schema.attendance).values({
+      churchId: ev.churchId,
       eventId,
       personId: created.id,
       status: "present",
@@ -319,6 +335,7 @@ export async function addQuickVisitor(
     // Visitante cadastrado por líder entra no ministério dele para continuar visível.
     if (user?.ministryIds?.length) {
       await tx.insert(schema.membership).values({
+        churchId: ev.churchId,
         personId: created.id,
         ministryId: user.ministryIds[0],
         startDate: todayIso(settings.timezone),
@@ -338,11 +355,18 @@ type OccurrenceInput = Pick<
  * Cria um encontro e seu público na mesma transação. Em séries, a ocorrência é única por
  * data: se outra requisição já criou, devolve null em vez de duplicar.
  */
-async function insertOccurrence(exec: Tx, input: OccurrenceInput, date: string, timeZone: string, seriesId: string | null) {
-  const startsAt = zonedToUtc(date, input.time, timeZone);
+async function insertOccurrence(
+  exec: Tx,
+  church: { id: string; timezone: string },
+  input: OccurrenceInput,
+  date: string,
+  seriesId: string | null,
+) {
+  const startsAt = zonedToUtc(date, input.time, church.timezone);
   const [ev] = await exec
     .insert(schema.event)
     .values({
+      churchId: church.id,
       title: input.title,
       description: input.description ?? null,
       categoryId: input.categoryId ?? null,
@@ -363,11 +387,30 @@ async function insertOccurrence(exec: Tx, input: OccurrenceInput, date: string, 
   return ev;
 }
 
+/** Categoria e ministérios vindos do formulário precisam ser da igreja do usuário. */
+async function assertEventRefs(user: CurrentUser, input: { categoryId?: string; ministryIds: string[] }) {
+  if (input.categoryId) {
+    const category = await db.query.eventCategory.findFirst({
+      where: and(eq(schema.eventCategory.id, input.categoryId), inChurch(user, schema.eventCategory)),
+      columns: { id: true },
+    });
+    if (!category) throw new ActionError("Categoria não encontrada.");
+  }
+  if (input.ministryIds.length) {
+    const found = await db
+      .select({ id: schema.ministry.id })
+      .from(schema.ministry)
+      .where(and(inChurch(user, schema.ministry), inArray(schema.ministry.id, input.ministryIds)));
+    if (found.length !== new Set(input.ministryIds).size) throw new ActionError("Ministério não encontrado.");
+  }
+}
+
 export async function createEvent(user: CurrentUser, raw: unknown) {
   const input = eventInput.parse(raw);
-  const settings = await getSettings();
+  await assertEventRefs(user, input);
+  const settings = await getSettings(user.churchId);
   if (input.recurrence === "none") {
-    return (await db.transaction((tx) => insertOccurrence(tx, input, input.date, settings.timezone, null)))!;
+    return (await db.transaction((tx) => insertOccurrence(tx, settings, input, input.date, null)))!;
   }
   const weekday = new Date(`${input.date}T12:00:00Z`).getUTCDay();
   const recurrence = input.recurrence;
@@ -385,6 +428,7 @@ export async function createEvent(user: CurrentUser, raw: unknown) {
     const [series] = await tx
       .insert(schema.eventSeries)
       .values({
+        churchId: user.churchId,
         title: input.title,
         categoryId: input.categoryId ?? null,
         recurrence,
@@ -399,10 +443,11 @@ export async function createEvent(user: CurrentUser, raw: unknown) {
       .returning();
     let first: typeof schema.event.$inferSelect | null = null;
     for (const date of dates) {
-      const ev = await insertOccurrence(tx, input, date, settings.timezone, series.id);
+      const ev = await insertOccurrence(tx, settings, input, date, series.id);
       first ??= ev;
     }
     await recordAudit(tx, {
+      churchId: user.churchId,
       actorId: user.id,
       entity: "series",
       entityId: series.id,
@@ -422,11 +467,11 @@ function minIso(a: string | undefined, b: string) {
  * a unicidade (série, data) impede duplicatas quando duas requisições rodam juntas, e datas
  * excluídas não voltam.
  */
-export async function extendSeries() {
-  const settings = await getSettings();
+export async function extendSeries(user: CurrentUser) {
+  const settings = await getSettings(user.churchId);
   const today = todayIso(settings.timezone);
   const horizon = addDaysIso(today, SERIES_HORIZON_DAYS);
-  const series = await db.query.eventSeries.findMany();
+  const series = await db.query.eventSeries.findMany({ where: inChurch(user, schema.eventSeries) });
   for (const s of series) {
     if (s.endDate && s.endDate < today) continue;
     // Pela data original da ocorrência: um encontro remarcado não abre buracos nem duplica a série.
@@ -450,6 +495,7 @@ export async function extendSeries() {
         for (const date of dates) {
           await insertOccurrence(
             tx,
+            settings,
             {
               title: s.title,
               categoryId: s.categoryId ?? undefined,
@@ -459,7 +505,6 @@ export async function extendSeries() {
               ministryIds: s.ministryIds,
             },
             date,
-            settings.timezone,
             s.id,
           );
         }
@@ -473,7 +518,10 @@ export async function extendSeries() {
 
 export async function updateEvent(user: CurrentUser, id: string, raw: unknown) {
   const input = eventInput.parse(raw);
-  const settings = await getSettings();
+  await assertEventRefs(user, input);
+  const existing = await db.query.event.findFirst({ where: and(eq(schema.event.id, id), inChurch(user, schema.event)), columns: { id: true } });
+  if (!existing) throw new ActionError("Encontro não encontrado.");
+  const settings = await getSettings(user.churchId);
   const startsAt = zonedToUtc(input.date, input.time, settings.timezone);
   await db.transaction(async (tx) => {
     await tx
@@ -497,10 +545,11 @@ export async function updateEvent(user: CurrentUser, id: string, raw: unknown) {
 }
 
 export async function setEventCancelled(user: CurrentUser, id: string, cancelled: boolean) {
-  const ev = await db.query.event.findFirst({ where: eq(schema.event.id, id) });
+  const ev = await db.query.event.findFirst({ where: and(eq(schema.event.id, id), inChurch(user, schema.event)) });
   if (!ev) throw new ActionError("Encontro não encontrado.");
   await db.update(schema.event).set({ cancelled, checkinOpen: false }).where(eq(schema.event.id, id));
   await recordAudit(db, {
+    churchId: user.churchId,
     actorId: user.id,
     entity: "event",
     entityId: id,
@@ -510,14 +559,14 @@ export async function setEventCancelled(user: CurrentUser, id: string, cancelled
 }
 
 export async function deleteEvent(user: CurrentUser, id: string, scope: "one" | "future" = "one") {
-  const ev = await db.query.event.findFirst({ where: eq(schema.event.id, id) });
+  const ev = await db.query.event.findFirst({ where: and(eq(schema.event.id, id), inChurch(user, schema.event)) });
   if (!ev) throw new ActionError("Encontro não encontrado.");
   await db.transaction(async (tx) => {
     if (scope === "future" && ev.seriesId) {
       await tx
         .delete(schema.event)
         .where(and(eq(schema.event.seriesId, ev.seriesId), gte(schema.event.startsAt, ev.startsAt)));
-      const settings = await getSettings();
+      const settings = await getSettings(user.churchId);
       await tx
         .update(schema.eventSeries)
         .set({ endDate: addDaysIso(isoDateInTz(ev.startsAt, settings.timezone), -1) })
@@ -536,6 +585,7 @@ export async function deleteEvent(user: CurrentUser, id: string, scope: "one" | 
       }
     }
     await recordAudit(tx, {
+      churchId: user.churchId,
       actorId: user.id,
       entity: "event",
       entityId: id,
@@ -548,8 +598,8 @@ export async function deleteEvent(user: CurrentUser, id: string, scope: "one" | 
   });
 }
 
-export async function setCheckinOpen(id: string, open: boolean) {
-  await db.update(schema.event).set({ checkinOpen: open }).where(eq(schema.event.id, id));
+export async function setCheckinOpen(user: CurrentUser, id: string, open: boolean) {
+  await db.update(schema.event).set({ checkinOpen: open }).where(and(eq(schema.event.id, id), inChurch(user, schema.event)));
 }
 
 /** Autoatendimento por QR: localiza pelo telefone e marca presença. */
@@ -563,9 +613,9 @@ export async function selfCheckin(token: string, phone: string) {
   const matches = await db
     .select({ id: schema.person.id, fullName: schema.person.fullName, preferredName: schema.person.preferredName })
     .from(schema.person)
-    .where(eq(schema.person.phoneDigits, digits));
+    .where(and(eq(schema.person.churchId, ev.churchId), eq(schema.person.phoneDigits, digits)));
   if (!matches.length) {
-    const settings = await getSettings();
+    const settings = await getSettings(ev.churchId);
     return { found: false as const, allowRegister: settings.allowSelfRegistration };
   }
   for (const p of matches) await setAttendance(null, ev.id, p.id, "present", "qr");
@@ -576,16 +626,18 @@ export async function selfCheckin(token: string, phone: string) {
 }
 
 export async function selfRegisterVisitor(token: string, fullName: string, phone: string) {
-  if (!(await getSettings()).allowSelfRegistration) {
-    throw new ActionError("Procure a equipe de recepção para fazer seu cadastro.");
-  }
   const ev = await getEventByToken(token);
   if (!ev || !ev.checkinOpen || ev.cancelled) {
     throw new ActionError("O check-in deste encontro não está aberto.");
   }
+  if (!(await getSettings(ev.churchId)).allowSelfRegistration) {
+    throw new ActionError("Procure a equipe de recepção para fazer seu cadastro.");
+  }
   const digits = normalizePhone(phone);
   if (digits.length < 10) throw new ActionError("Informe o celular com DDD.");
-  const existing = await db.query.person.findFirst({ where: eq(schema.person.phoneDigits, digits) });
+  const existing = await db.query.person.findFirst({
+    where: and(eq(schema.person.churchId, ev.churchId), eq(schema.person.phoneDigits, digits)),
+  });
   if (existing) {
     await setAttendance(null, ev.id, existing.id, "present", "qr");
     return existing;
@@ -595,19 +647,22 @@ export async function selfRegisterVisitor(token: string, fullName: string, phone
 
 /* ───────────── Categorias ───────────── */
 
-export async function listCategories() {
-  return db.query.eventCategory.findMany({ orderBy: asc(schema.eventCategory.name) });
+export async function listCategories(user: CurrentUser) {
+  return db.query.eventCategory.findMany({ where: inChurch(user, schema.eventCategory), orderBy: asc(schema.eventCategory.name) });
 }
 
-export async function saveCategory(id: string | null, raw: unknown) {
+export async function saveCategory(user: CurrentUser, id: string | null, raw: unknown) {
   const input = categoryInput.parse(raw);
   if (id) {
-    await db.update(schema.eventCategory).set(input).where(eq(schema.eventCategory.id, id));
+    await db
+      .update(schema.eventCategory)
+      .set(input)
+      .where(and(eq(schema.eventCategory.id, id), inChurch(user, schema.eventCategory)));
   } else {
-    await db.insert(schema.eventCategory).values(input);
+    await db.insert(schema.eventCategory).values({ ...input, churchId: user.churchId });
   }
 }
 
-export async function deleteCategory(id: string) {
-  await db.delete(schema.eventCategory).where(eq(schema.eventCategory.id, id));
+export async function deleteCategory(user: CurrentUser, id: string) {
+  await db.delete(schema.eventCategory).where(and(eq(schema.eventCategory.id, id), inChurch(user, schema.eventCategory)));
 }

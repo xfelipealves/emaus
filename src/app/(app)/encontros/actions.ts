@@ -65,8 +65,7 @@ export async function quickVisitorAction(eventId: string, fullName: string, phon
 
 export async function setCheckinOpenAction(eventId: string, open: boolean) {
   return runAction(async () => {
-    await requireEventManager();
-    await setCheckinOpen(eventId, open);
+    await setCheckinOpen(await requireEventManager(), eventId, open);
   }, open ? "Check-in por QR aberto" : "Check-in por QR fechado");
 }
 

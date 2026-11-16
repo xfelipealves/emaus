@@ -13,7 +13,7 @@ export default async function KioskPage({ params }: { params: Promise<{ id: stri
   const user = await requireUser();
   const ev = await getEvent(user, id);
   if (!ev || ev.cancelled) notFound();
-  const [settings, roster] = await Promise.all([getSettings(), attendanceRoster(user, id)]);
+  const [settings, roster] = await Promise.all([getSettings(user.churchId), attendanceRoster(user, id)]);
   const tz = settings.timezone;
   return (
     <Kiosk

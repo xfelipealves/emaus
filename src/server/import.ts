@@ -6,7 +6,7 @@ import { HOUSEHOLD_ROLE_LABEL, STATUS_LABEL } from "@/lib/labels";
 import { normalizePhone, normalizeSearch } from "@/lib/text";
 import { recordAudit, recordTimeline } from "./history";
 import { listPeople } from "./people";
-import type { CurrentUser } from "./session";
+import { type CurrentUser, inChurch } from "./session";
 import { getSettings } from "./settings";
 
 export type ImportSummary = {
@@ -20,16 +20,16 @@ export async function importPeople(
   rows: Record<string, string>[],
   mapping: Partial<Record<ImportField, string>>,
 ): Promise<ImportSummary> {
-  const settings = await getSettings();
+  const settings = await getSettings(user.churchId);
   const today = todayIso(settings.timezone);
   const get = (row: Record<string, string>, f: ImportField) =>
     mapping[f] ? row[mapping[f]!]?.trim() || undefined : undefined;
 
-  const existing = await db.select().from(schema.person);
+  const existing = await db.select().from(schema.person).where(inChurch(user, schema.person));
   const byPhone = new Map(existing.filter((p) => p.phoneDigits).map((p) => [p.phoneDigits!, p]));
   const byName = new Set(existing.map((p) => normalizeSearch(p.fullName)));
   const houses = new Map(
-    (await db.select().from(schema.household)).map((h) => [normalizeSearch(h.name), h.id]),
+    (await db.select().from(schema.household).where(inChurch(user, schema.household))).map((h) => [normalizeSearch(h.name), h.id]),
   );
 
   const summary: ImportSummary = { created: 0, skipped: [], households: 0 };
@@ -55,7 +55,7 @@ export async function importPeople(
         const key = normalizeSearch(houseName);
         householdId = houses.get(key) ?? null;
         if (!householdId) {
-          const [h] = await tx.insert(schema.household).values({ name: houseName }).returning();
+          const [h] = await tx.insert(schema.household).values({ churchId: user.churchId, name: houseName }).returning();
           houses.set(key, h.id);
           householdId = h.id;
           summary.households++;
@@ -66,6 +66,7 @@ export async function importPeople(
       const [created] = await tx
         .insert(schema.person)
         .values({
+          churchId: user.churchId,
           fullName,
           preferredName: get(row, "preferredName") ?? null,
           status,
@@ -82,6 +83,7 @@ export async function importPeople(
         })
         .returning();
       await recordTimeline(tx, {
+        churchId: user.churchId,
         personId: created.id,
         actorId: user.id,
         kind: "registered",
@@ -92,6 +94,7 @@ export async function importPeople(
       summary.created++;
     }
     await recordAudit(tx, {
+      churchId: user.churchId,
       actorId: user.id,
       entity: "person",
       entityId: "import",
@@ -105,7 +108,7 @@ export async function importPeople(
 export async function exportPeopleRows(user: CurrentUser) {
   const people = await listPeople(user);
   const houses = new Map(
-    (await db.select().from(schema.household)).map((h) => [h.id, h]),
+    (await db.select().from(schema.household).where(inChurch(user, schema.household))).map((h) => [h.id, h]),
   );
   return people.map((p) => ({
     "Nome completo": p.fullName,

@@ -7,6 +7,7 @@ type Executor = typeof db | Tx;
 export async function recordTimeline(
   exec: Executor,
   entry: {
+    churchId: string;
     personId: string;
     actorId?: string | null;
     kind: (typeof TIMELINE_KINDS)[number];
@@ -21,6 +22,7 @@ export async function recordTimeline(
 export async function recordAudit(
   exec: Executor,
   entry: {
+    churchId: string;
     actorId: string | null;
     entity: string;
     entityId: string;

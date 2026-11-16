@@ -10,7 +10,7 @@ export async function createHouseholdAction(form: FormData) {
   return runAction(async () => {
     const user = await requireUser();
     if (user.role === "leader") throw new ActionError("Sem permissão para criar famílias.");
-    const h = await createHousehold(formToObject(form));
+    const h = await createHousehold(user, formToObject(form));
     return { id: h.id };
   }, "Família criada");
 }
@@ -19,14 +19,14 @@ export async function updateHouseholdAction(id: string, form: FormData) {
   return runAction(async () => {
     const user = await requireUser();
     if (user.role === "leader") throw new ActionError("Sem permissão para editar famílias.");
-    await updateHousehold(id, formToObject(form));
+    await updateHousehold(user, id, formToObject(form));
   }, "Família atualizada");
 }
 
 export async function deleteHouseholdAction(id: string) {
   const user = await requireUser();
   if (user.role === "leader") return { ok: false as const, error: "Sem permissão." };
-  const result = await runAction(() => deleteHousehold(id));
+  const result = await runAction(() => deleteHousehold(user, id));
   if (result.ok) redirect("/familias");
   return result;
 }

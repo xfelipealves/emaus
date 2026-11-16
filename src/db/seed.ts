@@ -14,6 +14,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { sql } from "drizzle-orm";
 import type { HouseholdRole, PersonStatus } from "./schema";
 import { auth } from "../lib/auth";
+import { isDemoMode } from "../lib/demo";
 import { addDaysIso, isoDateInTz, todayIso, weekdayOfIso, zonedToUtc } from "../lib/dates";
 import { occurrences } from "../lib/recurrence";
 import { normalizePhone } from "../lib/text";
@@ -51,8 +52,8 @@ async function reset() {
   const tables = [
     "audit_log", "timeline_event", "follow_up", "note", "attendance", "event_ministry",
     "event", "event_series", "event_category", "user_ministry_access", "membership",
-    "ministry", "session", "account", "verification", "user", "person", "household",
-    "church_settings",
+    "ministry", "ai_step", "ai_run", "ai_conversation", "session", "account", "verification", "user",
+    "person", "household", "church",
   ];
   for (const t of tables) await db.run(sql.raw(`DELETE FROM "${t}"`));
 }
@@ -98,19 +99,24 @@ async function main() {
   const age = (p: Draft) => Number(today.slice(0, 4)) - Number(p.birthDate.slice(0, 4));
   await reset();
 
-  await db.insert(schema.churchSettings).values({ id: 1, name: CHURCH, timezone: TZ, careThresholdDays: 21 });
+  // Deploy de demonstração pública: a igreja semeada fica travada (contas e IA protegidas).
+  const [church] = await db
+    .insert(schema.church)
+    .values({ slug: "buriti-sereno", name: CHURCH, timezone: TZ, careThresholdDays: 21, demo: isDemoMode() })
+    .returning();
+  const churchId = church.id;
 
   /* ───────────── Ministérios e categorias (estrutura real) ───────────── */
   const ministries = await db
     .insert(schema.ministry)
     .values([
-      { name: "Louvor", description: "Ministério de louvor: escalas de domingo e quarta, ensaios e a Cantata de Natal.", color: "plum" },
-      { name: "Mídia", description: "Escala mensal: computador, iluminação, fotos, stories e cerimonial nos cultos de domingo e quarta.", color: "sky" },
-      { name: "New Mind", description: "Adolescentes. Culto aos sábados às 17h (série Fruto do Espírito), discipulado às quintas e jejum semanal da liderança.", color: "ember" },
-      { name: "Metanoia", description: "Jovens. Acampamentos e Revival Night; a liderança forma a equipe de Supervisão.", color: "teal" },
-      { name: "New Song", description: "Banda de louvor dos adolescentes. Escala e ensaio aos sábados às 15h30, antes do New Mind.", color: "gold" },
-      { name: "Homens de Honra", description: "Ministério de homens: encontros “Homens ao Máximo” às quintas.", color: "slate" },
-      { name: "Casa de Paz", description: "Rede de células “Paixão e Ousadia”: lições às terças nas casas (série Milagres).", color: "sage" },
+      { churchId, name: "Louvor", description: "Ministério de louvor: escalas de domingo e quarta, ensaios e a Cantata de Natal.", color: "plum" },
+      { churchId, name: "Mídia", description: "Escala mensal: computador, iluminação, fotos, stories e cerimonial nos cultos de domingo e quarta.", color: "sky" },
+      { churchId, name: "New Mind", description: "Adolescentes. Culto aos sábados às 17h (série Fruto do Espírito), discipulado às quintas e jejum semanal da liderança.", color: "ember" },
+      { churchId, name: "Metanoia", description: "Jovens. Acampamentos e Revival Night; a liderança forma a equipe de Supervisão.", color: "teal" },
+      { churchId, name: "New Song", description: "Banda de louvor dos adolescentes. Escala e ensaio aos sábados às 15h30, antes do New Mind.", color: "gold" },
+      { churchId, name: "Homens de Honra", description: "Ministério de homens: encontros “Homens ao Máximo” às quintas.", color: "slate" },
+      { churchId, name: "Casa de Paz", description: "Rede de células “Paixão e Ousadia”: lições às terças nas casas (série Milagres).", color: "sage" },
     ])
     .returning();
   const M = Object.fromEntries(ministries.map((m) => [m.name, m.id])) as Record<string, string>;
@@ -118,14 +124,14 @@ async function main() {
   const categories = await db
     .insert(schema.eventCategory)
     .values([
-      { name: "Culto", color: "ember" },
-      { name: "Adolescentes", color: "gold" },
-      { name: "Jovens", color: "teal" },
-      { name: "Discipulado", color: "sky" },
-      { name: "Célula", color: "sage" },
-      { name: "Homens", color: "slate" },
-      { name: "Ensaio", color: "plum" },
-      { name: "Evento", color: "rose" },
+      { churchId, name: "Culto", color: "ember" },
+      { churchId, name: "Adolescentes", color: "gold" },
+      { churchId, name: "Jovens", color: "teal" },
+      { churchId, name: "Discipulado", color: "sky" },
+      { churchId, name: "Célula", color: "sage" },
+      { churchId, name: "Homens", color: "slate" },
+      { churchId, name: "Ensaio", color: "plum" },
+      { churchId, name: "Evento", color: "rose" },
     ])
     .returning();
   const C = Object.fromEntries(categories.map((c) => [c.name, c.id])) as Record<string, string>;
@@ -145,7 +151,7 @@ async function main() {
     const surname = surnames[h % surnames.length];
     const id = crypto.randomUUID();
     const address = `${pick(STREETS)}, Qd. ${Math.floor(1 + rand() * 60)} Lt. ${Math.floor(1 + rand() * 30)} — Buriti Sereno`;
-    households.push({ id, name: `Família ${surname}`, address });
+    households.push({ id, churchId, name: `Família ${surname}`, address });
     const isVisitor = h >= 42;
     const status: PersonStatus = isVisitor ? "visitor" : "member";
     const engagement = 0.45 + rand() * 0.5;
@@ -238,6 +244,7 @@ async function main() {
     .values(
       people.map(({ engagement: _e, real: _r, ministries: _m, ...p }) => ({
         ...p,
+        churchId,
         phoneDigits: p.phone ? normalizePhone(p.phone) : null,
         createdAt: new Date(Date.now() - 220 * 86_400_000),
       })),
@@ -245,6 +252,7 @@ async function main() {
     .returning();
   for (const p of created) {
     await db.insert(schema.timelineEvent).values({
+      churchId,
       personId: p.id,
       kind: "registered",
       title: p.status === "visitor" ? "Primeira visita registrada" : "Cadastrado como membro",
@@ -260,7 +268,7 @@ async function main() {
     const key = `${p.id}:${ministry}`;
     if (joined.has(key)) return;
     joined.add(key);
-    memberships.push({ personId: p.id, ministryId: M[ministry], role, startDate: startDate ?? addDaysIso(today, -Math.floor(40 + rand() * 900)) });
+    memberships.push({ churchId, personId: p.id, ministryId: M[ministry], role, startDate: startDate ?? addDaysIso(today, -Math.floor(40 + rand() * 900)) });
   };
   const teens = active.filter((p) => age(p) >= 12 && age(p) <= 17);
   const youth = active.filter((p) => age(p) >= 18 && age(p) <= 29);
@@ -323,6 +331,7 @@ async function main() {
     const [ev] = await db
       .insert(schema.event)
       .values({
+        churchId,
         title: opts.title,
         description: opts.description ?? null,
         categoryId: C[opts.category],
@@ -360,6 +369,7 @@ async function main() {
     const [series] = await db
       .insert(schema.eventSeries)
       .values({
+        churchId,
         title: d.title,
         categoryId: C[d.category],
         recurrence: "weekly",
@@ -414,6 +424,7 @@ async function main() {
       // Encontros de ministério registram ausências; cultos abertos só presença.
       if (present || (tracksAbsence && chance(0.6))) {
         records.push({
+          churchId,
           eventId: ev.id,
           personId: p.id,
           status: present ? "present" : "absent",
@@ -438,7 +449,7 @@ async function main() {
   ];
   const users: Record<string, string> = {};
   for (const a of accounts) {
-    const u = await ctx.internalAdapter.createUser({ ...a, displayUsername: a.username, active: true }, { method: "admin" });
+    const u = await ctx.internalAdapter.createUser({ ...a, churchId, displayUsername: a.username, active: true }, { method: "admin" });
     await ctx.internalAdapter.linkAccount({ userId: u.id, providerId: "credential", accountId: u.id, password: hash });
     users[a.username] = u.id;
   }
@@ -456,11 +467,12 @@ async function main() {
     [pickMember((p) => p.householdRole === "head"), "Abriu a casa para a célula na próxima terça.", false],
   ];
   for (const [i, [p, text, pinned]] of notes.entries()) {
-    await db.insert(schema.note).values({ personId: p.id, authorId: users.admin, content: text, pinned, createdAt: new Date(now - (i + 1) * 3 * 86_400_000) });
+    await db.insert(schema.note).values({ churchId, personId: p.id, authorId: users.admin, content: text, pinned, createdAt: new Date(now - (i + 1) * 3 * 86_400_000) });
   }
   // Anotação confidencial: só administradores (pastores) enxergam.
   const counseled = pickMember((p) => p.householdRole === "child" && age(p) >= 13 && age(p) <= 17, 1);
   await db.insert(schema.note).values({
+    churchId,
     personId: counseled.id,
     authorId: users.admin,
     content: "Atendimento pastoral com a família. Situação delicada em casa; acompanhar com discrição e não comentar com a equipe.",
@@ -471,10 +483,10 @@ async function main() {
   const away = people.filter((p) => p.engagement < 0);
   const firstVisitor = people.find((p) => p.status === "visitor")!;
   await db.insert(schema.followUp).values([
-    { personId: away[0].id, title: "Ligar para saber como está", kind: "call", assigneeId: users.admin, createdById: users.admin, dueDate: addDaysIso(today, 1) },
-    { personId: away[1].id, title: "Visita com a liderança da Casa de Paz", kind: "visit", assigneeId: users.secretaria, createdById: users.admin, dueDate: addDaysIso(today, 4) },
-    { personId: firstVisitor.id, title: "Mensagem de boas-vindas", kind: "message", assigneeId: users.admin, createdById: users.admin, dueDate: today },
-    { personId: notes[0][0].id, title: "Orar pela família no culto de quarta", kind: "prayer", assigneeId: users.admin, createdById: users.admin, dueDate: addDaysIso(today, 2) },
+    { churchId, personId: away[0].id, title: "Ligar para saber como está", kind: "call", assigneeId: users.admin, createdById: users.admin, dueDate: addDaysIso(today, 1) },
+    { churchId, personId: away[1].id, title: "Visita com a liderança da Casa de Paz", kind: "visit", assigneeId: users.secretaria, createdById: users.admin, dueDate: addDaysIso(today, 4) },
+    { churchId, personId: firstVisitor.id, title: "Mensagem de boas-vindas", kind: "message", assigneeId: users.admin, createdById: users.admin, dueDate: today },
+    { churchId, personId: notes[0][0].id, title: "Orar pela família no culto de quarta", kind: "prayer", assigneeId: users.admin, createdById: users.admin, dueDate: addDaysIso(today, 2) },
   ]);
 
   console.log(`Seed concluído (${CHURCH}): ${created.length} pessoas, ${households.length} famílias, ${all.length} encontros, ${records.length} registros de presença.`);

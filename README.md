@@ -68,7 +68,8 @@ flowchart LR
 - **Bounded execution:** a maximum of 12 agent iterations per turn, request validation, per-user rate limiting, and provider retry handling.
 - **Conversation integrity:** history belongs to its user and access scope; concurrent turns are locked. Completed writes remain saved if a later step fails.
 - **Human confirmation for deletion:** the deletion tool returns a profile link and instructions; deletion happens through the application’s confirmation UI.
-- **LLMOps:** an admin dashboard tracks estimated spend, token and cache usage, p50/p95 latency, errors, tool usage, users, and response feedback.
+- **LLMOps:** a per-step trace (model and tool calls with tokens, cost, latency, and errors), a church dashboard with a trace view per question, daily USD caps per church, per person, and platform-wide, and 👎 review with JSONL evaluation-case export.
+- **Multi-tenant:** each church's data is isolated by `church_id`; a platform board lets the operator create churches, suspend access, set AI caps, and watch usage per church without seeing pastoral data.
 
 Read the [assistant engineering guide](docs/ai-assistant.md) for the tool catalog, streaming contract, provider configuration, privacy boundaries, and limitations.
 
@@ -194,6 +195,7 @@ deploy/                  Legacy Raspberry Pi deployment scripts
 | `npm run db:generate` | Generate SQL migrations from the schema. |
 | `npm run db:migrate` | Apply committed migrations. |
 | `npm run db:seed` | Replace data with the demo scenario (destructive). |
+| `npm run platform:admin -- <user>` | Create or rotate a platform operator account. |
 | `npm run db:studio` | Open Drizzle Studio. |
 
 See the [development guide](docs/development.md) for environment loading, testing boundaries, deployment, backups, and troubleshooting. The current unit suite does not establish end-to-end coverage of the assistant or authorization flows.

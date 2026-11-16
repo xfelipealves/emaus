@@ -1,13 +1,16 @@
 import "server-only";
-import { and, asc, desc, eq, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db, schema } from "@/db";
 import { ROLES } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { ROLE_LABEL } from "@/lib/labels";
-import { isDemoMode, DEMO_MANAGEMENT_MESSAGE } from "@/lib/demo";
+import { DEMO_MANAGEMENT_MESSAGE } from "@/lib/demo";
 import { recordAudit } from "./history";
-import { ActionError, type CurrentUser } from "./session";
+import { ActionError, type CurrentUser, inChurch } from "./session";
+
+/** Quem cria ou altera contas: um administrador da igreja ou a plataforma agindo nela. */
+type AccountActor = Pick<CurrentUser, "id" | "churchId" | "demo">;
 
 const usernameRule = z
   .string()
@@ -26,17 +29,20 @@ export const userInput = z.object({
 
 export const passwordRule = z.string().min(8, "A senha precisa ter ao menos 8 caracteres").max(128);
 
-function requireMutableAccounts() {
-  if (isDemoMode()) throw new ActionError(DEMO_MANAGEMENT_MESSAGE);
+function requireMutableAccounts(actor: AccountActor) {
+  if (actor.demo) throw new ActionError(DEMO_MANAGEMENT_MESSAGE);
 }
 
-export async function listUsers() {
+export async function listUsers(churchId: string) {
   const seen = await db
     .select({ userId: schema.session.userId, last: sql<number>`max(${schema.session.updatedAt})` })
     .from(schema.session)
+    .innerJoin(schema.user, eq(schema.user.id, schema.session.userId))
+    .where(eq(schema.user.churchId, churchId))
     .groupBy(schema.session.userId);
   const lastSeen = new Map(seen.map((s) => [s.userId, new Date(s.last)]));
   const users = await db.query.user.findMany({
+    where: eq(schema.user.churchId, churchId),
     orderBy: [desc(schema.user.active), asc(schema.user.name)],
     with: {
       ministryAccess: { with: { ministry: { columns: { id: true, name: true, color: true } } } },
@@ -60,16 +66,39 @@ async function ensureUnique(username: string, email: string, exceptId?: string) 
   if (mail) throw new ActionError("Esse e-mail já está em uso.");
 }
 
+/** Pessoa e ministérios vinculados à conta precisam ser da igreja dela. */
+async function assertAccountRefs(churchId: string, input: z.output<typeof userInput>) {
+  if (input.personId) {
+    const person = await db.query.person.findFirst({
+      where: and(eq(schema.person.id, input.personId), eq(schema.person.churchId, churchId)),
+      columns: { id: true },
+    });
+    if (!person) throw new ActionError("Pessoa não encontrada.");
+  }
+  const ministryIds = [...new Set(input.ministryIds)];
+  if (input.role === "leader" && ministryIds.length) {
+    const found = await db
+      .select({ id: schema.ministry.id })
+      .from(schema.ministry)
+      .where(and(eq(schema.ministry.churchId, churchId), inArray(schema.ministry.id, ministryIds)));
+    if (found.length !== ministryIds.length) throw new ActionError("Ministério não encontrado.");
+  }
+}
+
+/** Conta da igreja do ator; contas de outras igrejas não existem para ele. */
+async function findAccount(actor: AccountActor, id: string) {
+  const row = await db.query.user.findFirst({ where: and(eq(schema.user.id, id), eq(schema.user.churchId, actor.churchId)) });
+  if (!row) throw new ActionError("Usuário não encontrado.");
+  return row;
+}
+
 /** Cria conta com senha diretamente pelo adaptador interno (cadastro público desligado). */
-export async function createUserAccount(
-  actor: CurrentUser | null,
-  raw: unknown,
-  password: string,
-) {
-  requireMutableAccounts();
+export async function createUserAccount(actor: AccountActor, raw: unknown, password: string) {
+  requireMutableAccounts(actor);
   const input = userInput.parse(raw);
   passwordRule.parse(password);
   await ensureUnique(input.username, input.email);
+  await assertAccountRefs(actor.churchId, input);
   const ctx = await auth.$context;
   const created = await ctx.internalAdapter.createUser({
     name: input.name,
@@ -80,6 +109,7 @@ export async function createUserAccount(
     active: true,
     mustChangePassword: true,
     personId: input.personId ?? null,
+    churchId: actor.churchId,
   }, { method: "admin" });
   await ctx.internalAdapter.linkAccount({
     userId: created.id,
@@ -89,7 +119,8 @@ export async function createUserAccount(
   });
   await setMinistryAccess(created.id, input.role === "leader" ? input.ministryIds : []);
   await recordAudit(db, {
-    actorId: actor?.id ?? null,
+    churchId: actor.churchId,
+    actorId: actor.id,
     entity: "user",
     entityId: created.id,
     action: "create",
@@ -107,23 +138,23 @@ async function setMinistryAccess(userId: string, ministryIds: string[]) {
   }
 }
 
-async function adminCount() {
+async function adminCount(churchId: string) {
   const admins = await db.query.user.findMany({
-    where: and(eq(schema.user.role, "admin"), eq(schema.user.active, true)),
+    where: and(eq(schema.user.churchId, churchId), eq(schema.user.role, "admin"), eq(schema.user.active, true)),
     columns: { id: true },
   });
   return admins.length;
 }
 
 export async function updateUserAccount(actor: CurrentUser, id: string, raw: unknown) {
-  requireMutableAccounts();
+  requireMutableAccounts(actor);
   const input = userInput.parse(raw);
-  const before = await db.query.user.findFirst({ where: eq(schema.user.id, id) });
-  if (!before) throw new ActionError("Usuário não encontrado.");
-  if (before.role === "admin" && input.role !== "admin" && (await adminCount()) <= 1) {
+  const before = await findAccount(actor, id);
+  if (before.role === "admin" && input.role !== "admin" && (await adminCount(actor.churchId)) <= 1) {
     throw new ActionError("A igreja precisa de ao menos um administrador ativo.");
   }
   await ensureUnique(input.username, input.email, id);
+  await assertAccountRefs(actor.churchId, input);
   await db
     .update(schema.user)
     .set({
@@ -138,6 +169,7 @@ export async function updateUserAccount(actor: CurrentUser, id: string, raw: unk
   await setMinistryAccess(id, input.role === "leader" ? input.ministryIds : []);
   if (before.role !== input.role) {
     await recordAudit(db, {
+      churchId: actor.churchId,
       actorId: actor.id,
       entity: "user",
       entityId: id,
@@ -150,16 +182,16 @@ export async function updateUserAccount(actor: CurrentUser, id: string, raw: unk
 }
 
 export async function setUserActive(actor: CurrentUser, id: string, active: boolean) {
-  requireMutableAccounts();
+  requireMutableAccounts(actor);
   if (actor.id === id && !active) throw new ActionError("Você não pode desativar a própria conta.");
-  const before = await db.query.user.findFirst({ where: eq(schema.user.id, id) });
-  if (!before) throw new ActionError("Usuário não encontrado.");
-  if (!active && before.role === "admin" && (await adminCount()) <= 1) {
+  const before = await findAccount(actor, id);
+  if (!active && before.role === "admin" && (await adminCount(actor.churchId)) <= 1) {
     throw new ActionError("A igreja precisa de ao menos um administrador ativo.");
   }
   await db.update(schema.user).set({ active }).where(eq(schema.user.id, id));
   if (!active) await db.delete(schema.session).where(eq(schema.session.userId, id));
   await recordAudit(db, {
+    churchId: actor.churchId,
     actorId: actor.id,
     entity: "user",
     entityId: id,
@@ -169,10 +201,9 @@ export async function setUserActive(actor: CurrentUser, id: string, active: bool
 }
 
 export async function resetUserPassword(actor: CurrentUser, id: string, password: string) {
-  requireMutableAccounts();
+  requireMutableAccounts(actor);
   passwordRule.parse(password);
-  const target = await db.query.user.findFirst({ where: eq(schema.user.id, id) });
-  if (!target) throw new ActionError("Usuário não encontrado.");
+  const target = await findAccount(actor, id);
   const ctx = await auth.$context;
   await ctx.internalAdapter.updatePassword(id, await ctx.password.hash(password));
   // Senha definida por outra pessoa é provisória: sessões caem e a troca vira obrigatória.
@@ -181,6 +212,7 @@ export async function resetUserPassword(actor: CurrentUser, id: string, password
     await db.update(schema.user).set({ mustChangePassword: true }).where(eq(schema.user.id, id));
   }
   await recordAudit(db, {
+    churchId: actor.churchId,
     actorId: actor.id,
     entity: "user",
     entityId: id,
@@ -190,12 +222,12 @@ export async function resetUserPassword(actor: CurrentUser, id: string, password
 }
 
 export async function revokeUserSessions(actor: CurrentUser, id: string) {
-  requireMutableAccounts();
-  const target = await db.query.user.findFirst({ where: eq(schema.user.id, id) });
-  if (!target) throw new ActionError("Usuário não encontrado.");
+  requireMutableAccounts(actor);
+  const target = await findAccount(actor, id);
   if (actor.id === id) throw new ActionError("Use “Sair” para encerrar a sua própria sessão.");
   await db.delete(schema.session).where(eq(schema.session.userId, id));
   await recordAudit(db, {
+    churchId: actor.churchId,
     actorId: actor.id,
     entity: "user",
     entityId: id,
@@ -204,8 +236,9 @@ export async function revokeUserSessions(actor: CurrentUser, id: string) {
   });
 }
 
-export async function listAudit(limit = 200) {
+export async function listAudit(user: CurrentUser, limit = 200) {
   return db.query.auditLog.findMany({
+    where: inChurch(user, schema.auditLog),
     orderBy: desc(schema.auditLog.createdAt),
     with: { actor: { columns: { name: true } } },
     limit,

@@ -7,10 +7,9 @@ import { MobileNav } from "@/components/app/mobile-nav";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { db, schema } from "@/db";
 import { listPeople } from "@/server/people";
-import { requireUser } from "@/server/session";
+import { inChurch, requireUser } from "@/server/session";
 import { getSettings } from "@/server/settings";
 import { displayName } from "@/lib/text";
-import { isDemoMode } from "@/lib/demo";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   // O layout também envolve /conta; as demais páginas barram a senha provisória no próprio requireUser.
@@ -19,13 +18,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     redirect("/conta?primeiro-acesso=1");
   }
   const [settings, people, [followUps], cookieStore] = await Promise.all([
-    getSettings(),
+    getSettings(user.churchId),
     // Senha provisória: nada de dados pastorais antes da troca.
     user.mustChangePassword ? [] : listPeople(user),
     db
       .select({ n: sql<number>`count(*)` })
       .from(schema.followUp)
-      .where(and(isNull(schema.followUp.doneAt), eq(schema.followUp.assigneeId, user.id))),
+      .where(and(inChurch(user, schema.followUp), isNull(schema.followUp.doneAt), eq(schema.followUp.assigneeId, user.id))),
     cookies(),
   ]);
   const badges = { followUps: followUps?.n ?? 0 };
@@ -33,13 +32,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <SidebarProvider defaultOpen={cookieStore.get("sidebar_state")?.value !== "false"}>
       <AppSidebar
-        user={{ id: user.id, name: user.name, role: user.role, username: user.username }}
+        user={{ id: user.id, name: user.name, role: user.role, username: user.username, platformAdmin: user.platformAdmin }}
         churchName={settings.name}
         badges={badges}
       />
       <SidebarInset className="min-w-0">
         <div className="mx-auto w-full max-w-6xl px-4 pt-6 pb-28 sm:px-6 md:pt-8 md:pb-12 lg:px-10">
-          {isDemoMode() && (
+          {user.demo && (
             <div role="status" className="mb-6 rounded-xl border bg-muted/50 px-4 py-3 text-sm text-muted-foreground">
               Demonstração pública · Dados fictícios e compartilhados. Não cadastre informações pessoais reais. Contas e configuração de IA estão protegidas.
             </div>

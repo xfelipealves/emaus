@@ -19,12 +19,12 @@ type Search = { view?: string; mes?: string; novo?: string };
 export default async function EventsPage({ searchParams }: { searchParams: Promise<Search> }) {
   const user = await requireUser();
   const params = await searchParams;
-  await extendSeries();
-  const settings = await getSettings();
+  await extendSeries(user);
+  const settings = await getSettings(user.churchId);
   const tz = settings.timezone;
   const today = todayIso(tz);
   const view = params.view === "calendario" ? "calendar" : "list";
-  const [categories, ministries] = await Promise.all([listCategories(), listMinistries(user)]);
+  const [categories, ministries] = await Promise.all([listCategories(user), listMinistries(user)]);
 
   return (
     <>

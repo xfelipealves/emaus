@@ -8,7 +8,7 @@ export async function GET() {
   const user = await getCurrentUser();
   if (!user || user.mustChangePassword) return new Response("Não autenticado", { status: 401 });
   if (user.role === "leader") return new Response("Sem permissão", { status: 403 });
-  const settings = await getSettings();
+  const settings = await getSettings(user.churchId);
   const csv = toCsv(await exportPeopleRows(user));
   return new Response(csv, {
     headers: {

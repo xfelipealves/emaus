@@ -30,6 +30,16 @@ npm run db:migrate
 
 Review generated SQL before applying it. The local client enables WAL, foreign keys, and a busy timeout. Hosted installations use Turso/libSQL through the same Drizzle schema.
 
+Data is multi-tenant: every community table has a `church_id`, and server functions filter by the signed-in user's church. A new query on one of those tables must filter by church too, either with `inChurch(user, table)` or by loading a parent row that was already church-checked. Usernames and e-mails stay unique across churches.
+
+Platform operators (`user.platform_admin`) manage churches at `/plataforma`: create a church with its first administrator, suspend or reactivate access, set daily AI caps, and inspect aggregate usage. Create or rotate an operator account, which has no church of its own, with:
+
+```bash
+npm run platform:admin -- <username> [email]
+```
+
+The password is generated and printed once. Re-running the command for an existing username renews the password and ends its sessions.
+
 `npm run db:seed` is a destructive demo-data operation. Use a fresh local database, not a production or shared database. It creates demo users, people, households, ministries, recurring events, and attendance. Without `data/roster.json`, people are generated; the ministry structure and event themes are inspired by a real church.
 
 The optional `scripts/extract-whatsapp-roster.mjs` is a machine-specific roster import helper for an authorized local WhatsApp/nchat installation. It is not a setup prerequisite. Its output remains local in `data/roster.json`; exclude it from public demos because the seed will otherwise import real names.
@@ -67,7 +77,7 @@ The public URL uses the separate `emaus-public-demo` Turso database. The previou
 
 The demo seed was created in an isolated local directory without a roster export, using `SEED_PASSWORD=admin`, then imported into the new database. This uses the seed’s internal password hashing; it does not lower the normal password validation policy. The public account is `admin` / `admin`.
 
-Demo mode displays a persistent disclosure, blocks account-management operations through both application actions and the auth API, protects AI provider settings, and limits aggregate assistant requests to 3 per minute and 100 per rolling 24-hour window. Changes to synthetic community records are shared. There is no scheduled reset; maintainers can recreate the disposable demo from a fresh synthetic seed when necessary. Do not seed the preserved database.
+Demo restrictions apply per church (`church.demo`). With `EMAUS_DEMO_MODE=true`, the seed marks its church as a demo and the login page shows the demo credentials. Churches created from the platform board are not demos and behave normally, but share the deployment's database. A demo church displays a persistent disclosure, blocks account-management operations through both application actions and the auth API, protects AI provider settings, and limits aggregate assistant requests to 3 per minute and 100 per rolling 24-hour window. Changes to synthetic community records are shared. There is no scheduled reset; maintainers can recreate the disposable demo from a fresh synthetic seed when necessary. Do not seed the preserved database.
 
 To return to the private installation, securely restore its database URL/token and authentication configuration, disable `EMAUS_DEMO_MODE`, and redeploy. The public demo password must never be used for an installation containing real records.
 

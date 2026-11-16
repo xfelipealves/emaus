@@ -24,7 +24,7 @@ export default async function HouseholdPage({ params }: { params: Promise<{ id: 
   const user = await requireUser();
   const house = await getHousehold(user, id);
   if (!house) notFound();
-  const [settings, people] = await Promise.all([getSettings(), listPeople(user)]);
+  const [settings, people] = await Promise.all([getSettings(user.churchId), listPeople(user)]);
   const today = todayIso(settings.timezone);
   const members = [...house.members].sort((a, b) => ORDER.indexOf(a.householdRole ?? "other") - ORDER.indexOf(b.householdRole ?? "other"));
   const canEdit = user.role !== "leader";
