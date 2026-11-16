@@ -3,7 +3,7 @@ import { KeyRound, Sparkles } from "lucide-react";
 import type { Metadata } from "next";
 import { PageHeader } from "@/components/app/page-header";
 import { db, schema } from "@/db";
-import { canReuseConversation, isAiConfigured } from "@/server/ai/agent";
+import { canReuseConversation, isAiConfigured, stripSentAt } from "@/server/ai/agent";
 import { redirect } from "next/navigation";
 import { TOOL_BY_NAME } from "@/server/ai/tools";
 import { requireUser } from "@/server/session";
@@ -48,7 +48,7 @@ function toTurns(messages: Stored[], runs: { id: string; rating: number | null }
   for (const m of messages) {
     if (m.role === "user" && typeof m.content === "string") {
       const run = runs[turns.length];
-      turns.push({ prompt: m.content, parts: [], runId: run?.id ?? null, rating: (run?.rating as 1 | -1 | null) ?? null });
+      turns.push({ prompt: stripSentAt(m.content), parts: [], runId: run?.id ?? null, rating: (run?.rating as 1 | -1 | null) ?? null });
       continue;
     }
     const turn = turns[turns.length - 1];

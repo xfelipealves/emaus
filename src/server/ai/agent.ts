@@ -166,6 +166,18 @@ export type AgentEvent =
   | { type: "done"; runId: string; costUsd: number; latencyMs: number }
   | { type: "error"; message: string };
 
+const SENT_AT = /\n\n<enviada_em>[^<]*<\/enviada_em>$/;
+
+function withSentAt(prompt: string, timeZone: string) {
+  const now = new Intl.DateTimeFormat("pt-BR", { timeZone, dateStyle: "short", timeStyle: "short" }).format(new Date());
+  return `${prompt}\n\n<enviada_em>${now}</enviada_em>`;
+}
+
+/** A pergunta como o usuário escreveu, sem a marca de horário que vai para o modelo. */
+export function stripSentAt(content: string) {
+  return content.replace(SENT_AT, "");
+}
+
 const SYSTEM_PROMPT = `Você é o assistente do Emaús, o sistema que a liderança de uma igreja usa para acompanhar pessoas, ministérios, encontros (cultos, células, eventos) e frequência. Quem conversa com você é sempre alguém da liderança (pastor, secretaria ou líder de ministério).
 
 Como trabalhar:
@@ -174,6 +186,7 @@ Como trabalhar:
 - Ao citar uma pessoa, encontro ou ministério, use o campo "link" que a ferramenta devolve (formato Markdown), para o usuário poder abrir com um toque.
 - Para perguntas sobre períodos ("último domingo", "este mês", "outubro"), calcule as datas a partir da data de hoje informada abaixo e use listar_encontros com o intervalo certo.
 - Quando o pedido envolver várias etapas (ex.: "quem do New Mind faltou nos dois últimos sábados"), encadeie as ferramentas necessárias e só então responda.
+- Outras pessoas usam o Emaús ao mesmo tempo que você. Um resultado de ferramenta mostra os dados do momento da consulta, e cada pergunta traz o horário de envio em <enviada_em>. Para responder sobre a situação atual, ou antes de alterar algo, consulte de novo em vez de reaproveitar o resultado de uma pergunta anterior.
 
 Operações que alteram dados:
 - Você pode cadastrar, atualizar, registrar presença, criar acompanhamentos, mexer em ministérios e encontros quando o usuário pedir. Faça direto quando o pedido for claro.
@@ -337,6 +350,9 @@ async function anthropicLoop(
         tools,
         messages,
         output_config: { effort: "medium" },
+        // Cache automático até o último bloco: as próximas chamadas da rodada (e a próxima pergunta)
+        // reaproveitam o histórico em vez de pagá-lo cheio. O histórico só cresce no fim, nunca é editado.
+        cache_control: { type: "ephemeral" },
         // Fallback do servidor em recusas: Opus e Sonnet aceitam; Haiku não.
         ...(provider.model.includes("haiku") ? {} : { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" as const }),
       },
@@ -554,6 +570,8 @@ async function responsesLoop(
         // Instruções fixas primeiro: o prefixo estável aproveita o cache automático da OpenAI.
         instructions: `${SYSTEM_PROMPT}\n\n${context}`,
         input: items,
+        // Mantém as chamadas desta conversa no mesmo servidor de cache da OpenAI.
+        prompt_cache_key: `emaus:${ctx.conversationId}`,
         tools,
         reasoning: { effort: provider.effort ?? "low" },
         // Sem armazenar na OpenAI; o raciocínio volta criptografado para seguir entre chamadas.
@@ -634,7 +652,9 @@ export async function runAgent(opts: {
     | OpenAI.Responses.ResponseInputItem
   )[];
   const turnStart = messages.length;
-  messages.push({ role: "user", content: prompt });
+  // O horário fica no histórico (que é só acrescentado, então o cache segue valendo): o modelo sabe
+  // a idade dos resultados de perguntas anteriores e consulta de novo o que outros podem ter mudado.
+  messages.push({ role: "user", content: withSentAt(prompt, (await getSettings()).timezone) });
 
   const ctx: ToolContext = { user, conversationId: conv.id };
   const state: TurnState = {
